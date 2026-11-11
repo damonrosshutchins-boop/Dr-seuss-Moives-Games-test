@@ -2,6 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import os from "node:os";
+import { createBrotliDecompress } from "node:zlib";
+import { createReadStream, createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { createRequire } from "node:module";
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
 
@@ -108,5 +112,40 @@ try {
     if(!await exists(path.join(gameOut,file)))throw new Error("FISH local bundle missing "+file);
   console.log("Bundled FISH from authorized fork into dist/games/fish/");
 } finally { await fs.rm(fishTemp,{recursive:true,force:true}); }
+// FNASH2 is distributed as seven parts of one compressed Unity data stream.
+// Restore uncompressed files at build time because Pages cannot set Content-Encoding: br.
+const fnTemp=await fs.mkdtemp(path.join(os.tmpdir(),"fnash2-"));
+try {
+  execFileSync("git",["clone","--depth=1","--filter=blob:none",
+    "https://github.com/damonrosshutchins-boop/FNASH2.git",fnTemp],
+    {stdio:"inherit",timeout:180000});
+  const gameOut=path.join(out,"games","fnash2");
+  await fs.mkdir(gameOut,{recursive:true});
+  for(const entry of await fs.readdir(fnTemp,{withFileTypes:true})){
+    if(entry.name===".git"||entry.name==="single.html")continue;
+    await fs.cp(path.join(fnTemp,entry.name),path.join(gameOut,entry.name),{recursive:true});
+  }
+  const dir=path.join(gameOut,"Build");
+  const names=Array.from({length:7},(_,i)=>path.join(dir,"FNASH2.data.br.part"+(i+1)));
+  for(const file of names)if(!await exists(file))throw new Error("FNASH2 missing "+file);
+  async function* compressedChunks(parts){
+    for(const file of parts)for await(const chunk of createReadStream(file))yield chunk;
+  }
+  await pipeline(Readable.from(compressedChunks(names)),createBrotliDecompress(),
+    createWriteStream(path.join(dir,"FNASH2.data")));
+  for(const stem of ["FNASH2.framework.js","FNASH2.wasm"]){
+    await pipeline(createReadStream(path.join(dir,stem+".br")),createBrotliDecompress(),
+      createWriteStream(path.join(dir,stem)));
+  }
+  let gameHtml=await fs.readFile(path.join(gameOut,"index.html"),"utf8");
+  gameHtml=gameHtml.replaceAll("FNASH2.data.br","FNASH2.data")
+    .replaceAll("FNASH2.framework.js.br","FNASH2.framework.js")
+    .replaceAll("FNASH2.wasm.br","FNASH2.wasm");
+  await fs.writeFile(path.join(gameOut,"index.html"),gameHtml);
+  for(const file of names)await fs.rm(file);
+  await fs.rm(path.join(dir,"FNASH2.framework.js.br"));
+  await fs.rm(path.join(dir,"FNASH2.wasm.br"));
+  console.log("Bundled decompressed FNASH2 Unity files at dist/games/fnash2/");
+} finally {await fs.rm(fnTemp,{recursive:true,force:true});}
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
