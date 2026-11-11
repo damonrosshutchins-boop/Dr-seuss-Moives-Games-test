@@ -147,5 +147,23 @@ try {
   await fs.rm(path.join(dir,"FNASH2.wasm.br"));
   console.log("Bundled decompressed FNASH2 Unity files at dist/games/fnash2/");
 } finally {await fs.rm(fnTemp,{recursive:true,force:true});}
+// Hollow Knight is ~1 GB of split Unity assets. Keep the entry page local,
+// but fetch the user-authorized fork's existing chunks from a pinned CDN URL.
+// The split files are not compressed; decompressing would not reduce the size.
+const hollowCommit = "a73f4f8991b54ec844dc90995cd9ee606d8e7810";
+const hollowSource = "https://raw.githubusercontent.com/damonrosshutchins-boop/Hollow-Knight-Webport/" + hollowCommit + "/index.html";
+const hollowResponse = await fetch(hollowSource);
+if(!hollowResponse.ok)throw new Error("Failed to fetch Hollow Knight launcher: "+hollowResponse.status);
+let hollowHtml = await hollowResponse.text();
+hollowHtml = hollowHtml.replace(
+  /<base\\s+href="https:\\/\\/raw\\.githack\\.com\\/Stratus-Games\\/Hollow-Knight-Webport\\/main\\/"\\s*>/i,
+  '<base href="https://cdn.jsdelivr.net/gh/damonrosshutchins-boop/Hollow-Knight-Webport@'+hollowCommit+'/">'
+);
+if(!hollowHtml.includes("cdn.jsdelivr.net/gh/damonrosshutchins-boop/Hollow-Knight-Webport"))
+  throw new Error("Hollow Knight upstream launcher base URL changed");
+const hollowOut=path.join(out,"games","hollow-knight");
+await fs.mkdir(hollowOut,{recursive:true});
+await fs.writeFile(path.join(hollowOut,"index.html"),hollowHtml);
+console.log("Bundled Hollow Knight launcher; large split assets remain hosted on user's fork via CDN.");
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
