@@ -29,3 +29,18 @@ jobs:
           path: dist
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify published browser assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test"
+          for file in scram/scramjet.js controller/controller.api.js controller/controller.sw.js utils/scramjet-utils.js libcurl/index.mjs; do
+            echo "Checking $BASE/$file"
+            curl --fail --location --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors --max-time 20 -o /tmp/asset-check "$BASE/$file"
+            test -s /tmp/asset-check
+            if head -c 200 /tmp/asset-check | grep -Eiq '<!DOCTYPE html|<html'; then
+              echo "::error::Expected JavaScript but received HTML for $file"
+              exit 1
+            fi
+          done
+          echo "Published assets are reachable."
