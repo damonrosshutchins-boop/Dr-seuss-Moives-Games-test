@@ -260,7 +260,12 @@ try {
     const to=html.indexOf('</script>',cloakMarker);
     if(from>=0&&to>from)html=html.slice(0,from)+html.slice(to+9);
   }
-  html=html.replace(/<button[^>]*id="cloak-btn"[^>]*>[^<]*<\\/button>/i,"");
+  const cloakId=html.indexOf('id="cloak-btn"');
+  if(cloakId>=0){
+    const from=html.lastIndexOf('<button',cloakId);
+    const to=html.indexOf('</button>',cloakId);
+    if(from>=0&&to>from)html=html.slice(0,from)+html.slice(to+9);
+  }
   await fs.writeFile(path.join(dest,"index.html"),html);
   for(const file of ["lm.js","lm-page.js","lm.data","sw.js","disc.rvz.part0001","disc.rvz.part0008","lm.wasm.part0001","lm.wasm.part0003"]){
     if(!await exists(path.join(dest,file)))throw new Error("Luigi's Mansion bundle missing "+file);
