@@ -254,11 +254,13 @@ try {
   let html=await fs.readFile(path.join(dest,"index.html"),"utf8");
   // The source includes a Google Docs/about:blank disguise unrelated to the game.
   // Do not carry it into the arcade.
-  const disguiseStart=html.indexOf('  <script>\\n    const abBtn =');
-  const disguiseEnd=html.indexOf('</script>',disguiseStart);
-  if(disguiseStart>=0 && disguiseEnd>disguiseStart)
-    html=html.slice(0,disguiseStart)+html.slice(disguiseEnd+9);
-  html=html.replace(/<button[^>]*id="cloak-btn"[^>]*>[\\s\\S]*?<\\/button>/i,"");
+  const cloakMarker=html.indexOf('const abBtn =');
+  if(cloakMarker>=0){
+    const from=html.lastIndexOf('<script>',cloakMarker);
+    const to=html.indexOf('</script>',cloakMarker);
+    if(from>=0&&to>from)html=html.slice(0,from)+html.slice(to+9);
+  }
+  html=html.replace(/<button[^>]*id="cloak-btn"[^>]*>[^<]*<\\/button>/i,"");
   await fs.writeFile(path.join(dest,"index.html"),html);
   for(const file of ["lm.js","lm-page.js","lm.data","sw.js","disc.rvz.part0001","disc.rvz.part0008","lm.wasm.part0001","lm.wasm.part0003"]){
     if(!await exists(path.join(dest,file)))throw new Error("Luigi's Mansion bundle missing "+file);
