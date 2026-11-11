@@ -234,5 +234,36 @@ try {
   if(!await exists(path.join(dest,"modules","runtime.js")))throw Error("reVCDOS web runtime absent");
   console.log("Bundled reVCDOS MIT web frontend into dist/games/revcdos; game data external.");
 } finally {await fs.rm(revTemp,{recursive:true,force:true});}
+// Bundle Luigi's Mansion browser port from AlexBoops/lmrip locally.
+// Its split RVZ and WebAssembly files are fetched from our Pages path, not
+// from the publisher at game runtime. The browser still needs isolation for threads.
+const lmCommit="0f81b010940ed40a2c51822b6fc05df7843a743a";
+const lmTemp=await fs.mkdtemp(path.join(os.tmpdir(),"lmrip-"));
+try {
+  execFileSync("git",["clone","--filter=blob:none","--no-checkout",
+    "https://github.com/AlexBoops/lmrip.git",lmTemp],
+    {stdio:"inherit",timeout:240000});
+  execFileSync("git",["-C",lmTemp,"checkout",lmCommit],
+    {stdio:"inherit",timeout:240000});
+  const dest=path.join(out,"games","lmrip");
+  await fs.mkdir(dest,{recursive:true});
+  for(const entry of await fs.readdir(lmTemp,{withFileTypes:true})){
+    if(entry.name===".git")continue;
+    await fs.cp(path.join(lmTemp,entry.name),path.join(dest,entry.name),{recursive:true});
+  }
+  let html=await fs.readFile(path.join(dest,"index.html"),"utf8");
+  // The source includes a Google Docs/about:blank disguise unrelated to the game.
+  // Do not carry it into the arcade.
+  const disguiseStart=html.indexOf('  <script>\\n    const abBtn =');
+  const disguiseEnd=html.indexOf('</script>',disguiseStart);
+  if(disguiseStart>=0 && disguiseEnd>disguiseStart)
+    html=html.slice(0,disguiseStart)+html.slice(disguiseEnd+9);
+  html=html.replace(/<button[^>]*id="cloak-btn"[^>]*>[\\s\\S]*?<\\/button>/i,"");
+  await fs.writeFile(path.join(dest,"index.html"),html);
+  for(const file of ["lm.js","lm-page.js","lm.data","sw.js","disc.rvz.part0001","disc.rvz.part0008","lm.wasm.part0001","lm.wasm.part0003"]){
+    if(!await exists(path.join(dest,file)))throw new Error("Luigi's Mansion bundle missing "+file);
+  }
+  console.log("Bundled lmrip game files locally into dist/games/lmrip/");
+} finally {await fs.rm(lmTemp,{recursive:true,force:true});}
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
