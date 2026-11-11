@@ -29,7 +29,13 @@ app.use("/utils/",express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controller")));
 app.use("/libcurl/",express.static(dirOf("@mercuryworkshop/libcurl-transport")));
 app.use("/epoxy/",express.static(dirOf("@mercuryworkshop/epoxy-transport")));
-app.use(express.static(process.cwd(),{index:"index.html",dotfiles:"deny",extensions:["html"],setHeaders(res,file){if(file.endsWith(".js"))res.setHeader("Cache-Control","no-cache");}}));
+// Publish only the frontend entrypoints, not server source or configuration files.
+for (const file of ["index.html","proxy-client.js","sw.js"]) {
+ const route=file==="index.html"?"/":"/"+file;
+ app.get(route,(req,res)=>res.sendFile(path.join(process.cwd(),file),{
+  headers:{"Cache-Control":file==="index.html"?"no-cache":"no-store"}
+ }));
+}
 const server=http.createServer(app);
 server.on("upgrade",(req,socket,head)=>{
  try{
