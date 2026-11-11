@@ -67,5 +67,26 @@ try {
   }
   console.log("Bundled Meowdoku assets into dist/games/meowdoku/");
 } finally { await fs.rm(meowTemp,{recursive:true,force:true}); }
+// Super Mario 64 JavaScript upstream source includes GPL-3.0 license.
+// Bundle its browser entrypoint, game files and license as a separate local game.
+const sm64Commit = "f9a56855403dee1ea37a3fd2ad24e0217de5ed17";
+const sm64Temp = await fs.mkdtemp(path.join(os.tmpdir(), "sm64-"));
+try {
+  execFileSync("git", ["clone", "--filter=blob:none", "--no-checkout",
+    "https://github.com/ripjaw1219/super-mario-64-javascript.git", sm64Temp],
+    {stdio:"inherit",timeout:120000});
+  execFileSync("git", ["-C", sm64Temp, "checkout", sm64Commit],
+    {stdio:"inherit",timeout:120000});
+  const target=path.join(out,"games","sm64");
+  await fs.mkdir(target,{recursive:true});
+  for(const entry of await fs.readdir(sm64Temp,{withFileTypes:true})){
+    if(entry.name===".git")continue;
+    await fs.cp(path.join(sm64Temp,entry.name),path.join(target,entry.name),{recursive:true});
+  }
+  for(const file of ["start.html","game/sm64.js","game/sm64.wasm","LICENSE"]){
+    if(!await exists(path.join(target,file)))throw new Error("Local SM64 bundle missing "+file);
+  }
+  console.log("Bundled GPL-3.0 SM64 JavaScript project at dist/games/sm64/");
+} finally { await fs.rm(sm64Temp,{recursive:true,force:true}); }
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
