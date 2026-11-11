@@ -1,4 +1,6 @@
-importScripts("/controller/controller.sw.js");
+// Works under both the Render root and a GitHub Pages project path.
+const prefix=new URL("./",self.location.href).pathname;
+importScripts(prefix+"controller/controller.sw.js");
 self.addEventListener("fetch",event=>{
  if($scramjetController.shouldRoute(event))event.respondWith($scramjetController.route(event));
 });
