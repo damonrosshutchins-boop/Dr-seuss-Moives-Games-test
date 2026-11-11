@@ -76,6 +76,19 @@ async function createController(onProgress) {
   return instance;
 }
 
+// Begin initializing when the dashboard loads, rather than on first Play.
+export function warmupPlayer() {
+  if (!navigator.serviceWorker || controller || initialization) return;
+  initialization = createController().then(value => {
+    controller = value;
+    return value;
+  }).catch(error => {
+    // Do not break the dashboard; Play will retry and report the error.
+    console.warn("[Seuss player] Background warmup failed:", error);
+    return null;
+  }).finally(() => { initialization = undefined; });
+}
+
 export async function openProxied(iframe, url, onProgress) {
   const target = new URL(url);
   if (target.protocol !== "https:" ||
