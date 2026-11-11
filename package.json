@@ -17,6 +17,6 @@
     "@mercuryworkshop/scramjet-utils": "0.0.3",
     "@mercuryworkshop/libcurl-transport": "^2.0.5",
     "@mercuryworkshop/epoxy-transport": "^3.0.1",
-    "@mercuryworkshop/wisp-js": "^0.4.1"
+    "@mercuryworkshop/wisp-js": "0.5.3"
   }
 }
