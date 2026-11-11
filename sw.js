@@ -15,7 +15,7 @@
       loadFailure = "Controller imported but did not initialize";
     }
   } catch (error) {
-    loadFailure = String(error && (error.stack || error.message) || error);
+    loadFailure = error ? `${error.name || "Error"}: ${error.message || String(error)}${error.stack ? " | " + error.stack : ""}` : "Unknown import failure";
     console.error("Service worker dependency failed:", controllerUrl, error);
   }
 
