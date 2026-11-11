@@ -2,6 +2,8 @@
 // Its configured transport connects to the separately hosted Render Wisp service.
 let controller;
 let initialization;
+let currentStage = "Not started";
+const progressListeners = new Set();
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
 const allowed = new Set(["wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "monoxide.dev", "c00lkiddtech.github.io", "linkawaken1979-alt.github.io", "mollomm1.github.io", "sagaofowlz.github.io"]);
@@ -26,8 +28,10 @@ function loadScript(src) {
   }), "Loading " + src);
 }
 function report(stage, onProgress) {
+  currentStage = stage;
   console.info("[Seuss player]", stage);
   if (typeof onProgress === "function") onProgress(stage);
+  for (const listener of progressListeners) listener(stage);
 }
 
 // Check the worker's controller import before creating the Scramjet controller.
@@ -127,7 +131,12 @@ export async function openProxied(iframe, url, onProgress) {
       controller = value;
       return value;
     }).finally(() => { initialization = undefined; });
-    await initialization;
+    if (typeof onProgress === "function") {
+      onProgress(currentStage);
+      progressListeners.add(onProgress);
+    }
+    try { await initialization; }
+    finally { progressListeners.delete(onProgress); }
   }
   report("Opening selected content…", onProgress);
   const frame = controller.createFrame(iframe);
