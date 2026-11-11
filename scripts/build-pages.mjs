@@ -165,5 +165,28 @@ const hollowOut=path.join(out,"games","hollow-knight");
 await fs.mkdir(hollowOut,{recursive:true});
 await fs.writeFile(path.join(hollowOut,"index.html"),hollowHtml);
 console.log("Bundled Hollow Knight launcher; large split assets remain hosted on user's fork via CDN.");
+// Lightweight in-site launchers for oversized browser builds. Their
+// Unity data/chunks remain on the original publishers' hosts, not on Pages.
+async function addRemoteAssetLauncher(name, ownerRepo, revision, transforms) {
+  const source="https://raw.githubusercontent.com/"+ownerRepo+"/"+revision+"/index.html";
+  const response=await fetch(source);
+  if(!response.ok)throw new Error(name+" launcher fetch failed: "+response.status);
+  let html=await response.text();
+  for(const [find,replacement] of transforms){
+    if(!html.includes(find))throw new Error(name+" launcher HTML changed: "+find);
+    html=html.replaceAll(find,replacement);
+  }
+  const folder=path.join(out,"games",name);
+  await fs.mkdir(folder,{recursive:true});
+  await fs.writeFile(path.join(folder,"index.html"),html);
+  console.log("Built "+name+" launcher; bulk game assets are remotely hosted.");
+}
+await addRemoteAssetLauncher("granny3","AlexBoops/granny3rip","a8e59b3d10ff96d54881903a83a4fc9fcc02bf28",[
+  ['<base href="./">','<base href="https://cdn.jsdelivr.net/gh/AlexBoops/granny3rip@a8e59b3d10ff96d54881903a83a4fc9fcc02bf28/">']
+]);
+await addRemoteAssetLauncher("silksong","web-ports/hollow-knight-silksong","bcbe014765f2f6ca4b1d82ac25755a0299a600ab",[
+  ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@master/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/'],
+  ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@latest/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/']
+]);
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
