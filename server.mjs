@@ -15,8 +15,8 @@ wisp.options.allow_tcp_streams=true;
 wisp.options.allow_direct_ip=false;
 wisp.options.allow_private_ips=false;
 wisp.options.allow_loopback_ips=false;
-wisp.options.stream_limit_total=36;
-wisp.options.stream_limit_per_host=12;
+// Avoid wisp-js 0.4.1 stream-limit bug (connection.streams not iterable).
+// Keep the destination allowlist, network restrictions, and origin checks.
 app.use((req,res,next)=>{
  res.setHeader("Cross-Origin-Opener-Policy","same-origin");
  res.setHeader("Cross-Origin-Embedder-Policy","require-corp");
