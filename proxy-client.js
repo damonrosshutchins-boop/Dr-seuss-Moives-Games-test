@@ -4,7 +4,9 @@ let controller;
 let initialization;
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-const allowed = new Set(["wasm.rip", "shuttletv.pk"]);
+const allowed = new Set(["wasm.rip", "shuttletv.pk", "raw.githack.com"]);
+// FISH is restricted to this specific hosted repository page.
+const fishEntry = "https://raw.githack.com/web-ports/fish/main/index.html";
 const endpoint = "wss://seuss-cinema-arcade.onrender.com/wisp/";
 const MAX_STARTUP_MS = 15000;
 
@@ -79,6 +81,9 @@ export async function openProxied(iframe, url, onProgress) {
   if (target.protocol !== "https:" ||
     ![...allowed].some(host => target.hostname === host || target.hostname.endsWith("." + host))) {
     throw new Error("Only approved games and movie destinations can be opened.");
+  }
+  if (target.hostname === "raw.githack.com" && target.href !== fishEntry) {
+    throw new Error("Only the approved FISH game page is supported on this host.");
   }
   if (!navigator.serviceWorker)
     throw new Error("This browser does not support service workers.");
