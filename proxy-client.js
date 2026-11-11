@@ -82,11 +82,9 @@ export function warmupPlayer() {
   initialization = createController().then(value => {
     controller = value;
     return value;
-  }).catch(error => {
-    // Do not break the dashboard; Play will retry and report the error.
-    console.warn("[Seuss player] Background warmup failed:", error);
-    return null;
   }).finally(() => { initialization = undefined; });
+  // Observe background failures without swallowing them for an active Play request.
+  initialization.catch(error => console.warn("[Seuss player] Background warmup failed:", error));
 }
 
 export async function openProxied(iframe, url, onProgress) {
