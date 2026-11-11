@@ -26,10 +26,66 @@ const $=id=>document.getElementById(id);let filter='all',selected=null;
 const favorites=new Set(JSON.parse(localStorage.getItem('seussFavorites')||'[]'));
 function render(){const q=$('search').value.toLowerCase().trim();const items=library.filter(x=>(filter==='all'||(filter==='favorite'?favorites.has(x.id):x.kind===filter))&&(x.name.toLowerCase().includes(q)||x.desc.toLowerCase().includes(q)));$('heading').textContent=({all:'Featured picks',game:'Game library',movie:'Movie library',favorite:'Your favorites'})[filter];$('current').textContent=({all:'Discover',game:'Games',movie:'Movies',favorite:'Favorites'})[filter];$('count').textContent=items.length+' items';$('cards').replaceChildren();for(const x of items){const card=document.createElement('article');card.className='card';card.innerHTML='<div class="art"><span class="tag"></span><span class="emoji"></span></div><div class="body"><h3></h3><p></p><div class="actions"><button class="play">Open ↗</button><button class="fav" aria-label="Toggle favorite">♡</button></div></div>';card.querySelector('.art').style.background=x.bg;card.querySelector('.tag').textContent=x.kind.toUpperCase();card.querySelector('.emoji').textContent=x.icon;card.querySelector('h3').textContent=x.name;card.querySelector('p').textContent=x.desc;card.querySelector('.play').textContent='Play here ▶';card.querySelector('.play').onclick=()=>openItem(x);const f=card.querySelector('.fav');f.textContent=favorites.has(x.id)?'♥':'♡';f.onclick=()=>{favorites.has(x.id)?favorites.delete(x.id):favorites.add(x.id);localStorage.setItem('seussFavorites',JSON.stringify([...favorites]));render()};$('cards').append(card)}if(!items.length){$('cards').textContent='No matching destinations.'}}
 document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-filter]').forEach(n=>n.classList.remove('active'));b.classList.add('active');filter=b.dataset.filter;render()});$('search').oninput=render;$('explore').onclick=()=>$('cards').scrollIntoView({behavior:'smooth'});
-const allowedOrigins=library.map(x=>new URL(x.url).origin);
-async function openItem(x){selected=x;$('viewerTitle').textContent=x.name;$('viewerStatus').textContent='Starting Scramjet over Wisp…';$('viewerAlert').classList.add('hidden');$('viewer').classList.remove('hidden');$('frame').src='about:blank';try{if(x.local){const path=new URL(x.url,location.href);if(path.origin!==location.origin)throw Error('Local game must be on the same origin');const check=await fetch(path.href,{method:'HEAD'});if(!check.ok)throw Error('Local game assets missing ('+check.status+')');$('viewerStatus').textContent='Loading local game assets…';$('frame').src=path.href;return;}const {openProxied}=await import('./proxy-client.js');await openProxied($('frame'),x.url,stage=>{$('viewerStatus').textContent=stage});$('viewerStatus').textContent='Player started · loading content';}catch(err){$('viewerStatus').textContent='Proxy unavailable';$('viewerAlert').textContent=err.message+' · This destination has not been opened directly.';$('viewerAlert').classList.remove('hidden');}}
-$('closeViewer').onclick=()=>{$('frame').src='about:blank';$('viewer').classList.add('hidden')};$('reload').onclick=()=>{if(selected)openItem(selected)};
-$('settingsButton').onclick=()=>$('settings').classList.remove('hidden');$('closeSettings').onclick=()=>$('settings').classList.add('hidden');
+// A fresh iframe per session ensures Unity/Godot/WebAssembly apps are unloaded
+// when the player closes. Session IDs invalidate pending async navigation.
+let playerSession=0;
+function resetPlayerFrame(){
+  const old=$('frame');
+  const replacement=document.createElement('iframe');
+  replacement.id='frame';
+  replacement.title='Embedded game or movie';
+  replacement.setAttribute('allow','fullscreen; gamepad; autoplay');
+  replacement.setAttribute('referrerpolicy','no-referrer');
+  replacement.setAttribute('sandbox','allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-popups');
+  old.replaceWith(replacement);
+  try{old.src='about:blank';old.removeAttribute('src');}catch(error){console.warn('Player cleanup:',error);}
+  return replacement;
+}
+function closePlayer(){
+  playerSession++;
+  selected=null;
+  resetPlayerFrame();
+  $('viewer').classList.add('hidden');
+  $('viewerStatus').textContent='Ready';
+  $('viewerAlert').classList.add('hidden');
+  $('explore').focus();
+}
+async function openItem(x){
+  const session=++playerSession;
+  selected=x;
+  const frame=resetPlayerFrame();
+  $('viewerTitle').textContent=x.name;
+  $('viewerStatus').textContent=x.local?'Preparing local game…':'Starting Scramjet over Wisp…';
+  $('viewerAlert').classList.add('hidden');
+  $('viewer').classList.remove('hidden');
+  $('closeViewer').focus();
+  try{
+    if(x.local){
+      const path=new URL(x.url,location.href);
+      if(path.origin!==location.origin)throw Error('Local game must be on the same origin');
+      const response=await fetch(path.href,{method:'HEAD'});
+      if(session!==playerSession)return;
+      if(!response.ok)throw Error('Local game assets missing ('+response.status+')');
+      $('viewerStatus').textContent='Loading local game assets…';
+      frame.src=path.href;
+      frame.addEventListener('load',()=>{if(session===playerSession)$('viewerStatus').textContent='Game loaded';},{once:true});
+      return;
+    }
+    const {openProxied}=await import('./proxy-client.js');
+    if(session!==playerSession)return;
+    await openProxied(frame,x.url,stage=>{if(session===playerSession)$('viewerStatus').textContent=stage});
+    if(session===playerSession)$('viewerStatus').textContent='Player started · loading content';
+  }catch(err){
+    if(session!==playerSession)return;
+    $('viewerStatus').textContent='Unable to load game';
+    $('viewerAlert').textContent=err.message||String(err);
+    $('viewerAlert').classList.remove('hidden');
+  }
+}
+$('closeViewer').onclick=closePlayer;
+$('reload').onclick=()=>{if(selected)openItem(selected)};
+$('settingsButton').onclick=()=>$('settings').classList.remove('hidden');
+$('closeSettings').onclick=()=>$('settings').classList.add('hidden');
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('settings').classList.add('hidden');$('closeViewer').click()}});render();
 // Start the expensive player setup while the user browses the game library.
 import('./proxy-client.js').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
