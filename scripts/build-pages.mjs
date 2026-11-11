@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
+import os from "node:os";
 import { createRequire } from "node:module";
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
 
@@ -43,5 +45,27 @@ for(const file of ["scram/scramjet.js","scram/scramjet.wasm","controller/control
  if(size===0)throw new Error("Pages asset is empty: "+file);
  console.log("Verified "+file+" ("+size+" bytes)");
 }
+// Bundle the requested Meowdoku Godot web port under our own Pages path.
+// Pin the upstream commit for repeatable builds and include the game data
+// so it does not depend on the upstream GitHub Pages hosting at runtime.
+const meowCommit = "941ed3caf7983d0fa6350ad3dc928c434b2f3b4b";
+const meowTemp = await fs.mkdtemp(path.join(os.tmpdir(), "meowdoku-"));
+try {
+  execFileSync("git", ["clone", "--filter=blob:none", "--no-checkout",
+    "https://github.com/c00lkiddtech/md-.git", meowTemp],
+    {stdio:"inherit",timeout:120000});
+  execFileSync("git", ["-C", meowTemp, "checkout", meowCommit],
+    {stdio:"inherit",timeout:120000});
+  const gameOut=path.join(out,"games","meowdoku");
+  await fs.mkdir(gameOut,{recursive:true});
+  for(const entry of await fs.readdir(meowTemp,{withFileTypes:true})){
+    if(entry.name===".git"||entry.name===".gitattributes")continue;
+    await fs.cp(path.join(meowTemp,entry.name),path.join(gameOut,entry.name),{recursive:true});
+  }
+  for(const file of ["index.html","index.js","loader.js","data"]){
+    if(!await exists(path.join(gameOut,file)))throw new Error("Meowdoku local bundle missing "+file);
+  }
+  console.log("Bundled Meowdoku assets into dist/games/meowdoku/");
+} finally { await fs.rm(meowTemp,{recursive:true,force:true}); }
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
