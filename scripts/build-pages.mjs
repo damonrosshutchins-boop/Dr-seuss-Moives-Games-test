@@ -156,7 +156,7 @@ const hollowResponse = await fetch(hollowSource);
 if(!hollowResponse.ok)throw new Error("Failed to fetch Hollow Knight launcher: "+hollowResponse.status);
 let hollowHtml = await hollowResponse.text();
 hollowHtml = hollowHtml.replace(
-  /<base\\s+href="https:\\/\\/raw\\.githack\\.com\\/Stratus-Games\\/Hollow-Knight-Webport\\/main\\/"\\s*>/i,
+  '<base href="https://raw.githack.com/Stratus-Games/Hollow-Knight-Webport/main/">',
   '<base href="https://cdn.jsdelivr.net/gh/damonrosshutchins-boop/Hollow-Knight-Webport@'+hollowCommit+'/">'
 );
 if(!hollowHtml.includes("cdn.jsdelivr.net/gh/damonrosshutchins-boop/Hollow-Knight-Webport"))
