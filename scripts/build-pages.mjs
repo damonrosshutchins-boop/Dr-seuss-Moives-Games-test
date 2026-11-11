@@ -88,5 +88,25 @@ try {
   }
   console.log("Bundled GPL-3.0 SM64 JavaScript project at dist/games/sm64/");
 } finally { await fs.rm(sm64Temp,{recursive:true,force:true}); }
+// Bundle the FISH Unity build from the user's authorized fork.
+const fishTemp = await fs.mkdtemp(path.join(os.tmpdir(), "fish-"));
+try {
+  execFileSync("git", ["clone","--depth=1","--filter=blob:none",
+    "https://github.com/damonrosshutchins-boop/fish.git",fishTemp],
+    {stdio:"inherit",timeout:180000});
+  const gameOut=path.join(out,"games","fish");
+  await fs.mkdir(gameOut,{recursive:true});
+  for(const entry of await fs.readdir(fishTemp,{withFileTypes:true})){
+    if(entry.name===".git")continue;
+    await fs.cp(path.join(fishTemp,entry.name),path.join(gameOut,entry.name),{recursive:true});
+  }
+  const htmlPath=path.join(gameOut,"index.html");
+  let gameHtml=await fs.readFile(htmlPath,"utf8");
+  gameHtml=gameHtml.replace(/<base\s+href="https:\/\/cdn\.jsdelivr\.net\/gh\/web-ports\/fish@main\/"\s*>/i,"");
+  await fs.writeFile(htmlPath,gameHtml);
+  for(const file of ["index.html","Build/FISH.loader.js","Build/FISH.data.part1","Build/FISH.wasm.part1"])
+    if(!await exists(path.join(gameOut,file)))throw new Error("FISH local bundle missing "+file);
+  console.log("Bundled FISH from authorized fork into dist/games/fish/");
+} finally { await fs.rm(fishTemp,{recursive:true,force:true}); }
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
