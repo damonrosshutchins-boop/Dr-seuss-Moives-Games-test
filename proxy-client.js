@@ -29,6 +29,26 @@ function report(stage, onProgress) {
   console.info("[Seuss player]", stage);
   if (typeof onProgress === "function") onProgress(stage);
 }
+
+// Check the worker's controller import before creating the Scramjet controller.
+// A worker that installed after swallowing importScripts errors cannot handshake.
+function checkWorker(worker) {
+  return timeout(new Promise((resolve, reject) => {
+    const onMessage = event => {
+      if (event.data?.type !== "seuss-worker-diagnostics") return;
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+      if (event.data.loaded) resolve();
+      else reject(new Error("Service worker controller failed to load: " +
+        (event.data.error || "unknown error") + " (" + event.data.controllerUrl + ")"));
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    try { worker.postMessage("seuss-worker-diagnostics"); }
+    catch (error) {
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+      reject(error);
+    }
+  }), "Service-worker controller handshake", 5000);
+}
 async function createController(onProgress) {
   report("Registering service worker…", onProgress);
   const registration = await timeout(
@@ -41,6 +61,8 @@ async function createController(onProgress) {
   await timeout(navigator.serviceWorker.ready, "Service-worker activation");
   const worker = registration.active || (await navigator.serviceWorker.getRegistration(base))?.active;
   if (!worker) throw new Error("Service worker is not active; reload the page and try again.");
+  report("Checking service-worker runtime…", onProgress);
+  await checkWorker(worker);
 
   report("Loading player scripts…", onProgress);
   for (const src of [
@@ -72,7 +94,8 @@ async function createController(onProgress) {
   });
   report("Initializing Scramjet controller…", onProgress);
   if (typeof instance.wait === "function")
-    await timeout(instance.wait(), "Scramjet controller initialization");
+    await timeout(instance.wait(), "Scramjet controller initialization (worker handshake, WebAssembly or browser storage)", 20000);
+  report("Scramjet controller ready", onProgress);
   return instance;
 }
 
