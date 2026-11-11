@@ -1,19 +1,24 @@
 # Seuss Cinema & Arcade
 
-A modern, responsive entertainment launcher for the curated destinations **wasm.rip** and **shuttletv.pk**. Static frontend works on GitHub Pages.
+A curated movies-and-games dashboard with an embedded Scramjet 2.x player.
 
-## Current state
-- Library, category filters, search, favorites, and viewer are implemented.
-- The viewer uses direct iframe URLs. Some destinations may reject this.
-- Connection settings store a proxy origin and Wisp endpoint for future integration, but **they do not connect the iframe through Scramjet**.
-- **Scramjet and Wisp are not yet deployed**. There is no unrestricted URL input.
-- A Render service is needed for Wisp. A separate, properly integrated Scramjet frontend is also required.
+## GitHub Pages deployment
 
-## GitHub Pages
-Settings → Pages → Deploy from branch → main → root.
+GitHub Actions builds the browser assets into `dist/` and deploys them to GitHub Pages on pushes to `main`.
 
-## Render
-Create a workspace in Render Dashboard first, then deploy a dedicated backend service into it. Keep the relay restricted to approved domains, block private networks, and require valid origin checks. Do not claim a relay is working until WebSocket connection and game playback tests pass.
+1. In **Settings → Pages**, set **Build and deployment → Source** to **GitHub Actions**.
+2. Check **Actions → Deploy Cinema Arcade to GitHub Pages** to see build/deploy results.
+3. Visit https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/
 
-## Usage
-Only embed, proxy, and stream websites/media where allowed. This application does not bypass DRM, authentication, subscriptions, or access restrictions.
+The static site serves the Scramjet worker under the GitHub Pages repository path. Its Libcurl transport connects to the separately hosted Render endpoint:
+`wss://seuss-cinema-arcade.onrender.com/wisp/`.
+
+GitHub Pages cannot run a Wisp server. The Render service must be active for proxied pages to load. Existing origin checks and destination restrictions are enforced server-side.
+
+## Render deployment
+
+Render hosts the Node.js service in `server.mjs` (frontend and Wisp combined). `npm start` starts the service. `/health` reports liveness.
+
+## Compatibility
+
+Service worker interception, content security policies, cross-origin isolation, and some game/video sites' embedded resources may cause incompatibilities. A successful build is **not** proof that each game or movie plays successfully. Only use media sources you have permission to access. This does not circumvent DRM or subscription requirements.
