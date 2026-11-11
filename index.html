@@ -30,4 +30,6 @@ async function openItem(x){selected=x;$('viewerTitle').textContent=x.name;$('vie
 $('closeViewer').onclick=()=>{$('frame').src='about:blank';$('viewer').classList.add('hidden')};$('reload').onclick=()=>{if(selected)openItem(selected)};
 $('settingsButton').onclick=()=>$('settings').classList.remove('hidden');$('closeSettings').onclick=()=>$('settings').classList.add('hidden');
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('settings').classList.add('hidden');$('closeViewer').click()}});render();
+// Start the expensive player setup while the user browses the game library.
+import('./proxy-client.js').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
 </script></body></html>
