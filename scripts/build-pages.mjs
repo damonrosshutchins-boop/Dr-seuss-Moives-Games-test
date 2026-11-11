@@ -188,5 +188,21 @@ await addRemoteAssetLauncher("silksong","web-ports/hollow-knight-silksong","bcbe
   ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@master/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/'],
   ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@latest/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/']
 ]);
+// Large runtimes cannot fit in this Pages artifact. These launch pages keep
+// navigation inside the arcade but run the game's existing GitHub Pages build
+// in an isolated iframe. They are NOT locally hosted copies of the game assets.
+for(const [slug,title,source] of [
+  ["minecraft-rust","Minecraft Rust (Web)","https://alexboops.github.io/mc-rust-onweb/"],
+  ["half-life-2","Half-Life 2 Web Port","https://alexboops.github.io/half-life-2-port/"],
+  ["portal-1","Portal 1 Web Port","https://alexboops.github.io/portal-1-port/"]
+]){
+  const folder=path.join(out,"games",slug);
+  await fs.mkdir(folder,{recursive:true});
+  const page='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+title+'</title>'+
+    '<style>html,body{margin:0;height:100%;background:#101522;color:white;font:14px system-ui}iframe{width:100%;height:100%;border:0;display:block}#note{position:absolute;top:0;left:0;right:0;padding:9px;background:#182033d9;pointer-events:none}iframe:not([src]){display:none}</style>'+
+    '<div id="note">Source-hosted game running inside the arcade. Browser restrictions may prevent some games from loading.</div>'+
+    '<iframe title="'+title+'" referrerpolicy="no-referrer" allow="autoplay; gamepad" src="'+source+'"></iframe></html>';
+  await fs.writeFile(path.join(folder,"index.html"),page);
+}
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
