@@ -1,5 +1,5 @@
-// Intended for the Render-hosted instance of this repository.
-// The service worker and Scramjet assets MUST be served from the same origin as this page.
+// GitHub Pages hosts Scramjet's service worker; Render hosts the Wisp relay.
+// All destination requests made through this controller use the Render transport.
 let controller,frame;
 const base=new URL("./",import.meta.url).pathname;
 const asset=p=>base+p;
@@ -20,10 +20,8 @@ export async function openProxied(iframe,url){
   if(!serviceworker)throw Error("Service worker was not activated");
   for(const src of [asset("scram/scramjet.js"),asset("controller/controller.api.js"),asset("utils/scramjet-utils.js")])await loadScript(src);
   const {default:LibcurlClient}=await import(asset("libcurl/index.mjs"));
-  const protocol=location.protocol==="https:"?"wss:":"ws:";
-  const endpoint=location.hostname.endsWith(".github.io")
-    ?"wss://seuss-cinema-arcade.onrender.com/wisp/"
-    :protocol+"//"+location.host+"/wisp/";
+  // Fixed relay: never silently fall back to direct requests or another proxy.
+  const endpoint="wss://seuss-cinema-arcade.onrender.com/wisp/";
   const transport=new LibcurlClient({wisp:endpoint});
   controller=new window.$scramjetController.Controller({serviceworker,transport,config:{scramjetPath:asset("scram/scramjet.js"),wasmPath:asset("scram/scramjet.wasm"),injectPath:asset("controller/controller.inject.js"),prefix:base+"scramjet/"}});
   await controller.wait();
