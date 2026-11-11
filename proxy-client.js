@@ -4,9 +4,9 @@ let controller;
 let initialization;
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-const allowed = new Set(["wasm.rip", "shuttletv.pk", "raw.githack.com"]);
-// FISH is restricted to this specific hosted repository page.
-const fishEntry = "https://raw.githack.com/web-ports/fish/main/index.html";
+const allowed = new Set(["wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "monoxide.dev", "c00lkiddtech.github.io", "linkawaken1979-alt.github.io", "mollomm1.github.io", "sagaofowlz.github.io"]);
+// Exact entry points on shared hosting domains prevent arbitrary navigation.
+const gameEntries = new Set(["https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://monoxide.dev/ultrakill/","https://c00lkiddtech.github.io/md-/","https://linkawaken1979-alt.github.io/kisakcod/","https://raw.githack.com/Truf-Porter/HTMLgta/main/index.html","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://raw.githack.com/web-ports/fish/main/index.html"]);
 const endpoint = "wss://seuss-cinema-arcade.onrender.com/wisp/";
 const MAX_STARTUP_MS = 15000;
 
@@ -82,8 +82,8 @@ export async function openProxied(iframe, url, onProgress) {
     ![...allowed].some(host => target.hostname === host || target.hostname.endsWith("." + host))) {
     throw new Error("Only approved games and movie destinations can be opened.");
   }
-  if (target.hostname === "raw.githack.com" && target.href !== fishEntry) {
-    throw new Error("Only the approved FISH game page is supported on this host.");
+  if (target.hostname !== "wasm.rip" && target.hostname !== "shuttletv.pk" && !gameEntries.has(target.href)) {
+    throw new Error("Only the approved game entry points can be opened here.");
   }
   if (!navigator.serviceWorker)
     throw new Error("This browser does not support service workers.");
