@@ -1,5 +1,5 @@
 // Curated game/movie player. Static assets run on GitHub Pages.
-// Its configured transport connects to the separately hosted Render Wisp service.
+// Its chosen transport connects to Render or a configured CloudFront WebSocket distribution.
 let controller;
 let initialization;
 let currentStage = "Not started";
@@ -9,7 +9,70 @@ const asset = path => base + path;
 const allowed = new Set(["wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "monoxide.dev", "c00lkiddtech.github.io", "linkawaken1979-alt.github.io", "mollomm1.github.io", "sagaofowlz.github.io"]);
 // Exact entry points on shared hosting domains prevent arbitrary navigation.
 const gameEntries = new Set(["https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://monoxide.dev/ultrakill/","https://c00lkiddtech.github.io/md-/","https://linkawaken1979-alt.github.io/kisakcod/","https://raw.githack.com/Truf-Porter/HTMLgta/main/index.html","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://raw.githack.com/web-ports/fish/main/index.html"]);
-const endpoint = "wss://seuss-cinema-arcade.onrender.com/wisp/";
+const RENDER_ENDPOINT = "wss://seuss-cinema-arcade.onrender.com/wisp/";
+const RELAY_STORAGE_KEY = "seuss-cinema-relay-v1";
+
+// CloudFront is a CDN/WebSocket reverse proxy, not a Node.js/Wisp host.
+// Keep the CloudFront choice restricted to a distribution domain and /wisp/ path.
+export function normalizeCloudFrontDomain(input) {
+  let value = String(input || "").trim().toLowerCase();
+  if (value.startsWith("https://")) value = value.slice("https://".length);
+  if (value.startsWith("wss://")) value = value.slice("wss://".length);
+  value = value.replace(/\/$/, "");
+  if (!/^d[a-z0-9-]{7,60}\.cloudfront\.net$/.test(value)) {
+    throw new Error("Enter an AWS CloudFront distribution hostname, for example d1234567890abc.cloudfront.net.");
+  }
+  return value;
+}
+export function getRelaySettings() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(RELAY_STORAGE_KEY) || "null");
+    if (stored?.provider === "cloudfront") {
+      const domain = normalizeCloudFrontDomain(stored.domain);
+      return { provider: "cloudfront", domain, endpoint: "wss://" + domain + "/wisp/" };
+    }
+  } catch (error) {
+    console.warn("[Seuss relay] Using default Render relay:", error.message);
+  }
+  return { provider: "render", domain: "", endpoint: RENDER_ENDPOINT };
+}
+export function saveRelaySettings(provider, domain) {
+  if (provider !== "render" && provider !== "cloudfront") {
+    throw new Error("Choose Render or CloudFront.");
+  }
+  const next = provider === "cloudfront"
+    ? {provider, domain: normalizeCloudFrontDomain(domain)}
+    : {provider: "render", domain: ""};
+  localStorage.setItem(RELAY_STORAGE_KEY, JSON.stringify(next));
+  return getRelaySettings();
+}
+export function testRelaySettings(provider, domain, timeoutMs = 9000) {
+  let endpoint;
+  if (provider === "render") endpoint = RENDER_ENDPOINT;
+  else if (provider === "cloudfront") endpoint = "wss://" + normalizeCloudFrontDomain(domain) + "/wisp/";
+  else return Promise.reject(new Error("Unknown relay provider."));
+  return new Promise((resolve, reject) => {
+    let socket;
+    let finished = false;
+    const finish = (err) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (socket) {
+        socket.onopen = null; socket.onerror = null; socket.onclose = null;
+        try { socket.close(); } catch {}
+      }
+      if (err) reject(err); else resolve(endpoint);
+    };
+    const timer = setTimeout(() => finish(new Error("The selected relay did not respond within 9 seconds.")), timeoutMs);
+    try {
+      socket = new WebSocket(endpoint);
+      socket.onopen = () => finish(null);
+      socket.onerror = () => finish(new Error("Unable to open a secure WebSocket to " + endpoint + ". Check the distribution's origin, /wisp/ behavior, WebSocket headers and allowed website origins."));
+      socket.onclose = () => finish(new Error("The relay closed the WebSocket before it connected."));
+    } catch (error) { finish(error); }
+  });
+}
 const MAX_STARTUP_MS = 15000;
 
 function timeout(promise, name, ms = MAX_STARTUP_MS) {
@@ -79,13 +142,14 @@ async function createController(onProgress) {
     throw new Error("Scramjet controller did not initialize. Check browser console for script errors.");
   }
 
-  report("Setting up Render transport…", onProgress);
+  const selectedRelay = getRelaySettings();
+  report("Setting up " + (selectedRelay.provider === "cloudfront" ? "CloudFront" : "Render") + " transport…", onProgress);
   const module = await timeout(import(asset("libcurl/index.mjs")), "Loading transport module");
   const LibcurlClient = module.default;
   if (typeof LibcurlClient !== "function") {
     throw new Error("Libcurl transport module did not export a client.");
   }
-  const transport = new LibcurlClient({wisp: endpoint});
+  const transport = new LibcurlClient({wisp: selectedRelay.endpoint});
   const instance = new window.$scramjetController.Controller({
     serviceworker: worker,
     transport,
