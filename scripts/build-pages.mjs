@@ -38,6 +38,10 @@ await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
 for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css"])
  await fs.copyFile(file,path.join(out,file));
+// This local setup screen does not ship Nintendo disc images or emulator binaries.
+await fs.mkdir(path.join(out,"games","smsrip"),{recursive:true});
+await fs.copyFile(path.join("games","smsrip","index.html"),path.join(out,"games","smsrip","index.html"));
+
 await copyRuntime("scram",scramjetPath,"scramjet.js");
 await copyRuntime("controller",pkgDir("@mercuryworkshop/scramjet-controller"),"controller.api.js");
 await copyRuntime("utils",pkgDir("@mercuryworkshop/scramjet-utils"),"scramjet-utils.js");
