@@ -8,6 +8,16 @@
   <header><div><h2>📹 Seuss Calls</h2><p>Private invite-only calls, coordinated with Supabase. No recording.</p></div><button type="button" id="callsClose">✕ Close</button></header>
   <div class="calls-content">
    <div id="callsStatus" role="status" aria-live="polite">Camera and microphone are off.</div>
+   <form id="callsAccountForm" class="calls-panel" hidden>
+     <h3>Seuss Search account required</h3>
+     <p id="callsAccessHelp" class="calls-help">Sign in with an approved Seuss Search account. Guest sessions cannot create calls.</p>
+     <label for="callsLoginUsername">Username (or older account email)</label>
+     <input id="callsLoginUsername" type="text" autocomplete="username" maxlength="254" placeholder="Your Seuss Search username" spellcheck="false">
+     <label for="callsLoginPassword">Password</label>
+     <input id="callsLoginPassword" type="password" autocomplete="current-password" placeholder="Account password">
+     <div class="calls-actions"><button type="submit" id="callsLoginSubmit">Sign in to calls</button><button type="button" id="callsRetryAccess">Check approval again</button></div>
+     <p class="calls-help">Need an account or waiting for approval? Use the existing <a href="https://damonrosshutchins-boop.github.io/dr-seuss-search/" target="_blank" rel="noopener noreferrer">Seuss Search login and access-request page</a>. Moderator restrictions cannot be overridden here.</p>
+   </form>
    <form id="callsNameForm" class="calls-panel" hidden><label for="callsName">Choose your display name</label><input id="callsName" maxlength="24" minlength="2" required autocomplete="nickname" placeholder="Display name"><div class="calls-actions"><button type="submit">Continue</button></div></form>
    <section id="callsLobby" class="calls-panel" hidden>
     <h3>Start a private call</h3><p>Create an invite code and share it with a person you know. Only room members with the code can connect.</p>
