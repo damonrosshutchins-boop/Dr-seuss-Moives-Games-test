@@ -19,11 +19,17 @@ wisp.options.allow_loopback_ips=false;
 // Keep the destination allowlist, network restrictions, and origin checks.
 app.use((req,res,next)=>{
  res.setHeader("Cross-Origin-Opener-Policy","same-origin");
- res.setHeader("Cross-Origin-Embedder-Policy","require-corp");
+ // Credentialless allows public cross-origin assets while keeping Wisp Origin checks separate.
+ res.setHeader("Cross-Origin-Embedder-Policy","credentialless");
  res.setHeader("X-Content-Type-Options","nosniff");
+ // Allow browser runtime files on the other approved website origin.
+ if (/^\/(?:scram|utils|controller|libcurl|epoxy)\//.test(req.path)) {
+   res.setHeader("Cross-Origin-Resource-Policy","cross-origin");
+   res.setHeader("Access-Control-Allow-Origin","*");
+ }
  next();
 });
-app.get("/health",(req,res)=>res.json({ok:true,service:"seuss-cinema-scramjet-wisp",restricted:true}));
+app.get("/health",(req,res)=>res.json({ok:true,service:"seuss-cinema-scramjet-wisp",restricted:true,coep:"credentialless",relayOriginPolicy:"allowlist"}));
 app.use("/scram/",express.static(scramjetPath));
 app.use("/utils/",express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controller")));
