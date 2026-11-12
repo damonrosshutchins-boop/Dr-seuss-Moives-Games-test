@@ -213,11 +213,12 @@
     const stream=kind==="audio"?localMic:localCamera;
     if(!stream)return;
     if(kind==="audio")localMic=null;else localCamera=null;
+    // Stop capture before asynchronous network/peer cleanup, including on Hang up.
+    stream.getTracks().forEach(t=>t.stop());
     for(const pc of peers.values()){
       const sender=pc.getTransceivers().find(t=>t.receiver.track.kind===kind)?.sender;
       if(sender)await sender.replaceTrack(null).catch(console.warn);
     }
-    stream.getTracks().forEach(t=>t.stop());
     if(kind==="video"){$("callsSelfVideo").srcObject=null;$("callsSelfVideo").hidden=true;}
     updateButtons();
   }
@@ -310,6 +311,12 @@
   }
   async function hangup(){
     closed=true;connected=false;
+    // Release camera and microphone immediately, even if Supabase is offline.
+    for(const stream of [localMic,localCamera])stream?.getTracks().forEach(t=>t.stop());
+    localMic=null;localCamera=null;
+    $("callsSelfVideo").srcObject=null;
+    $("callsSelfVideo").hidden=true;
+    updateButtons();
     const ch=channel;channel=null;
     if(ch&&user)for(const id of peers.keys()){
       try{await ch.send({type:"broadcast",event:"call-signal",payload:{from:user.id,to:id,leave:true}});}catch{}
