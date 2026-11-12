@@ -6,7 +6,7 @@
   const PUBLISHABLE_KEY="sb_publishable_TKOD-qL58VJU9c4R952W_w_Tw7qbqgL";
   const $=id=>document.getElementById(id);
   if(!$("callsOverlay"))return;
-  let client=null,user=null,profile=null,booting=null;
+  let client=null,user=null,profile=null,booting=null,accessReady=false;
   let channel=null,roomId=null,invite="",localMic=null,localCamera=null,connected=false,closed=false;
   const peers=new Map(), candidateQueues=new Map(), remoteStreams=new Map();
   let busy=false;
@@ -21,32 +21,107 @@
     $("callsLive").hidden=!active;
     $("callsHangup").disabled=!active;
   }
-  function copyId(){return user?.id||"";}
+  const ACCOUNT_DOMAIN="login.seuss.invalid"; // Same username/password identity as Seuss Search.
+  function showAccountForm(message,kind="auth"){
+    accessReady=false;
+    $("callsAccountForm").hidden=false;
+    $("callsNameForm").hidden=true;
+    $("callsLobby").hidden=true;
+    $("callsLive").hidden=true;
+    $("callsLoginSubmit").hidden=kind==="moderation";
+    $("callsAccessHelp").textContent=kind==="moderation"
+      ? "Only a site moderator can restore access for a paused account. Use the Seuss Search access page."
+      : "Use your existing Seuss Search username and password. If you do not have an account or approval, open Seuss Search to register or request access.";
+    status(message,kind==="moderation");
+  }
+  async function checkSiteAccess(){
+    accessReady=false;
+    if(!user||user.is_anonymous!==false){
+      showAccountForm("Sign in with a Seuss Search username/password account to call.");
+      return false;
+    }
+    const p=await client.from("profiles").select("display_name").eq("id",user.id).maybeSingle();
+    if(p.error)throw p.error;
+    profile=p.data;
+    if(!profile){
+      $("callsAccountForm").hidden=true;
+      $("callsNameForm").hidden=false;
+      $("callsLobby").hidden=true;
+      $("callsLive").hidden=true;
+      status("Choose your display name before requesting access to calls.");
+      return false;
+    }
+    const {data:access,error:approvalError}=await client.rpc("site_access_status");
+    if(approvalError)throw approvalError;
+    if(access?.state!=="approved"){
+      showAccountForm(access?.state==="pending"
+        ? "Moderator approval is pending. Calls are not available yet."
+        : access?.state==="denied"
+          ? "Your site-access request was denied. Calls are not available."
+          : "Your account needs site approval before calls can be created.","moderation");
+      return false;
+    }
+    // This creates a normal active site session only for an already-approved account.
+    // It does NOT change an existing frozen, kicked, or banned moderation state.
+    const {data:state,error:heartbeatError}=await client.rpc("site_heartbeat");
+    if(heartbeatError)throw heartbeatError;
+    if(state!=="active"){
+      showAccountForm("Your site session is "+String(state||"unavailable")+". A moderator must restore access.","moderation");
+      return false;
+    }
+    accessReady=true;
+    $("callsAccountForm").hidden=true;
+    $("callsNameForm").hidden=true;
+    if(!channel){$("callsLobby").hidden=false;$("callsLive").hidden=true;}
+    status("Ready. Your approved Seuss Search account can create or join private calls.");
+    return true;
+  }
   async function boot(){
-    if(client&&user)return;
     if(booting)return booting;
     booting=(async()=>{
-      status("Connecting to Supabase…");
-      const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2");
-      client=createClient(PROJECT_URL,PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+      status("Checking your Seuss Search account…");
+      if(!client){
+        const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2.57.0");
+        client=createClient(PROJECT_URL,PUBLISHABLE_KEY,{
+          auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}
+        });
+      }
       const {data:existing,error:e}=await client.auth.getSession();
       if(e)throw e;
-      if(existing.session)user=existing.session.user;
-      else {
-        const {data,error}=await client.auth.signInAnonymously();
-        if(error)throw new Error(error.message+" — check Supabase Anonymous Sign-Ins.");
-        user=data.user;
-      }
-      await client.realtime.setAuth();
-      const result=await client.from("profiles").select("display_name").eq("id",user.id).maybeSingle();
-      if(result.error)throw result.error;
-      profile=result.data;
-      $("callsNameForm").hidden=!!profile;
-      $("callsLobby").hidden=!profile;
-      $("callsLive").hidden=true;
-      status(profile?"Ready. Create a private call or enter an invite code.":"Choose a display name before calling.");
-    })().catch(error=>{client=null;user=null;reportError(error);throw error;}).finally(()=>{booting=null;});
+      user=existing.session?.user||null;
+      if(user)await client.realtime.setAuth();
+      await checkSiteAccess();
+    })().catch(error=>{
+      accessReady=false;
+      showAccountForm("Could not verify your account. Sign in or check approval in Seuss Search.");
+      reportError(error);
+      throw error;
+    }).finally(()=>{booting=null;});
     return booting;
+  }
+  async function signInAccount(event){
+    event.preventDefault();
+    if(!client){status("Supabase is not ready. Close and reopen Calls.",true);return;}
+    const name=$("callsLoginUsername").value.trim();
+    const password=$("callsLoginPassword").value;
+    const oldEmail=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(name);
+    if(!oldEmail&&!/^[A-Za-z][A-Za-z0-9_]{2,23}$/.test(name)){
+      status("Enter your Seuss Search username, or an older account email.",true);return;
+    }
+    if(!password){status("Enter your account password.",true);return;}
+    const button=$("callsLoginSubmit");
+    button.disabled=true;
+    status("Signing in…");
+    try{
+      const email=oldEmail?name:name.toLowerCase()+"@"+ACCOUNT_DOMAIN;
+      const {data,error}=await client.auth.signInWithPassword({email,password});
+      if(error)throw new Error("Username or password incorrect.");
+      user=data.user;
+      $("callsLoginPassword").value="";
+      await client.realtime.setAuth();
+      await checkSiteAccess();
+    }catch(error){reportError(error);}
+    finally{button.disabled=false;}
   }
   function randomSecret(){
     const bytes=new Uint8Array(15);
@@ -62,12 +137,11 @@
       if(error)throw error;
       profile={display_name:name};
       $("callsNameForm").hidden=true;
-      $("callsLobby").hidden=false;
-      status("Ready. Only people with your call invite can join.");
+      await checkSiteAccess();
     }catch(err){reportError(err);}
   }
   async function createRoom(){
-    if(busy||!profile)return;
+    if(busy||!profile||!accessReady){status("Sign in to an approved Seuss Search account first.",true);return;}
     busy=true;$("callsCreate").disabled=true;
     try{
       const secret=randomSecret();
@@ -79,7 +153,7 @@
     finally{busy=false;$("callsCreate").disabled=false;}
   }
   async function joinRoom(){
-    if(busy||!profile)return;
+    if(busy||!profile||!accessReady){status("Sign in to an approved Seuss Search account first.",true);return;}
     const match=$("callsCode").value.trim().match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([0-9a-f]{30})$/i);
     if(!match){status("Paste the complete invite code you received.",true);return;}
     busy=true;$("callsJoin").disabled=true;
@@ -346,6 +420,8 @@
     void boot().catch(()=>{});
   });
   $("callsClose").addEventListener("click",()=>{void closePanel();});
+  $("callsAccountForm").addEventListener("submit",event=>{void signInAccount(event);});
+  $("callsRetryAccess").addEventListener("click",()=>{void boot().catch(()=>{});});
   $("callsNameForm").addEventListener("submit",saveName);
   $("callsCreate").addEventListener("click",()=>{void createRoom();});
   $("callsJoin").addEventListener("click",()=>{void joinRoom();});
