@@ -207,47 +207,6 @@ for(const [slug,title,source] of [
     '<iframe title="'+title+'" referrerpolicy="no-referrer" allow="autoplay; gamepad" src="'+source+'"></iframe></html>';
   await fs.writeFile(path.join(folder,"index.html"),page);
 }
-// Bundle only the open-source Horizon runtime needed for a user-supplied boot archive.
-// Game data is NOT copied. The user picks their own prepared boot.tar.gz at runtime.
-// The original publisher's separately hosted lazy assets remain external.
-const horizonCommit="b21a7ae704b415182631429a7e71c797287661df";
-const horizonTemp=await fs.mkdtemp(path.join(os.tmpdir(),"horizon-minecraft-"));
-try{
-  execFileSync("git",["clone","--depth=1","--filter=blob:none","--no-checkout",
-    "https://github.com/AlexBoops/mc-rust-onweb.git",horizonTemp],
-    {stdio:"inherit",timeout:240000});
-  // Select only client files, not the repository's copyrighted fs/res data.
-  execFileSync("git",["-C",horizonTemp,"checkout",horizonCommit,"--",
-    "main.js","audio.js","worker.js","sw.js","parts.json","build.json",
-    "pkg","fs/manifest.txt"],{stdio:"inherit",timeout:240000});
-  const gameOut=path.join(out,"games","minecraft-rust");
-  await fs.mkdir(path.join(gameOut,"fs"),{recursive:true});
-  await fs.copyFile(path.join("games","minecraft-rust","index.html"),path.join(gameOut,"index.html"));
-  for(const file of ["main.js","audio.js","worker.js","sw.js","parts.json","build.json"]){
-    await fs.copyFile(path.join(horizonTemp,file),path.join(gameOut,file));
-  }
-  await fs.cp(path.join(horizonTemp,"pkg"),path.join(gameOut,"pkg"),{recursive:true});
-  await fs.copyFile(path.join(horizonTemp,"fs","manifest.txt"),path.join(gameOut,"fs","manifest.txt"));
-  // Use a locally picked gzip archive instead of the absent upstream fs/boot.tar.gz.
-  const mainPath=path.join(gameOut,"main.js");
-  let mainJs=await fs.readFile(mainPath,"utf8");
-  const fetchBoot='const gz = await download(files.boot, "Downloading resources", parts).catch((e) => {';
-  if(!mainJs.includes(fetchBoot))throw Error("Horizon source boot-fetch implementation changed");
-  mainJs=mainJs.replace(fetchBoot,
-    'const gz = globalThis.horizonBootFile ? globalThis.horizonBootFile.stream() : await download(files.boot, "Downloading resources", parts).catch((e) => {');
-  const base='base: "fs/res/"';
-  if(!mainJs.includes(base))throw Error("Horizon source resource base changed");
-  mainJs=mainJs.replace(base,'base: "https://alexboops.github.io/mc-rust-onweb/fs/res/"');
-  await fs.writeFile(mainPath,mainJs);
-  for(const file of ["index.html","main.js","audio.js","worker.js","sw.js",
-    "parts.json","pkg/horizon-client.js","pkg/horizon-client_bg.wasm.part0",
-    "pkg/horizon-client_bg.wasm.part1","pkg/horizon-client_bg.wasm.part2","fs/manifest.txt"]){
-    const full=path.join(gameOut,file);
-    if(!await exists(full)||!(await fs.stat(full)).size)throw Error("Horizon local client missing "+file);
-  }
-  if(await exists(path.join(gameOut,"fs","boot.tar.gz")))throw Error("Must not publicly ship Minecraft boot resources");
-  console.log("Bundled Horizon game engine (no Minecraft game data) with user-owned boot resource loader");
-} finally {await fs.rm(horizonTemp,{recursive:true,force:true});}
 // MIT-licensed reVCDOS browser client. The repository does not include the
 // commercial game assets; local frontend runs in our player while assets remain
 // optional external downloads. No backend-specific Python/PHP routes on Pages.
