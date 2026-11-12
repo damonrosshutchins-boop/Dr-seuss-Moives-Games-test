@@ -41,7 +41,7 @@
       const result=await client.from("profiles").select("display_name").eq("id",user.id).maybeSingle();
       if(result.error)throw result.error;
       profile=result.data;
-      $("callsIdentity").hidden=!!profile;
+      $("callsNameForm").hidden=!!profile;
       $("callsLobby").hidden=!profile;
       $("callsLive").hidden=true;
       status(profile?"Ready. Create a private call or enter an invite code.":"Choose a display name before calling.");
