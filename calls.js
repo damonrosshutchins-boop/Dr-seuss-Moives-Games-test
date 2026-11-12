@@ -61,7 +61,7 @@
       const {error}=await client.rpc("set_display_name",{p_name:name});
       if(error)throw error;
       profile={display_name:name};
-      $("callsIdentity").hidden=true;
+      $("callsNameForm").hidden=true;
       $("callsLobby").hidden=false;
       status("Ready. Only people with your call invite can join.");
     }catch(err){reportError(err);}
