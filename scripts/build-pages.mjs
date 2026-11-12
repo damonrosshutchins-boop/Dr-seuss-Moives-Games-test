@@ -193,11 +193,9 @@ await addRemoteAssetLauncher("silksong","web-ports/hollow-knight-silksong","bcbe
   ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@master/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/'],
   ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@latest/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/']
 ]);
-// Large runtimes cannot fit in this Pages artifact. These launch pages keep
-// navigation inside the arcade but run the game's existing GitHub Pages build
-// in an isolated iframe. They are NOT locally hosted copies of the game assets.
+// Large hosted ports cannot fit in this Pages artifact. They remain source-hosted
+// in isolated iframes, not locally copied.
 for(const [slug,title,source] of [
-  ["minecraft-rust","Minecraft Rust (Web)","https://alexboops.github.io/mc-rust-onweb/"],
   ["half-life-2","Half-Life 2 Web Port","https://alexboops.github.io/half-life-2-port/"],
   ["portal-1","Portal 1 Web Port","https://alexboops.github.io/portal-1-port/"]
 ]){
@@ -208,6 +206,14 @@ for(const [slug,title,source] of [
     '<div id="note">Source-hosted game running inside the arcade. Browser restrictions may prevent some games from loading.</div>'+
     '<iframe title="'+title+'" referrerpolicy="no-referrer" allow="autoplay; gamepad" src="'+source+'"></iframe></html>';
   await fs.writeFile(path.join(folder,"index.html"),page);
+}
+// Avoid launching a broken upstream Horizon build: its build.json refers to
+// fs/boot.tar.gz, but that archive is absent from AlexBoops/mc-rust-onweb.
+// Never ship a fake archive. Provide a clear message and in-arcade alternate.
+{
+  const folder=path.join(out,"games","minecraft-rust");
+  await fs.mkdir(folder,{recursive:true});
+  await fs.writeFile(path.join(folder,"index.html"),"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Minecraft Rust — Missing Upstream Resources</title><style>\n:root{color-scheme:dark;font:15px/1.55 system-ui,sans-serif;color:#e9f5ff;background:#0b1528}\nbody{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at top right,#284c50 0%,#0b1528 60%)}\nmain{width:min(620px,100%);padding:clamp(18px,4vw,36px);border:1px solid #57777d;border-radius:16px;background:#13233ae6}\nh1{font-size:clamp(22px,4vw,30px);margin:3px 0 14px}p{color:#c7d9e4}code{color:#c2f8f2;overflow-wrap:anywhere}\np.note{padding:13px 16px;border-left:4px solid #edb46b;background:#423320;border-radius:8px;color:#fff1d8}\nbutton{font:inherit;font-weight:700;padding:12px 17px;border-radius:10px;border:1px solid #50b2a0;color:#fff;background:#20635b;cursor:pointer}\nbutton:hover{background:#318878}button:focus-visible{outline:3px solid #fff1a5;outline-offset:3px}\na{color:#99d9ec}small{display:block;margin-top:16px;color:#b3c7d9}\n</style></head><body><main><h1>⛏️ Minecraft Rust needs an upstream repair</h1>\n<p class=\"note\">The Horizon version of Minecraft Rust is missing a required file: <code>fs/boot.tar.gz</code>. This file is absent from its source repository, so the original build cannot currently start.</p>\n<p>Changing the resource URL won't help. The publisher needs to supply the correct prepared boot archive, then this game can be enabled again.</p>\n<p><button type=\"button\" id=\"oldMinecraft\">Try Old Minecraft in the arcade</button></p>\n<p id=\"message\" role=\"status\" aria-live=\"polite\"></p>\n<small>Source: <a href=\"https://github.com/AlexBoops/mc-rust-onweb\" target=\"_blank\" rel=\"noopener noreferrer\">Minecraft Rust Web repository</a>. Your other games have not been changed.</small>\n</main><script>\ndocument.getElementById(\"oldMinecraft\").addEventListener(\"click\",()=>{\n  if(window.parent!==window){\n    window.parent.postMessage({type:\"seuss-arcade-open-game\",gameId:\"old-minecraft\"},window.location.origin);\n    document.getElementById(\"message\").textContent=\"Opening Old Minecraft inside the arcade…\";\n  }else{\n    window.location.assign(\"../../index.html?play=old-minecraft\");\n  }\n});\n</script></body></html>");
 }
 // MIT-licensed reVCDOS browser client. The repository does not include the
 // commercial game assets; local frontend runs in our player while assets remain
