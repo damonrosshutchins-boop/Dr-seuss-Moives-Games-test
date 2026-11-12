@@ -207,14 +207,47 @@ for(const [slug,title,source] of [
     '<iframe title="'+title+'" referrerpolicy="no-referrer" allow="autoplay; gamepad" src="'+source+'"></iframe></html>';
   await fs.writeFile(path.join(folder,"index.html"),page);
 }
-// Avoid launching a broken upstream Horizon build: its build.json refers to
-// fs/boot.tar.gz, but that archive is absent from AlexBoops/mc-rust-onweb.
-// Never ship a fake archive. Provide a clear message and in-arcade alternate.
-{
-  const folder=path.join(out,"games","minecraft-rust");
-  await fs.mkdir(folder,{recursive:true});
-  await fs.writeFile(path.join(folder,"index.html"),"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Minecraft Rust — Missing Upstream Resources</title><style>\n:root{color-scheme:dark;font:15px/1.55 system-ui,sans-serif;color:#e9f5ff;background:#0b1528}\nbody{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at top right,#284c50 0%,#0b1528 60%)}\nmain{width:min(620px,100%);padding:clamp(18px,4vw,36px);border:1px solid #57777d;border-radius:16px;background:#13233ae6}\nh1{font-size:clamp(22px,4vw,30px);margin:3px 0 14px}p{color:#c7d9e4}code{color:#c2f8f2;overflow-wrap:anywhere}\np.note{padding:13px 16px;border-left:4px solid #edb46b;background:#423320;border-radius:8px;color:#fff1d8}\nbutton{font:inherit;font-weight:700;padding:12px 17px;border-radius:10px;border:1px solid #50b2a0;color:#fff;background:#20635b;cursor:pointer}\nbutton:hover{background:#318878}button:focus-visible{outline:3px solid #fff1a5;outline-offset:3px}\na{color:#99d9ec}small{display:block;margin-top:16px;color:#b3c7d9}\n</style></head><body><main><h1>⛏️ Minecraft Rust needs an upstream repair</h1>\n<p class=\"note\">The Horizon version of Minecraft Rust is missing a required file: <code>fs/boot.tar.gz</code>. This file is absent from its source repository, so the original build cannot currently start.</p>\n<p>Changing the resource URL won't help. The publisher needs to supply the correct prepared boot archive, then this game can be enabled again.</p>\n<p><button type=\"button\" id=\"oldMinecraft\">Try Old Minecraft in the arcade</button></p>\n<p id=\"message\" role=\"status\" aria-live=\"polite\"></p>\n<small>Source: <a href=\"https://github.com/AlexBoops/mc-rust-onweb\" target=\"_blank\" rel=\"noopener noreferrer\">Minecraft Rust Web repository</a>. Your other games have not been changed.</small>\n</main><script>\ndocument.getElementById(\"oldMinecraft\").addEventListener(\"click\",()=>{\n  if(window.parent!==window){\n    window.parent.postMessage({type:\"seuss-arcade-open-game\",gameId:\"old-minecraft\"},window.location.origin);\n    document.getElementById(\"message\").textContent=\"Opening Old Minecraft inside the arcade…\";\n  }else{\n    window.location.assign(\"../../index.html?play=old-minecraft\");\n  }\n});\n</script></body></html>");
-}
+// Bundle only the open-source Horizon runtime needed for a user-supplied boot archive.
+// Game data is NOT copied. The user picks their own prepared boot.tar.gz at runtime.
+// The original publisher's separately hosted lazy assets remain external.
+const horizonCommit="b21a7ae704b415182631429a7e71c797287661df";
+const horizonTemp=await fs.mkdtemp(path.join(os.tmpdir(),"horizon-minecraft-"));
+try{
+  execFileSync("git",["clone","--depth=1","--filter=blob:none","--no-checkout",
+    "https://github.com/AlexBoops/mc-rust-onweb.git",horizonTemp],
+    {stdio:"inherit",timeout:240000});
+  // Select only client files, not the repository's copyrighted fs/res data.
+  execFileSync("git",["-C",horizonTemp,"checkout",horizonCommit,"--",
+    "main.js","audio.js","worker.js","sw.js","parts.json","build.json",
+    "pkg","fs/manifest.txt"],{stdio:"inherit",timeout:240000});
+  const gameOut=path.join(out,"games","minecraft-rust");
+  await fs.mkdir(path.join(gameOut,"fs"),{recursive:true});
+  await fs.copyFile(path.join("games","minecraft-rust","index.html"),path.join(gameOut,"index.html"));
+  for(const file of ["main.js","audio.js","worker.js","sw.js","parts.json","build.json"]){
+    await fs.copyFile(path.join(horizonTemp,file),path.join(gameOut,file));
+  }
+  await fs.cp(path.join(horizonTemp,"pkg"),path.join(gameOut,"pkg"),{recursive:true});
+  await fs.copyFile(path.join(horizonTemp,"fs","manifest.txt"),path.join(gameOut,"fs","manifest.txt"));
+  // Use a locally picked gzip archive instead of the absent upstream fs/boot.tar.gz.
+  const mainPath=path.join(gameOut,"main.js");
+  let mainJs=await fs.readFile(mainPath,"utf8");
+  const fetchBoot='const gz = await download(files.boot, "Downloading resources", parts).catch((e) => {';
+  if(!mainJs.includes(fetchBoot))throw Error("Horizon source boot-fetch implementation changed");
+  mainJs=mainJs.replace(fetchBoot,
+    'const gz = globalThis.horizonBootFile ? globalThis.horizonBootFile.stream() : await download(files.boot, "Downloading resources", parts).catch((e) => {');
+  const base='base: "fs/res/"';
+  if(!mainJs.includes(base))throw Error("Horizon source resource base changed");
+  mainJs=mainJs.replace(base,'base: "https://alexboops.github.io/mc-rust-onweb/fs/res/"');
+  await fs.writeFile(mainPath,mainJs);
+  for(const file of ["index.html","main.js","audio.js","worker.js","sw.js",
+    "parts.json","pkg/horizon-client.js","pkg/horizon-client_bg.wasm.part0",
+    "pkg/horizon-client_bg.wasm.part1","pkg/horizon-client_bg.wasm.part2","fs/manifest.txt"]){
+    const full=path.join(gameOut,file);
+    if(!await exists(full)||!(await fs.stat(full)).size)throw Error("Horizon local client missing "+file);
+  }
+  if(await exists(path.join(gameOut,"fs","boot.tar.gz")))throw Error("Must not publicly ship Minecraft boot resources");
+  console.log("Bundled Horizon game engine (no Minecraft game data) with user-owned boot resource loader");
+} finally {await fs.rm(horizonTemp,{recursive:true,force:true});}
 // MIT-licensed reVCDOS browser client. The repository does not include the
 // commercial game assets; local frontend runs in our player while assets remain
 // optional external downloads. No backend-specific Python/PHP routes on Pages.
