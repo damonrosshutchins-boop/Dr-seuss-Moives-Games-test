@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Super Mario Sunshine — Local Setup</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#071322;color:#f2f8ff}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 85% 0%,#246a8177,transparent 55%),linear-gradient(130deg,#092038,#0e182b);padding:clamp(16px,3vw,36px)}
+main{max-width:780px;margin:auto}.eyebrow{font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:#9bdadf}
+h1{font-size:clamp(28px,5vw,44px);margin:10px 0 10px;line-height:1.12}
+p{line-height:1.55;color:#cbd7eb}.panel{border:1px solid #3d6476;background:#0d1d33e9;padding:clamp(16px,3vw,26px);border-radius:18px;margin-top:20px}
+.notice{border-left:4px solid #efb65a;background:#45321e;padding:14px 16px;border-radius:8px;color:#fff3da}
+label{font-weight:700;display:block;margin-bottom:10px}
+input[type=file]{display:block;width:100%;padding:14px;border:1px dashed #7098ab;border-radius:10px;background:#10293b;color:#f0f5ff}
+button{border:1px solid #66b3c3;background:#17637d;color:white;border-radius:9px;padding:12px 16px;font:inherit;font-weight:700;margin:12px 10px 0 0;cursor:pointer}
+button:hover:not(:disabled){background:#2586a5}button:disabled{opacity:.5;cursor:not-allowed}
+button.secondary{background:#222f48;border-color:#5c708c}button.danger{border-color:#c77f82;background:#603544}
+button:focus-visible,input:focus-visible{outline:3px solid #ffe39c;outline-offset:2px}
+progress{width:100%;height:14px;margin:12px 0}#status{background:#132a42;border-radius:10px;padding:13px;margin:18px 0;min-height:48px;white-space:pre-wrap;color:#e9f6ff}
+small{color:#b8c8d9}code{color:#c9ebff}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Seuss Cinema &amp; Arcade · Local game setup</div>
+<h1>Super Mario Sunshine</h1>
+<p>This page is hosted inside the arcade, not through an external iframe. It can store a game image you provide in this browser's private, origin-scoped storage.</p>
+<div class="notice"><strong>Not yet playable.</strong> A compatible, redistributable browser emulator has not been bundled. The linked GitHub repository includes a commercial game disc image; that copyrighted image is not copied into this site. Importing your own game file does not start gameplay.</div>
+<div class="panel">
+<h2>Choose your own game file</h2>
+<p>Only import a copy that you have the right to use. The file remains on this device; this feature never sends it to Supabase, Render, or GitHub. Large RVZ files may need substantial available disk space.</p>
+<label for="disc">Select a Super Mario Sunshine USA RVZ file</label>
+<input type="file" id="disc" accept=".rvz,application/octet-stream">
+<button type="button" id="save" disabled>Store locally in this browser</button>
+<button type="button" id="remove" class="danger">Remove stored file</button>
+<progress id="progress" value="0" max="100" hidden></progress>
+<div role="status" aria-live="polite" id="status">Checking available browser storage…</div>
+<small>Supported file type: RVZ, game ID GMSE01. The uploaded filename and contents are not sent to a server. OPFS storage may be cleared by browser settings or storage eviction.</small>
+</div>
+<div class="panel">
+<h2>Why this is a setup page</h2>
+<p>The upstream project contains approximately 1 GB of split commercial game disc data and a compiled emulator. The game content cannot be republished here. A fully playable offline browser version would also need an authorized emulator/runtime build and browser isolation support. This page prepares only the local-file part of that workflow.</p>
+</div>
+</main>
+<script>
+"use strict";
+const fileInput=document.getElementById("disc");
+const saveButton=document.getElementById("save");
+const removeButton=document.getElementById("remove");
+const statusEl=document.getElementById("status");
+const meter=document.getElementById("progress");
+const STORED_NAME="sms-user-disc.rvz";
+let writing=false;
+function status(message){statusEl.textContent=message;}
+function available(){return !!(navigator.storage&&navigator.storage.getDirectory);}
+function describe(bytes){return (bytes/(1024*1024)).toFixed(1)+" MiB";}
+async function validate(file){
+ if(!file||file.size<140000000)throw Error("The selected RVZ looks incomplete or is too small.");
+ const header=new Uint8Array(await file.slice(0,96).arrayBuffer());
+ const magic=String.fromCharCode(...header.slice(0,3));
+ const gameId=String.fromCharCode(...header.slice(88,94));
+ if(magic!=="RVZ")throw Error("This file is not a valid-looking RVZ image.");
+ if(gameId!=="GMSE01")throw Error("This RVZ is not the supported USA Super Mario Sunshine release (GMSE01).");
+}
+async function refresh(){
+ if(!available()){status("This browser does not support local origin-private file storage (OPFS). Please use a compatible modern browser.");return;}
+ try{
+  const root=await navigator.storage.getDirectory();
+  let file=null;
+  try{file=await (await root.getFileHandle(STORED_NAME)).getFile();}catch(e){if(e.name!=="NotFoundError")throw e;}
+  status(file?"Your local RVZ file is stored on this device ("+describe(file.size)+"). No emulator is included, so gameplay is not available yet.":"No game file is stored here.");
+ }catch(err){status("Local storage unavailable: "+(err.message||err));}
+}
+fileInput.addEventListener("change",()=>{saveButton.disabled=!fileInput.files?.length||!available()||writing;});
+saveButton.addEventListener("click",async()=>{
+ const file=fileInput.files?.[0];
+ if(!file||writing)return;
+ writing=true;saveButton.disabled=true;removeButton.disabled=true;
+ const meterValue=()=>{meter.value=0;meter.hidden=false;};
+ meterValue();
+ let writable=null;
+ try{
+  await validate(file);
+  const estimate=await navigator.storage.estimate();
+  if(typeof estimate.quota==="number"&&typeof estimate.usage==="number"&&estimate.quota-estimate.usage<file.size)throw Error("Not enough local storage space for this file.");
+  const root=await navigator.storage.getDirectory();
+  const handle=await root.getFileHandle(STORED_NAME,{create:true});
+  writable=await handle.createWritable();
+  const reader=file.stream().getReader();
+  let written=0;
+  status("Saving this game file locally. Do not close the page.");
+  while(true){
+   const {value,done}=await reader.read();
+   if(done)break;
+   await writable.write(value);
+   written+=value.byteLength;
+   meter.value=Math.min(100,Math.round(written/file.size*100));
+  }
+  await writable.close();writable=null;
+  const result=await (await root.getFileHandle(STORED_NAME)).getFile();
+  await validate(result);
+  status("Stored "+describe(result.size)+" in this browser. No data was uploaded. An authorized emulator/runtime is still required for gameplay.");
+ }catch(err){
+  if(writable){try{await writable.abort();}catch{}}
+  status("Could not store the game file: "+(err.message||err));
+ }finally{writing=false;meter.hidden=true;saveButton.disabled=!fileInput.files?.length;removeButton.disabled=false;}
+});
+removeButton.addEventListener("click",async()=>{
+ if(writing||!available())return;
+ try{
+  const root=await navigator.storage.getDirectory();
+  await root.removeEntry(STORED_NAME);
+  status("Local game file removed from this browser.");
+ }catch(err){if(err.name==="NotFoundError")status("No local game file to remove.");else status("Could not remove local file: "+(err.message||err));}
+});
+refresh();
+</script>
+</body>
+</html>
