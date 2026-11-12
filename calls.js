@@ -261,19 +261,24 @@
     const defaults={width:{ideal:640},height:{ideal:360},frameRate:{ideal:20,max:24}};
     let stream=await navigator.mediaDevices.getUserMedia({audio:false,video:chosen!=="auto"?
       {...defaults,deviceId:{exact:chosen}}:{...defaults,facingMode:{ideal:"user"}}});
-    if(chosen==="auto"){
-      const cameras=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="videoinput");
-      const active=stream.getVideoTracks()[0]?.label||"";
-      const better=rear.test(active)?cameras.find(d=>front.test(d.label)&&!rear.test(d.label)):null;
-      if(better?.deviceId){
-        // On some Chromebooks the default camera is downward-facing. Switch if obvious.
-        const next=await navigator.mediaDevices.getUserMedia({audio:false,video:{...defaults,deviceId:{exact:better.deviceId}}});
-        stream.getTracks().forEach(t=>t.stop());stream=next;
-        $("callsDevice").value=better.deviceId;
+    try {
+      if(chosen==="auto"){
+        const cameras=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="videoinput");
+        const active=stream.getVideoTracks()[0]?.label||"";
+        const better=rear.test(active)?cameras.find(d=>front.test(d.label)&&!rear.test(d.label)):null;
+        if(better?.deviceId){
+          // Some Chromebooks choose a downward-facing camera: prefer an identified front camera.
+          const next=await navigator.mediaDevices.getUserMedia({audio:false,video:{...defaults,deviceId:{exact:better.deviceId}}});
+          stream.getTracks().forEach(t=>t.stop());stream=next;
+          $("callsDevice").value=better.deviceId;
+        }
       }
+      await refreshCameras();
+      return stream;
+    } catch (error) {
+      stream.getTracks().forEach(track=>track.stop());
+      throw error;
     }
-    await refreshCameras();
-    return stream;
   }
   async function startCamera(){
     if(!channel||!connected)return;
