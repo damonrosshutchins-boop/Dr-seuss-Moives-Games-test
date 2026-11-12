@@ -8,7 +8,7 @@ const require=createRequire(import.meta.url);
 const dirOf=(pkg)=>path.dirname(require.resolve(pkg));
 const app=express();
 const allowedOrigin=new Set(["https://damonrosshutchins-boop.github.io",...(process.env.ALLOWED_ORIGINS||"").split(",").map(x=>x.trim()).filter(Boolean)]);
-wisp.options.hostname_whitelist=[/^wasm\.rip$/i,/^([a-z0-9-]+\.)+wasm\.rip$/i,/^shuttletv\.pk$/i,/^api\.themoviedb\.org$/i,/^([a-z0-9-]+\.)+shuttletv\.pk$/i,/^raw\.githack\.com$/i,/^cdn\.jsdelivr\.net$/i,/^ripjaw1219\.github\.io$/i,/^monoxide\.dev$/i,/^c00lkiddtech\.github\.io$/i,/^linkawaken1979-alt\.github\.io$/i,/^mollomm1\.github\.io$/i,/^sagaofowlz\.github\.io$/i];
+wisp.options.hostname_whitelist=[/^wasm\.rip$/i,/^([a-z0-9-]+\.)+wasm\.rip$/i,/^shuttletv\.pk$/i,/^api\.themoviedb\.org$/i,/^image\.tmdb\.org$/i,/^([a-z0-9-]+\.)+shuttletv\.pk$/i,/^raw\.githack\.com$/i,/^cdn\.jsdelivr\.net$/i,/^ripjaw1219\.github\.io$/i,/^monoxide\.dev$/i,/^c00lkiddtech\.github\.io$/i,/^linkawaken1979-alt\.github\.io$/i,/^mollomm1\.github\.io$/i,/^sagaofowlz\.github\.io$/i];
 wisp.options.port_whitelist=[80,443];
 wisp.options.allow_udp_streams=false;
 wisp.options.allow_tcp_streams=true;
