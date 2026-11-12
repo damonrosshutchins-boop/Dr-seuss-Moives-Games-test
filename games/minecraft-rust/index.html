@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minecraft Rust Web — Horizon local resources</title>
+<style>
+:root{color-scheme:dark;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#0a1426;color:#f1faff}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#080e1b;overflow:hidden}
+canvas{position:fixed;inset:0;width:100vw!important;height:100vh!important;outline:0;background:#080e1b}
+#status{position:fixed;inset:0;z-index:3;display:grid;place-items:center;padding:26px;text-align:center;white-space:pre-line;background:#071224eb;color:#e9f7ff;font-weight:600;pointer-events:none}
+#status:empty{display:none}
+#setup{position:fixed;inset:0;z-index:5;display:grid;place-items:center;padding:15px;overflow:auto;background:radial-gradient(circle at top right,#264e5a,#0a1426 72%)}
+#setup[hidden]{display:none}
+.panel{background:#16273c;border:1px solid #578697;border-radius:19px;padding:clamp(17px,3.5vw,30px);width:min(620px,100%);box-shadow:0 20px 80px #0009}
+h1{font-size:clamp(22px,5vw,32px);margin:3px 0 9px}
+p{color:#c9dbe8;margin:10px 0 15px}
+.notice{border-left:4px solid #ffbb74;background:#4e3524;color:#fff0d9;border-radius:8px;padding:13px 15px}
+label{font-weight:750;display:block;margin:20px 0 10px}
+input{display:block;border:1px dashed #82b7bc;border-radius:9px;background:#0c1f31;color:#e7f5ff;width:100%;padding:14px;max-width:100%}
+button,.button{display:inline-block;font:inherit;font-weight:700;border-radius:9px;padding:10px 15px;border:1px solid #5bd0cb;background:#216962;color:white;text-decoration:none;cursor:pointer;min-height:44px}
+button:hover:not(:disabled),.button:hover{background:#349288}
+button:disabled{opacity:.45;cursor:not-allowed}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #ffd891;outline-offset:2px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
+.small{color:#a8c5d6;font-size:12px}
+#detail{margin:14px 0 0;white-space:pre-wrap;color:#bff0db}
+#backGame{position:fixed;top:8px;left:8px;z-index:4;padding:6px 11px;background:#162840c9;border:1px solid #5e7e91;border-radius:7px;color:#dceef9;text-decoration:none;font-size:12px}
+#backGame[hidden]{display:none}
+</style>
+</head>
+<body>
+<div id="status" aria-live="polite"></div>
+<a id="backGame" href="../../index.html">← Arcade</a>
+<section id="setup" aria-label="Horizon Minecraft resource setup">
+ <div class="panel">
+   <div class="small">SEUSS CINEMA & ARCADE · MINECRAFT RUST WEB</div>
+   <h1>⛏️ Minecraft Rust / Horizon</h1>
+   <p>The game client is hosted on this site. Its original source is missing the required <code>fs/boot.tar.gz</code> archive, so you'll need to select one generated from a Minecraft copy you own.</p>
+   <p class="notice"><strong>Required:</strong> Horizon 26.3's real <code>boot.tar.gz</code> prepared with the <a href="https://github.com/nobuildersnotools/horizon-web" target="_blank" rel="noopener noreferrer" style="color:#ffe5a5">official Horizon instructions</a>. Renaming another file or uploading an empty archive will not work.</p>
+   <label for="bootFile">Choose your prepared boot.tar.gz file</label>
+   <input type="file" id="bootFile" accept=".gz,.tgz,application/gzip,application/x-gzip">
+   <div class="actions"><button id="launch" type="button" disabled>Launch Minecraft Rust</button>
+     <a class="button" href="../../index.html?play=old-minecraft">Use Old Minecraft instead</a></div>
+   <p id="detail" role="status" aria-live="polite">Checking browser graphics and security features…</p>
+   <p class="small">The selected archive is read directly from your computer and is not uploaded to GitHub, Supabase, or Render. Other game resources may be fetched from the original publisher's website. Chrome or Edge with WebGPU is recommended.</p>
+ </div>
+</section>
+<script type="module">
+const setup=document.getElementById("setup");
+const choose=document.getElementById("bootFile");
+const launch=document.getElementById("launch");
+const detail=document.getElementById("detail");
+let ready=false;
+function state(msg){detail.textContent=msg;}
+async function init(){
+  if(!isSecureContext){state("This game needs a secure HTTPS connection.");return;}
+  if(!navigator.gpu){state("Your browser has no WebGPU support. Try current Chrome or Edge with graphics acceleration.");return;}
+  try{if(!await navigator.gpu.requestAdapter())throw Error("No compatible GPU was found.");}
+  catch(error){state("WebGPU is unavailable: "+(error.message||error));return;}
+  if(!navigator.serviceWorker){state("A service worker is required to enable Horizon's threaded WebAssembly client.");return;}
+  try{
+    await navigator.serviceWorker.register("./sw.js",{scope:"./"});
+    await navigator.serviceWorker.ready;
+    if(!crossOriginIsolated){
+      if(sessionStorage.getItem("horizon-boot-isolation-once")){
+        state("Cross-origin isolation is unavailable. Open this game as a full page, not inside the arcade iframe.");
+        return;
+      }
+      sessionStorage.setItem("horizon-boot-isolation-once","1");
+      state("Applying browser isolation required for game threads…");
+      location.reload();
+      return;
+    }
+    sessionStorage.removeItem("horizon-boot-isolation-once");
+    ready=true;
+    state("Choose your own valid Horizon boot.tar.gz archive to launch.");
+    launch.disabled=!choose.files?.length;
+  }catch(error){state("Cannot initialize Horizon browser isolation: "+(error.message||error));}
+}
+choose.addEventListener("change",()=>{
+  launch.disabled=!ready||!choose.files?.length;
+  if(choose.files?.length&&ready)state("Selected "+choose.files[0].name+". Press Launch Minecraft Rust.");
+});
+launch.addEventListener("click",async()=>{
+  if(!ready)return;
+  const file=choose.files?.[0];
+  if(!file)return;
+  launch.disabled=true;
+  try{
+    if(file.size<1000)throw Error("The archive is too small to contain Horizon boot resources.");
+    const b=new Uint8Array(await file.slice(0,3).arrayBuffer());
+    if(b[0]!==31||b[1]!==139)throw Error("The file is not a gzip archive.");
+    globalThis.horizonBootFile=file;
+    document.getElementById("backGame").hidden=true;
+    setup.hidden=true;
+    document.getElementById("status").textContent="Loading Horizon game client…";
+    await import("./main.js");
+  }catch(error){
+    setup.hidden=false;document.getElementById("backGame").hidden=false;
+    document.getElementById("status").textContent="";
+    state("Unable to start the game: "+(error.message||error));
+    launch.disabled=false;
+  }
+});
+void init();
+</script>
+</body>
+</html>
