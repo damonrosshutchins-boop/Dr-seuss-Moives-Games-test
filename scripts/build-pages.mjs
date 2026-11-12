@@ -41,9 +41,6 @@ for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css"
 // This local setup screen does not ship Nintendo disc images or emulator binaries.
 await fs.mkdir(path.join(out,"games","smsrip"),{recursive:true});
 await fs.copyFile(path.join("games","smsrip","index.html"),path.join(out,"games","smsrip","index.html"));
- // Prism Sprint is a fully local original HTML5 game with no upstream assets.
-await fs.mkdir(path.join(out,"games","prism-sprint"),{recursive:true});
-await fs.copyFile(path.join("games","prism-sprint","index.html"),path.join(out,"games","prism-sprint","index.html"));
 
 
 await copyRuntime("scram",scramjetPath,"scramjet.js");
