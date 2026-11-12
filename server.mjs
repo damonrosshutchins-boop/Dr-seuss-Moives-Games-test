@@ -37,7 +37,7 @@ app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controlle
 app.use("/libcurl/",express.static(dirOf("@mercuryworkshop/libcurl-transport")));
 app.use("/epoxy/",express.static(dirOf("@mercuryworkshop/epoxy-transport")));
 // Publish only the frontend entrypoints, not server source or configuration files.
-for (const file of ["index.html","proxy-client.js","sw.js"]) {
+for (const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css"]) {
  const route=file==="index.html"?"/":"/"+file;
  app.get(route,(req,res)=>res.sendFile(path.join(process.cwd(),file),{
   headers:{"Cache-Control":file==="index.html"?"no-cache":"no-store"}
