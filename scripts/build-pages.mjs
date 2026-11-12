@@ -36,7 +36,7 @@ async function copyRuntime(name,root,entry){
 }
 await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
-for(const file of ["index.html","proxy-client.js","sw.js"])
+for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css"])
  await fs.copyFile(file,path.join(out,file));
 await copyRuntime("scram",scramjetPath,"scramjet.js");
 await copyRuntime("controller",pkgDir("@mercuryworkshop/scramjet-controller"),"controller.api.js");
