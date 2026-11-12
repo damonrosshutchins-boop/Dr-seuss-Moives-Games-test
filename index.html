@@ -70,7 +70,7 @@ const library=[
 {id:'web-dashers',kind:'game',name:'Web Dashers',desc:'Locally hosted Geometry Dash fan demo from the Web Dashers team. Online levels/accounts may need their servers.',icon:'💠',bg:'linear-gradient(130deg,#28586e,#aad35e)',url:'./games/web-dashers/index.html',local:true},
 {id:'smsrip',kind:'game',name:'Super Mario Sunshine (Local Setup)',desc:'Private local-file import for an authorized RVZ copy. Game runtime is not bundled; not yet playable.',icon:'☀️',bg:'linear-gradient(130deg,#266c87,#e2b85d)',url:'./games/smsrip/index.html',local:true},
 {id:'lmrip',kind:'game',name:"Luigi's Mansion (Web)",desc:'Locally hosted browser port; large download and browser isolation required.',icon:'👻',bg:'linear-gradient(130deg,#203d43,#559d89)',url:'./games/lmrip/index.html',local:true},
-{id:'mcrust',kind:'game',name:'Minecraft Rust Web (Upstream Missing File)',desc:'Horizon requires a missing private boot archive (fs/boot.tar.gz); view the explanation or switch to Old Minecraft.',icon:'⛏️',bg:'linear-gradient(130deg,#345a4b,#8ba66f)',url:'./games/minecraft-rust/index.html',local:true},
+{id:'mcrust',kind:'game',name:'Minecraft Rust Web (Horizon)',desc:'Locally hosted Horizon game engine; requires a boot.tar.gz resource archive you generate from your own Minecraft copy and a WebGPU browser.',icon:'⛏️',bg:'linear-gradient(130deg,#345a4b,#8ba66f)',url:'./games/minecraft-rust/index.html',local:true},
 {id:'half-life-2',kind:'game',name:'Half-Life 2 Web Port',desc:'In-site viewer of the publisher-hosted build; requires large remote downloads.',icon:'🔶',bg:'linear-gradient(130deg,#5b412a,#b88b4d)',url:'./games/half-life-2/index.html',local:true},
 {id:'portal-1',kind:'game',name:'Portal 1 Web Port',desc:'In-site viewer of the publisher-hosted build; requires remote downloads.',icon:'🌀',bg:'linear-gradient(130deg,#26384e,#6b9eb2)',url:'./games/portal-1/index.html',local:true},
 {id:'granny3',kind:'game',name:'Granny 3 Web Port',desc:'In-site launcher; large Unity assets download from the source repository.',icon:'🏚️',bg:'linear-gradient(130deg,#383d46,#81817f)',url:'./games/granny3/index.html',local:true},
@@ -115,6 +115,14 @@ function closePlayer(){
   $('explore').focus();
 }
 async function openItem(x){
+  if(x.id==='mcrust'){
+    // Horizon's threaded WASM needs isolation in a top-level browser document.
+    // Keep it on this GitHub Pages origin, not in the arcade iframe.
+    const localUrl=new URL(x.url,location.href);
+    if(localUrl.origin!==location.origin)throw Error('Horizon must stay on the arcade origin');
+    location.assign(localUrl.href);
+    return;
+  }
   const session=++playerSession;
   selected=x;
   const frame=resetPlayerFrame();
@@ -159,6 +167,11 @@ window.addEventListener('message',event=>{
 $('settingsButton').onclick=()=>$('settings').classList.remove('hidden');
 $('closeSettings').onclick=()=>$('settings').classList.add('hidden');
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('settings').classList.contains('hidden'))$('settings').classList.add('hidden');else if(!$('viewer').classList.contains('hidden'))closePlayer();}else if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='x'&&!$('viewer').classList.contains('hidden')){e.preventDefault();closePlayer();}});render();
+const requested=new URLSearchParams(location.search).get('play');
+if(requested){
+  const match=library.find(item=>item.id===requested);
+  if(match)requestAnimationFrame(()=>{void openItem(match);});
+}
 // Start the expensive player setup while the user browses the game library.
 import('./proxy-client.js').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
 </script><script defer src="./calls.js"></script></body></html>
