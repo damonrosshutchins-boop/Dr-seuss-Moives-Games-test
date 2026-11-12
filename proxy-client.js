@@ -6,9 +6,9 @@ let currentStage = "Not started";
 const progressListeners = new Set();
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-const allowed = new Set(["wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "monoxide.dev", "c00lkiddtech.github.io", "linkawaken1979-alt.github.io", "mollomm1.github.io", "sagaofowlz.github.io"]);
+const allowed = new Set(["mclegacy.pages.dev", "wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "monoxide.dev", "c00lkiddtech.github.io", "linkawaken1979-alt.github.io", "mollomm1.github.io", "sagaofowlz.github.io"]);
 // Exact entry points on shared hosting domains prevent arbitrary navigation.
-const gameEntries = new Set(["https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://monoxide.dev/ultrakill/","https://c00lkiddtech.github.io/md-/","https://linkawaken1979-alt.github.io/kisakcod/","https://raw.githack.com/Truf-Porter/HTMLgta/main/index.html","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://raw.githack.com/web-ports/fish/main/index.html"]);
+const gameEntries = new Set(["https://mclegacy.pages.dev/","https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://monoxide.dev/ultrakill/","https://c00lkiddtech.github.io/md-/","https://linkawaken1979-alt.github.io/kisakcod/","https://raw.githack.com/Truf-Porter/HTMLgta/main/index.html","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://raw.githack.com/web-ports/fish/main/index.html"]);
 const RENDER_ENDPOINT = "wss://seuss-cinema-arcade.onrender.com/wisp/";
 const RELAY_STORAGE_KEY = "seuss-cinema-relay-v1";
 
