@@ -277,5 +277,39 @@ try {
   }
   console.log("Bundled lmrip game files locally into dist/games/lmrip/");
 } finally {await fs.rm(lmTemp,{recursive:true,force:true});}
+// Bundle Web Dashers as a same-origin local game, using the rights the site owner reports.
+// The upstream static site includes third-party art/music; do not mix its files with
+// the arcade's root assets. Online-level/account API features may still use upstream servers.
+// Pin upstream for reproducible Pages builds; do not run upstream install or build scripts.
+const webDashersCommit="84b123b20bca82066350fefe8b49849a24da701c";
+const webDashersTemp=await fs.mkdtemp(path.join(os.tmpdir(),"web-dashers-"));
+try{
+  execFileSync("git",["clone","--depth=1","--filter=blob:none","--no-checkout",
+    "https://github.com/web-dashers/web-dashers.github.io.git",webDashersTemp],
+    {stdio:"inherit",timeout:240000});
+  execFileSync("git",["-C",webDashersTemp,"checkout",webDashersCommit],
+    {stdio:"inherit",timeout:240000});
+  const gameOut=path.join(out,"games","web-dashers");
+  await fs.mkdir(gameOut,{recursive:true});
+  for(const entry of ["index.html","assets","README.md"]){
+    await fs.cp(path.join(webDashersTemp,entry),path.join(gameOut,entry),{recursive:true});
+  }
+  for(const file of ["index.html","assets/style.css",
+    "assets/scripts/libs/phaser.min.js","assets/scripts/core/main.js",
+    "assets/scripts/core/game-scene.js","assets/scripts/game/allLevels.js",
+    "assets/scripts/game/allObjects.js","assets/music/Dash.mp3"]){
+    const filePath=path.join(gameOut,file);
+    if(!await exists(filePath)||(await fs.stat(filePath)).size===0){
+      throw new Error("Web Dashers local bundle missing "+file);
+    }
+  }
+  let localIndex=await fs.readFile(path.join(gameOut,"index.html"),"utf8");
+  if(!localIndex.includes('src="assets/scripts/core/main.js"')){
+    throw new Error("Web Dashers entry point changed; review before shipping");
+  }
+  console.log("Bundled Web Dashers locally into dist/games/web-dashers from "+webDashersCommit);
+} finally {
+  await fs.rm(webDashersTemp,{recursive:true,force:true});
+}
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");
