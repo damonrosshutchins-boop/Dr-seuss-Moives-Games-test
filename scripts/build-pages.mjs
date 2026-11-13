@@ -41,6 +41,13 @@ for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css"
 // This local setup screen does not ship Nintendo disc images or emulator binaries.
 await fs.mkdir(path.join(out,"games","smsrip"),{recursive:true});
 await fs.copyFile(path.join("games","smsrip","index.html"),path.join(out,"games","smsrip","index.html"));
+ // These games use locally hosted entry pages. Their network game assets are
+ // fetched ONLY from pinned, path-restricted Render proxy routes.
+for(const slug of ["balatro","cheese"]){
+  await fs.mkdir(path.join(out,"games",slug),{recursive:true});
+  await fs.copyFile(path.join("games",slug,"index.html"),path.join(out,"games",slug,"index.html"));
+}
+
 
 
 await copyRuntime("scram",scramjetPath,"scramjet.js");
