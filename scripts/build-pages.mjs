@@ -193,11 +193,9 @@ await addRemoteAssetLauncher("silksong","web-ports/hollow-knight-silksong","bcbe
   ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@master/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/'],
   ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@latest/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/']
 ]);
-// Large hosted ports cannot fit in this Pages artifact. They remain source-hosted
-// in isolated iframes, not locally copied.
+// Half-Life 2 remains source-hosted in an iframe, with no local game asset copy.
 for(const [slug,title,source] of [
-  ["half-life-2","Half-Life 2 Web Port","https://alexboops.github.io/half-life-2-port/"],
-  ["portal-1","Portal 1 Web Port","https://alexboops.github.io/portal-1-port/"]
+  ["half-life-2","Half-Life 2 Web Port","https://alexboops.github.io/half-life-2-port/"]
 ]){
   const folder=path.join(out,"games",slug);
   await fs.mkdir(folder,{recursive:true});
@@ -207,6 +205,23 @@ for(const [slug,title,source] of [
     '<iframe title="'+title+'" referrerpolicy="no-referrer" allow="autoplay; gamepad" src="'+source+'"></iframe></html>';
   await fs.writeFile(path.join(folder,"index.html"),page);
 }
+// Portal 1 checks crossOriginIsolated BEFORE downloading assets, and its
+// coi-serviceworker can isolate only the top-level source page, not a frame
+// nested in a non-isolated arcade. Its game data is ~1.6 GB, so don't copy it
+// to Pages or keep an iframe that silently fails at "INITIALIZE SYSTEM".
+// Redirect in the SAME tab. Browser Back returns to the arcade.
+{
+  const folder=path.join(out,"games","portal-1");
+  await fs.mkdir(folder,{recursive:true});
+  const portalLanding='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Portal 1 · Launch</title>'+
+    '<style>:root{color-scheme:dark}body{background:#0d141d;color:#e8f5ff;font:15px/1.6 system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}main{max-width:650px;background:#17283d;border:1px solid #4b758b;border-radius:15px;padding:26px}a{color:#8ce2ff}a:focus-visible{outline:3px solid #ffde9a;outline-offset:3px}</style>'+
+    '<main><h1>Launching Portal 1</h1><p>This game requires cross-origin isolation and must run as a top-level page rather than inside the arcade iframe. It runs on the original publisher site and downloads substantial game assets.</p>'+
+    '<p id="state" role="status">Opening the original Portal build in this tab…</p>'+
+    '<p><a href="https://alexboops.github.io/portal-1-port/">Launch Portal 1 directly</a> · <a href="../../index.html">Back to Arcade</a></p></main>'+
+    '<script>if(window.top===window){window.location.replace("https://alexboops.github.io/portal-1-port/");}else{document.getElementById("state").textContent="Open the game directly in this tab to enable its service worker.";}</script>';
+  await fs.writeFile(path.join(folder,"index.html"),portalLanding);
+}
+
 // MIT-licensed reVCDOS browser client. The repository does not include the
 // commercial game assets; local frontend runs in our player while assets remain
 // optional external downloads. No backend-specific Python/PHP routes on Pages.
