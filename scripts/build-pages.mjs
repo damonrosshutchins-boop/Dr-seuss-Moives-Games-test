@@ -269,6 +269,59 @@ try {
     const to=html.indexOf('</button>',cloakId);
     if(from>=0&&to>from)html=html.slice(0,from)+html.slice(to+9);
   }
+  // Threaded Dolphin WASM requires crossOriginIsolated. GitHub Pages cannot
+  // set COOP/COEP headers directly, so the game's own scoped sw.js must
+  // control a TOP-LEVEL page and reload it once after activation.
+  // Bound the reload count to prevent an infinite loop when SW is disabled.
+  const swStart=html.indexOf("<script>\n  if ('serviceWorker' in navigator)");
+  const swEnd=html.indexOf("</script>",swStart);
+  if(swStart<0||swEnd<swStart)throw Error("Luigi service worker bootstrap changed");
+  const scopedWorkerBootstrap=`<script>
+  (() => {
+    if (!('serviceWorker' in navigator)) return;
+    const reloadKey='seuss-lm-isolation-reload-count';
+    if (window.crossOriginIsolated) {
+      sessionStorage.removeItem(reloadKey);
+      return;
+    }
+    navigator.serviceWorker.register('./sw.js', {scope:'./'}).then(reg => {
+      let reloading=false;
+      const reloadWhenReady=() => {
+        if(reloading || window.crossOriginIsolated || !reg.active) return;
+        const attempts=Number(sessionStorage.getItem(reloadKey)||0);
+        if(attempts>=2) {
+          console.warn('Luigi isolation still unavailable after worker reloads; check service-worker settings.');
+          return;
+        }
+        reloading=true;
+        sessionStorage.setItem(reloadKey,String(attempts+1));
+        location.reload();
+      };
+      if(reg.active) reloadWhenReady();
+      navigator.serviceWorker.addEventListener('controllerchange',reloadWhenReady,{once:true});
+      reg.addEventListener('updatefound',() => {
+        const installing=reg.installing;
+        if(installing) installing.addEventListener('statechange',() => {
+          if(installing.state==='activated') reloadWhenReady();
+        });
+      });
+    }).catch(err => console.warn('Luigi scoped service worker registration failed:',err));
+  })();
+  </script>`;
+  html=html.slice(0,swStart)+scopedWorkerBootstrap+html.slice(swEnd+"</script>".length);
+  // A same-site back link replaces the iframe player's Close button.
+  // It works after service-worker reloads and does not redirect to another host.
+  if(!html.includes("<body>"))throw Error("Luigi body tag missing");
+  html=html.replace("<body>",`<body>
+  <style>
+    #seuss-arcade-return{position:fixed;z-index:100000;top:12px;left:12px;
+      display:inline-block;padding:10px 13px;border:1px solid #70b8d2;
+      border-radius:9px;background:#10233be8;color:#eaf7ff;text-decoration:none;
+      font:700 13px system-ui,sans-serif;box-shadow:0 4px 12px #0008}
+    #seuss-arcade-return:hover{background:#28496b}
+    #seuss-arcade-return:focus-visible{outline:3px solid #ffe18a;outline-offset:3px}
+  </style>
+  <a id="seuss-arcade-return" href="../../index.html" aria-label="Back to Seuss Arcade">← Back to Arcade</a>`);
   await fs.writeFile(path.join(dest,"index.html"),html);
   for(const file of ["lm.js","lm-page.js","lm.data","sw.js","disc.rvz.part0001","disc.rvz.part0008","lm.wasm.part0001","lm.wasm.part0003"]){
     if(!await exists(path.join(dest,file)))throw new Error("Luigi's Mansion bundle missing "+file);
