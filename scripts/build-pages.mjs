@@ -314,14 +314,42 @@ try {
   if(!html.includes("<body>"))throw Error("Luigi body tag missing");
   html=html.replace("<body>",`<body>
   <style>
-    #seuss-arcade-return{position:fixed;z-index:100000;top:12px;left:12px;
-      display:inline-block;padding:10px 13px;border:1px solid #70b8d2;
+    #seuss-arcade-controls{position:fixed;z-index:100000;top:12px;left:12px;
+      display:flex;align-items:center;gap:8px;max-width:calc(100vw - 24px)}
+    #seuss-arcade-controls a,#seuss-arcade-controls button{
+      position:static;display:inline-block;padding:10px 13px;border:1px solid #70b8d2;
       border-radius:9px;background:#10233be8;color:#eaf7ff;text-decoration:none;
-      font:700 13px system-ui,sans-serif;box-shadow:0 4px 12px #0008}
-    #seuss-arcade-return:hover{background:#28496b}
-    #seuss-arcade-return:focus-visible{outline:3px solid #ffe18a;outline-offset:3px}
+      font:700 13px system-ui,sans-serif;box-shadow:0 4px 12px #0008;cursor:pointer}
+    #seuss-arcade-controls a:hover,#seuss-arcade-controls button:hover{background:#28496b}
+    #seuss-arcade-controls a:focus-visible,#seuss-arcade-controls button:focus-visible{
+      outline:3px solid #ffe18a;outline-offset:3px}
   </style>
-  <a id="seuss-arcade-return" href="../../index.html" aria-label="Back to Seuss Arcade">← Back to Arcade</a>`);
+  <nav id="seuss-arcade-controls" aria-label="Luigi's Mansion controls">
+    <a id="seuss-arcade-return" href="../../index.html" aria-label="Back to Seuss Arcade">← Back to Arcade</a>
+    <button type="button" id="seuss-arcade-fullscreen" aria-pressed="false" title="Enter fullscreen">⛶ Fullscreen</button>
+  </nav>
+  <script>
+    (() => {
+      const button=document.getElementById('seuss-arcade-fullscreen');
+      const sync=() => {
+        const active=!!document.fullscreenElement;
+        button.textContent=active?'⛶ Exit Fullscreen':'⛶ Fullscreen';
+        button.setAttribute('aria-pressed',String(active));
+        button.title=active?'Exit fullscreen':'Enter fullscreen';
+      };
+      button.addEventListener('click',async () => {
+        try {
+          if(document.fullscreenElement)await document.exitFullscreen();
+          else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();
+          else throw Error('Fullscreen is not supported by this browser.');
+        }catch(error){
+          console.warn('Luigi fullscreen request failed:',error);
+          button.title='Fullscreen unavailable: '+(error.message||String(error));
+        }finally{sync();}
+      });
+      document.addEventListener('fullscreenchange',sync);
+    })();
+  </script>`);
   await fs.writeFile(path.join(dest,"index.html"),html);
   for(const file of ["lm.js","lm-page.js","lm.data","sw.js","disc.rvz.part0001","disc.rvz.part0008","lm.wasm.part0001","lm.wasm.part0003"]){
     if(!await exists(path.join(dest,file)))throw new Error("Luigi's Mansion bundle missing "+file);
