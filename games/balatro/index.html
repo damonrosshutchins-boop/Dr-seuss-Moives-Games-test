@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Balatro</title><link rel="icon" href="data:,"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101818;color:#eee}canvas{display:block;width:100vw;height:100vh;border:0;padding:0}#status{position:fixed;inset:0;display:grid;place-items:center;font:18px monospace;background:#101818;z-index:2;text-align:center;white-space:pre-wrap;padding:24px;box-sizing:border-box}</style></head>
+<body><canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas><div id="status" role="status">Loading Balatro through Render…</div><script>
+// Fetch only the pinned, approved game files through our restricted Render route.
+const CDN_BASE="https://seuss-cinema-arcade.onrender.com/approved-assets/balatro/";
+const status=document.getElementById('status');
+const canvas=document.getElementById('canvas');
+let started=false;
+function fail(error){status.style.display='grid';status.textContent='Unable to load Balatro.\n'+(error.message||error);console.error(error)}
+function hex(buffer){return Array.from(new Uint8Array(buffer),v=>v.toString(16).padStart(2,'0')).join('')}
+async function download(name,expected){const response=await fetch(CDN_BASE+name,{mode:'cors'});if(!response.ok)throw Error(name+': HTTP '+response.status);const data=await response.arrayBuffer();if(expected&&data.byteLength!==expected.size)throw Error(name+': incomplete download');if(expected&&crypto.subtle&&hex(await crypto.subtle.digest('SHA-256',data))!==expected.sha256)throw Error(name+': integrity check failed');return data}
+function script(text){const node=document.createElement('script');node.textContent=text;document.head.appendChild(node)}
+window.addEventListener('error',event=>fail(event.error||event.message));
+window.addEventListener('unhandledrejection',event=>fail(event.reason));
+window.addEventListener('keydown',event=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(event.key))event.preventDefault()});
+canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();fail(Error('Graphics context lost. Reload to continue.'))});
+async function boot(){
+ const response=await fetch(CDN_BASE+'manifest.json',{mode:'cors'});if(!response.ok)throw Error('Manifest: HTTP '+response.status);const manifest=await response.json();
+ const joined=new Uint8Array(manifest.bytes);let offset=0;
+ for(let i=0;i<manifest.parts.length;i++){const part=manifest.parts[i];status.textContent='Loading Balatro '+Math.floor(offset/manifest.bytes*100)+'%';const bytes=new Uint8Array(await download(part.name,part));joined.set(bytes,offset);offset+=bytes.length}
+ if(offset!==manifest.bytes)throw Error('Incomplete game data');
+ const [wasm,engine,game]=await Promise.all([download('love.wasm',manifest['love.wasm']),download('love.js',manifest['love.js']),download('game.js',manifest['game.js'])]);
+ status.textContent='Starting Balatro…';
+ window.Module={arguments:['./game.love'],INITIAL_MEMORY:268435456,wasmBinary:new Uint8Array(wasm),gameData:joined.buffer,canvas:canvas,locateFile:name=>CDN_BASE+name,print:console.log.bind(console),printErr:console.error.bind(console),setStatus:text=>{if(!started&&text)status.textContent=text},onRuntimeInitialized:()=>{started=true;status.style.display='none'},onAbort:reason=>fail(Error(String(reason)))};
+ script(new TextDecoder().decode(game));script(new TextDecoder().decode(engine));
+ const instance=Love(window.Module);if(instance&&instance.catch)instance.catch(fail);
+}
+boot().catch(fail);
+</script></body></html>
