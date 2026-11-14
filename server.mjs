@@ -72,7 +72,11 @@ async function serveApprovedGameFile(req,res,upstreamUrl){
      return;
    }
    res.status(response.status);
-   res.setHeader("Content-Type",response.headers.get("content-type")||"application/octet-stream");
+   const isPinnedRuffle=upstreamUrl.startsWith("https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/");
+   const contentType=isPinnedRuffle&&upstreamUrl.endsWith(".wasm")?"application/wasm":
+     isPinnedRuffle&&upstreamUrl.endsWith(".js")?"application/javascript; charset=utf-8":
+     response.headers.get("content-type")||"application/octet-stream";
+   res.setHeader("Content-Type",contentType);
    if(response.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",response.headers.get("accept-ranges"));
    if(response.headers.get("content-range"))res.setHeader("Content-Range",response.headers.get("content-range"));
    // Node fetch may decompress the body. Do not copy Content-Encoding or
@@ -470,6 +474,12 @@ const importedAssetRoots=Object.freeze({
   "1v1":"https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
 });
 const importedExactAssets=Object.freeze({
+  "run2/Run2.swf":"https://cdn.jsdelivr.net/gh/bubbls/UGS-file-encryption@f69cc42a2ca577ff18acdf1158d3dc6940afd3d3/Run2.swf",
+  "run2/ruffle.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/ruffle.js",
+  "run2/core.ruffle.9085ee9763de4e85853c.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/core.ruffle.9085ee9763de4e85853c.js",
+  "run2/core.ruffle.ae1054522f49580946c0.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/core.ruffle.ae1054522f49580946c0.js",
+  "run2/4d882486fa9bfce731b9.wasm":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/4d882486fa9bfce731b9.wasm",
+  "run2/f7f28eb60b84863611ca.wasm":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/f7f28eb60b84863611ca.wasm",
   "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.loader.js":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.loader.js",
   "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.data.unityweb":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.data.unityweb",
   "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.framework.js.unityweb":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.framework.js.unityweb",
