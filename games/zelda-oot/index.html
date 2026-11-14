@@ -1,12 +1,33 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Legend of Zelda: Ocarina of Time · Seuss Arcade</title>
-<style>html,body{margin:0;background:#0c1712;color:#effff4;font:15px system-ui;height:100%}#game{display:none;position:relative;width:100vw;height:100dvh;min-height:360px;overflow:hidden}#game .ejs_parent,#game .ejs_game{min-height:360px}#game canvas{display:block;max-width:100%}#panel{padding:24px;max-width:620px;margin:5vh auto}button{background:#2e6445;border:1px solid #99d2aa;color:white;padding:12px 20px;border-radius:8px;cursor:pointer}#status{line-height:1.5;color:#e8e0b7;white-space:pre-wrap}</style></head><body>
-<div id="panel"><h1>🗡️ The Legend of Zelda: Ocarina of Time</h1><p>Runs inside the Seuss Arcade using approved game and emulator routes on Render.</p><label for="core" style="display:block;margin:14px 0 6px">Graphics / emulator core</label><select id="core" style="font:inherit;padding:10px;border-radius:8px;background:#172822;color:#fff;border:1px solid #84a691"><option value="parallel_n64">Parallel N64 (compatibility)</option><option value="n64">Mupen64Plus Next (original)</option></select><label style="display:block;margin:12px 0"><input id="legacy" type="checkbox" checked> Use compatibility graphics (WebGL 1)</label><p style="color:#bad4c6;font-size:13px">If you hear sound with a black screen, use Reload in the arcade player and try the other core or turn off compatibility graphics.</p><button id="start" type="button">Start game</button><p id="status" role="status">Ready.</p></div><div id="game"></div>
+<style>html,body{margin:0;background:#0c1712;color:#effff4;font:15px system-ui;height:100%}#game{display:none;position:relative;width:100vw;height:100dvh;min-height:360px;overflow:hidden}#game .ejs_parent,#game .ejs_game{min-height:360px}#game canvas.ejs_canvas{display:block!important;visibility:visible!important;opacity:1!important}#game canvas{display:block;max-width:100%}#panel{padding:24px;max-width:620px;margin:5vh auto}button{background:#2e6445;border:1px solid #99d2aa;color:white;padding:12px 20px;border-radius:8px;cursor:pointer}#status{line-height:1.5;color:#e8e0b7;white-space:pre-wrap}</style></head><body>
+<div id="panel"><h1>🗡️ The Legend of Zelda: Ocarina of Time</h1><p>Runs inside the Seuss Arcade using approved game and emulator routes on Render.</p><label for="core" style="display:block;margin:14px 0 6px">Graphics / emulator core</label><select id="core" style="font:inherit;padding:10px;border-radius:8px;background:#172822;color:#fff;border:1px solid #84a691"><option value="parallel_n64">Parallel N64 (compatibility)</option><option value="n64">Mupen64Plus Next (original)</option></select><label style="display:block;margin:12px 0"><input id="legacy" type="checkbox"> Use compatibility graphics (WebGL 1)</label><p style="color:#bad4c6;font-size:13px">If you hear sound with a black screen, use Reload in the arcade player and try the other core or turn off compatibility graphics.</p><button id="start" type="button">Start game</button><p id="status" role="status">Ready.</p></div><div id="game"></div>
 <script>
 const BASE="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
 const status=document.getElementById("status"),start=document.getElementById("start");
 const PART_BYTES=[19922944,13631488];
 const TOTAL_BYTES=PART_BYTES.reduce((a,b)=>a+b,0);
 let downloadedBytes=0;
+// Restore canvas dimensions after the emulator finishes loading its core.
+function refreshVideo(){
+ const host=document.getElementById("game");
+ if(getComputedStyle(host).display==="none")return;
+ const e=window.EJS_emulator;
+ const canvas=host.querySelector("canvas.ejs_canvas");
+ if(canvas){
+   canvas.style.display="block";
+   canvas.style.visibility="visible";
+   canvas.style.opacity="1";
+   const bounds=canvas.getBoundingClientRect();
+   if(bounds.width<2||bounds.height<2){
+     canvas.style.width="100%";canvas.style.height="100%";
+   }
+ }
+ try{e?.handleResize?.();}catch(error){console.warn("Emulator video resize:",error);}
+ window.dispatchEvent(new Event("resize"));
+ if(canvas&&(canvas.width===0||canvas.height===0)){
+   report("Graphics canvas has zero size; try the other graphics mode",null);
+ }
+}
 function report(stage,percent=null){
  status.textContent=stage;
  if(window.parent!==window)window.parent.postMessage({type:"seuss-arcade-progress",stage,percent},location.origin);
@@ -32,6 +53,9 @@ async function fetchPart(name){
  report("Downloading Ocarina of Time · "+(downloadedBytes/1048576).toFixed(1)+" MB / "+(TOTAL_BYTES/1048576).toFixed(1)+" MB",Math.min(100,downloadedBytes/TOTAL_BYTES*100));
  return bytes.buffer;
 }
+// Check for WebGL2 before selecting an emulation graphics path.
+const hasWebGL2=!!document.createElement("canvas").getContext("webgl2");
+document.getElementById("legacy").checked=!hasWebGL2;
 start.addEventListener("click",async()=>{
  start.disabled=true;
  try{
@@ -39,21 +63,22 @@ start.addEventListener("click",async()=>{
   report("Downloading Ocarina of Time game parts…",0);
   const chunks=[];
   for(let n=1;n<=2;n++){chunks.push(await fetchPart("zelda-oot/rom.n64.part"+n));report("Downloaded game part "+n+" of 2",downloadedBytes/TOTAL_BYTES*100);}
-  const gameUrl=URL.createObjectURL(new Blob(chunks,{type:"application/octet-stream"}));
+  const gameUrl=new File(chunks,"Legend of Zelda, The - Ocarina of Time (USA).n64",{type:"application/octet-stream"});
   report("Game download complete · starting Nintendo 64 emulator…");
   window.EJS_ready=()=>report("Emulator ready · initializing game…");
-  window.EJS_onGameStart=()=>report("Ocarina of Time is running",100);
+  window.EJS_onGameStart=()=>{report("Ocarina of Time started · checking video output…",100);refreshVideo();setTimeout(refreshVideo,500);setTimeout(refreshVideo,1500);};
   window.EJS_player="#game";window.EJS_core=document.getElementById("core").value;window.EJS_gameName="The Legend of Zelda: Ocarina of Time";
   window.EJS_color="#0064ff";window.EJS_startOnLoaded=true;
   window.EJS_pathtodata=BASE+"emu/";window.EJS_gameUrl=gameUrl;
   window.EJS_forceLegacyCores=document.getElementById("legacy").checked;
   window.EJS_threads=false;
-  window.EJS_defaultOptions={vsync:"disabled"};
+  window.EJS_defaultOptions={vsync:"enabled",shader:"disabled",webgl2Enabled:window.EJS_forceLegacyCores?"disabled":"enabled"};
+  window.EJS_disableLocalStorage=true; // Reset stale renderer/shader preferences; save files stay in IndexedDB.
   document.getElementById("game").style.display="block";
   document.getElementById("panel").style.display="none";
   const script=document.createElement("script");script.src=BASE+"emu/loader.js";
   script.onerror=()=>{document.getElementById("panel").style.display="block";report("Emulator loader failed to download from Render.",0);start.disabled=false;};
-  script.addEventListener("load",()=>{requestAnimationFrame(()=>{window.dispatchEvent(new Event("resize"));});});
+  script.addEventListener("load",()=>{requestAnimationFrame(refreshVideo);});
   document.body.appendChild(script);
  }catch(e){report("Download failed: "+(e.message||String(e))+". Check the approved Render route.",0);start.disabled=false;}
 });
