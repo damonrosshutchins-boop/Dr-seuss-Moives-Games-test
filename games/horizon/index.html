@@ -1,62 +1,22 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Minecraft 26.3 Rust · Seuss Arcade</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}
-body{min-height:100vh;margin:0;background:radial-gradient(circle at 75% 15%,#304c39,#0b1319 55%);font:16px/1.6 system-ui,sans-serif;color:#e7f6eb;display:grid;place-items:center;padding:22px}
-main{width:min(610px,100%);border:1px solid #50745b;border-radius:18px;background:#15261edc;padding:27px}
-h1{margin:.1em 0 .35em}p{color:#bdcfbe}.status{white-space:pre-wrap;margin-top:20px}
-a{color:#91e5ad}.actions{margin-top:20px;display:flex;gap:16px;flex-wrap:wrap}
-button{border:1px solid #749a7e;border-radius:10px;background:#254730;color:white;font:inherit;padding:10px 15px;cursor:pointer}
-button:hover{background:#346643}
+:root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#090e12;color:#e7f4e8;font:15px system-ui,sans-serif}
+header{height:48px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#15251d;border-bottom:1px solid #3d694e}
+header a{color:#b5edcb;text-decoration:none}header strong{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+button{border:1px solid #7ab78b;background:#294936;color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer}
+iframe{width:100%;height:calc(100% - 48px);border:0;background:#000;display:block}
+#notice{position:absolute;top:60px;left:12px;right:12px;max-width:580px;margin:auto;background:#15241de8;border:1px solid #7ab78b;padding:14px;border-radius:12px;box-shadow:0 12px 30px #0008}
+#notice[hidden]{display:none}#notice p{line-height:1.5}
 </style></head><body>
-<main>
-<h1>⛏ Minecraft 26.3 Rust</h1>
-<p id="status" class="status" role="status" aria-live="polite">Starting the Horizon game…</p>
-<p>This game is included with the arcade. No file import is needed. The first launch downloads about 46 MB of game code and resources.</p>
-<div class="actions">
-<button type="button" id="audio">Launch with sound (large download)</button>
-<a href="../../index.html">Back to Arcade</a>
-</div>
-<p><small>Requires WebGPU, a compatible graphics driver, and sufficient browser memory. Sound mode downloads about 355 MB through the restricted Render game relay.</small></p>
-</main>
-<script type="module">
-const status=document.getElementById("status");
-const game=new URL("./play.html",location.href);
-async function activate(){
- if(!("serviceWorker" in navigator))throw Error("Your browser needs service-worker support.");
- const registration=await navigator.serviceWorker.register("./sw.js",{scope:"./",updateViaCache:"none"});
- if(!registration.active){
-   await Promise.race([
-     new Promise((resolve,reject)=>{
-       const worker=registration.installing||registration.waiting;
-       if(!worker)return reject(Error("Game service worker is unavailable."));
-       worker.addEventListener("statechange",()=>{
-         if(worker.state==="activated")resolve();
-         if(worker.state==="redundant")reject(Error("Game service worker was rejected."));
-       });
-       if(worker.state==="activated")resolve();
-     }),
-     new Promise((_,reject)=>setTimeout(()=>reject(Error("Game service worker did not activate.")),12000))
-   ]);
- }
- if(!navigator.gpu)throw Error("WebGPU is not available in this browser. Use a browser with WebGPU enabled.");
- const result=await fetch(game.href,{method:"HEAD",cache:"no-store"});
- if(!result.ok)throw Error("The Minecraft game file is not published yet (HTTP "+result.status+").");
- status.textContent="Launching Minecraft…";
- location.replace(game.href);
-}
-document.getElementById("audio").addEventListener("click",async()=>{
- try{
-  document.getElementById("audio").disabled=true;
-  status.textContent="Preparing game with sound…";
-  const registration=await navigator.serviceWorker.register("./sw.js",{scope:"./",updateViaCache:"none"});
-  if(!registration.active)await navigator.serviceWorker.ready;
-  if(!navigator.gpu)throw Error("WebGPU unavailable.");
-  const url=new URL(game.href);
-  url.searchParams.set("audio","1");
-  location.assign(url.href);
- }catch(e){status.textContent=e.message||String(e);}
-});
-activate().catch(e=>{status.textContent="Could not start Minecraft: "+(e.message||String(e));});
+<header><a href="../../index.html">← Arcade</a><strong>⛏ Minecraft 26.3 Rust (Horizon)</strong><button id="reload">Reload</button><button id="fullscreen">Fullscreen</button></header>
+<iframe id="game" title="Minecraft 26.3 Rust" src="https://alexboops.github.io/mc-rust-onweb/" allow="fullscreen; autoplay; gamepad; clipboard-read; clipboard-write" allowfullscreen referrerpolicy="no-referrer"></iframe>
+<section id="notice" role="status"><strong>Starting Minecraft…</strong><p>The game is loaded automatically from its public Horizon web build. No file upload is needed. WebGPU support and a substantial initial download are required. If it does not display inside the player, use <a href="https://alexboops.github.io/mc-rust-onweb/" target="_self" style="color:#a7edbd">Open game directly</a>.</p><button id="dismiss">Close</button></section>
+<script>
+const game=document.getElementById("game");
+document.getElementById("reload").onclick=()=>{game.src="https://alexboops.github.io/mc-rust-onweb/";};
+document.getElementById("fullscreen").onclick=()=>game.requestFullscreen?.();
+document.getElementById("dismiss").onclick=()=>{document.getElementById("notice").hidden=true;};
+game.addEventListener("load",()=>{setTimeout(()=>{document.getElementById("notice").hidden=true;},4000);},{once:true});
 </script></body></html>
