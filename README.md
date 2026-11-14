@@ -44,3 +44,23 @@ numbered sound chunks via the existing Render service:
 The server-side restriction does not permit arbitrary URL fetches.
 
 Build success does not guarantee playability on every WebGPU device.
+
+
+## God of War: Ghost of Sparta (approved Surge source via Render)
+
+The owner-supplied game source is `https://gow-sparta-damon.surge.sh/`.
+The Arcade card opens `games/gow-sparta/index.html`, which checks the pinned
+Render endpoint and navigates in the same browser tab to
+`https://seuss-cinema-arcade.onrender.com/approved-games/gow-sparta/`.
+Only game files on this exact Surge hostname are fetched by the new Render
+route; request paths are checked and redirects are rejected. The server streams
+ordinary assets, passes through simple byte ranges (important for large game
+files), and rewrites common HTML/CSS root-relative URLs to stay under the
+approved route. This does **not** provide a general web proxy.
+
+The game must exist and be reachable at its Surge source. Some games use
+external CDNs, root-absolute JavaScript paths, special response headers,
+websockets or service workers that cannot be verified without inspecting the
+live upstream page; those dependencies are not automatically proxied.
+The launcher reports an unavailable source instead of silently redirecting.
+The successful Pages build/Render deploy alone does not verify gameplay.
