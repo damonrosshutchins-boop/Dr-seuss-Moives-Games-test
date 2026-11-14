@@ -69,6 +69,7 @@ const library=[
 {id:'balatro',kind:'game',name:'Balatro (Web Port)',desc:'Locally hosted launcher; the approved pinned game files stream via a restricted Render proxy. No general web browsing.',icon:'🃏',bg:'linear-gradient(130deg,#1b4a47,#b05157)',url:'./games/balatro/index.html',local:true},
 {id:'horizon',kind:'game',name:'Minecraft 26.3 Rust (Horizon)',desc:'Locally hosted Rust/WebGPU Minecraft. Launches automatically with no file import or external iframe; optional sound comes through restricted Render assets.',icon:'⛏️',bg:'linear-gradient(130deg,#243d2c,#689f62)',url:'./games/horizon/index.html',local:true,needsIsolation:true},
 {id:'gow-sparta',kind:'game',name:'God of War: Ghost of Sparta',desc:'Loads psp-web-damon.surge.sh through the fixed-source Render route, including its same-host game assets.',icon:'🛡️',bg:'linear-gradient(130deg,#34272e,#9b7470)',url:'./games/gow-sparta/index.html',local:true,needsIsolation:true},
+{id:'uwu-client',kind:'game',name:'UwU Client',desc:'Minecraft-style HTML client served through a fixed, approved Render proxy route and launched inside the arcade.',icon:'🐾',bg:'linear-gradient(130deg,#61406f,#aa82bc)',url:'./games/uwu-client/index.html',local:true},
 {id:'minecraft-18-wrust',kind:'game',name:'Minecraft 1.8 Wrust Mod',desc:'EaglercraftX 1.8 offline HTML from your Drive file, delivered through a fixed Render proxy route.',icon:'🟩',bg:'linear-gradient(130deg,#23442b,#77a95d)',url:'./games/minecraft-18-wrust/index.html',local:true},
 {id:'minecraft-18-mods',kind:'game',name:'Minecraft 1.8 Mods',desc:'EaglerForge from your Drive file; its four fixed game chunks are served through the restricted Render proxy.',icon:'🧱',bg:'linear-gradient(130deg,#2c4b65,#70a4b6)',url:'./games/minecraft-18-mods/index.html',local:true},
 {id:'old-minecraft',kind:'game',name:'Old Minecraft',desc:'Play the classic Minecraft-style browser experience through the approved game relay.',icon:'⛏️',bg:'linear-gradient(130deg,#385b39,#83a565)',url:'https://mclegacy.pages.dev/'},
@@ -119,7 +120,7 @@ function updatePlayerProgress(label,percent=null){
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==$('frame').contentWindow)return;
   if(!$('viewer')||$('viewer').classList.contains('hidden'))return;
-  if(!selected?.local||!['zelda-oot','centipede-arcade','run-2'].includes(selected.id))return;
+  if(!selected?.local||!['zelda-oot','centipede-arcade','run-2','uwu-client'].includes(selected.id))return;
   const data=event.data;
   if(!data||data.type!=='seuss-arcade-progress'||typeof data.stage!=='string')return;
   $('frame').dataset.progressReceived='yes';
