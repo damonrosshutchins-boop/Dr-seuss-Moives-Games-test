@@ -60,6 +60,7 @@ const library=[
 {id:'1v1-lol',kind:'game',name:'1v1.LOL',desc:'Local game launcher with Unity build files served by Render; online features may need third-party services.',icon:'🎯',bg:'linear-gradient(130deg,#294963,#7a83d7)',url:'./games/1v1-lol/index.html',local:true},
 {id:'zelda-oot',kind:'game',name:'The Legend of Zelda: Ocarina of Time',desc:'Nintendo 64 emulator with approved, pinned game parts delivered from Render.',icon:'🗡️',bg:'linear-gradient(130deg,#274c3c,#b6a26b)',url:'./games/zelda-oot/index.html',local:true},
 {id:'tung-sahur-obby',kind:'game',name:'Tung Tung Sahur: Obby Challenge',desc:'Unity WebGL obstacle-course game, running inside the Arcade with approved pinned Render assets.',icon:'🏃',bg:'linear-gradient(130deg,#413a24,#b28d54)',url:'./games/tung-sahur-obby/index.html',local:true},
+{id:'run-2',kind:'game',name:'Run 2 (Flash)',desc:'Classic Run 2 Flash game in the Arcade, using Ruffle and pinned Render assets.',icon:'🏃',bg:'linear-gradient(130deg,#1e4160,#728bd4)',url:'./games/run-2/index.html',local:true},
 {id:'centipede-arcade',kind:'game',name:'Centipede (Arcade)',desc:'Classic arcade game and EmulatorJS assets from fixed, approved Render routes.',icon:'🐛',bg:'linear-gradient(130deg,#313c24,#7da15b)',url:'./games/centipede-arcade/index.html',local:true},
 {id:'fnae',kind:'game',name:"Five Night's at BIG E",desc:'Unity WebGL game loaded inside the Arcade with pinned game files through Render.',icon:'🌙',bg:'linear-gradient(130deg,#252a38,#706b89)',url:'./games/fnae/index.html',local:true},
 {id:'cheese',kind:'game',name:'Cheese Rolling',desc:'Launches through a restricted Render game route, with a connection check and Retry button if its original source is down.',icon:'🧀',bg:'linear-gradient(130deg,#8b5a32,#d7a55a)',url:'./games/cheese/index.html',local:true},
@@ -118,7 +119,7 @@ function updatePlayerProgress(label,percent=null){
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==$('frame').contentWindow)return;
   if(!$('viewer')||$('viewer').classList.contains('hidden'))return;
-  if(!selected?.local||!['zelda-oot','centipede-arcade'].includes(selected.id))return;
+  if(!selected?.local||!['zelda-oot','centipede-arcade','run-2'].includes(selected.id))return;
   const data=event.data;
   if(!data||data.type!=='seuss-arcade-progress'||typeof data.stage!=='string')return;
   $('frame').dataset.progressReceived='yes';
