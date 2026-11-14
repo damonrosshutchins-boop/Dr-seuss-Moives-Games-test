@@ -108,7 +108,7 @@ for(const slug of importedGames){
   await fs.mkdir(path.dirname(destination),{recursive:true});
   await fs.copyFile(source,destination);
   const contents=await fs.readFile(destination,"utf8");
-  if(!contents.trim()||!contents.toLowerCase().includes("<html"))
+  if(!contents.trim()||!/<(?:html|head|body)\b/i.test(contents))
     throw Error("Invalid imported game launcher: "+destination);
   console.log("Published imported launcher: "+slug);
 }
