@@ -1,42 +1,44 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Minecraft 1.8 Mods · Seuss Arcade</title>
-<style>
-:root{color-scheme:dark}*{box-sizing:border-box}
-body{min-height:100vh;display:grid;place-items:center;background:radial-gradient(ellipse at top,#263f2e,#101b13 52%,#070b09);color:#e8f8ee;margin:0;padding:20px;font:15px/1.6 system-ui,-apple-system,sans-serif}
-main{width:min(100%,540px);border:1px solid #5a916b;border-radius:15px;background:#15241c;padding:24px;box-shadow:0 18px 54px #0007}
-h1{font-size:clamp(24px,5vw,32px);margin:0 0 12px}
-p{color:#cbd9ce}.buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
-a,button{display:inline-block;border:1px solid #80bb8f;border-radius:8px;background:#315e3e;color:#fff;padding:10px 14px;text-decoration:none;font:inherit;cursor:pointer}
-a:focus-visible,button:focus-visible{outline:3px solid #ffe09c;outline-offset:3px}
-small{color:#b4cbb9}
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minecraft 1.8 Mods / EaglerForge · Seuss Arcade</title><style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b1410;color:#f4fff7;font:14px system-ui,sans-serif;min-height:100dvh;display:flex;flex-direction:column}
+header{background:#15241c;border-bottom:1px solid #3b694c;display:flex;align-items:center;gap:12px;padding:10px 15px;flex-wrap:wrap}
+header strong{font-size:16px}header span{color:#b7d5c0;font-size:12px;flex:1}
+button,a{border:1px solid #6caa7b;border-radius:8px;padding:9px 12px;background:#315e3e;color:white;cursor:pointer;text-decoration:none;font:inherit}
+button:focus-visible,a:focus-visible{outline:3px solid #ffe09c;outline-offset:2px}
+main{flex:1;display:flex;flex-direction:column;min-height:0}
+#status{padding:8px 15px;color:#d2eedb;margin:0;background:#182d20}
+iframe{display:block;flex:1;min-height:65vh;width:100%;border:0;background:#0b1410}
+#help{display:none;padding:12px 15px;background:#352626;color:#ffe3e3}
 </style></head>
-<body><main>
-<h1>⛏ Minecraft 1.8 Mods</h1>
-<p id="status" role="status">Checking the approved Render game connection…</p>
-<p>EaglerForge launcher and four pinned game chunks, all delivered through fixed Render paths. No Drive sign-in, file upload, or external game iframe is needed when the shared file is publicly available.</p>
-<div class="buttons">
-<a id="play" href="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-mods/index.html">Play through Render</a>
-<a href="../../index.html">← Back to Arcade</a>
-</div>
-<p><small>Initial game data: About 79 MB of game chunks. Large game downloads may take time. Browser Back returns to the Arcade. Multiplayer and other external services are not included in the fixed asset allowlist.</small></p>
-</main>
+<body><header><strong>⛏ Minecraft 1.8 Mods / EaglerForge</strong><span>EaglerForge runs inside the GitHub Pages player. Game HTML and its fixed asset parts are served from the approved Render route.</span>
+<a href="../../index.html">← Back to Arcade</a><button id="reload" type="button">↻ Reload game</button></header>
+<main><p id="status" role="status" aria-live="polite">Loading approved Minecraft game from Render inside GitHub Pages…</p>
+<iframe id="game" title="Minecraft 1.8 Mods / EaglerForge" allow="fullscreen; gamepad; autoplay; pointer-lock" allowfullscreen referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-popups-to-escape-sandbox"></iframe>
+<div id="help" role="alert">The Render game could not be confirmed. Use Reload game to retry. The arcade remains on GitHub Pages.</div></main>
 <script>
-(async()=>{
- const el=document.getElementById("status");
- const origin="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-mods/";
+const GAME_URL="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-mods/index.html";
+const STATUS_URL="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-mods/status";
+const frame=document.getElementById("game"),status=document.getElementById("status"),help=document.getElementById("help");
+let session=0;
+async function load(){
+ const current=++session;help.style.display="none";
+ status.textContent="Loading Minecraft 1.8 Mods / EaglerForge from the approved Render game route…";
+ frame.src="about:blank";
+ // The iframe preserves GitHub Pages as the top-level URL.
+ frame.src=GAME_URL;
  try{
-   const response=await fetch(origin+"status",{cache:"no-store",signal:AbortSignal.timeout(25000)});
+   const response=await fetch(STATUS_URL,{cache:"no-store",signal:AbortSignal.timeout(25000)});
    const data=await response.json().catch(()=>({}));
-   if(!response.ok||!data.ok)throw Error(data.message||"Render game source unavailable ("+response.status+")");
-   el.textContent="Game source verified. Opening through Render…";
-   location.replace(origin+"index.html");
+   if(current!==session)return;
+   if(!response.ok||!data.ok)throw Error(data.message||"Render returned "+response.status);
+   status.textContent="Render game source reachable. Game is loading below; stay on this GitHub Pages tab.";
  }catch(error){
-   el.textContent="Could not confirm the game source: "+(error.message||String(error))+
-     ". Use Play through Render to retry, or return to the Arcade.";
+   if(current!==session)return;
+   status.textContent="Could not verify Render game source: "+(error.message||String(error));
+   help.style.display="block";
  }
-})();
-</script>
-</body></html>
+}
+document.getElementById("reload").addEventListener("click",load);
+load();
+</script></body></html>
