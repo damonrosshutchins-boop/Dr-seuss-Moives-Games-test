@@ -45,6 +45,24 @@ jobs:
                   scanned+=1
                   if scanned>=6: break
               print("ALL OBSERVED HOSTS",json.dumps(sorted(found)))
+              render="https://seuss-cinema-arcade.onrender.com/approved-games/gow-sparta/"
+              for label,route in (("status","status"),("game-html","index.html")):
+                  target=render+route
+                  try:
+                      request=urllib.request.Request(target,headers={"User-Agent":"Seuss-Arcade-Source-Audit/1.0"})
+                      with urllib.request.urlopen(request,timeout=65) as response:
+                          content=response.read(80000)
+                          print("RENDER ROUTE TEST",label,"status",response.status,"final-url",response.url,"content-type",response.headers.get("content-type"),"sample-bytes",len(content))
+                          if label=="game-html":
+                              body=content.decode("utf-8","replace")
+                              print("RENDER HTML CHECK","contains-PSP-source",("psp-web-damon.surge.sh" in body),"contains-asset-route",("/approved-games/gow-sparta/" in body))
+                              if not body.lstrip().lower().startswith(("<!doctype","<html")):
+                                  print("RENDER GAME BODY PREFIX",repr(body[:260]))
+                          if response.status!=200:
+                              raise RuntimeError(label+" returned "+str(response.status))
+                  except Exception as error:
+                      print("RENDER ROUTE TEST ERROR",label,type(error).__name__,str(error)[:500])
+
           except Exception as err:
               print("PSP SOURCE FETCH ERROR",type(err).__name__,str(err)[:500])
           PY
