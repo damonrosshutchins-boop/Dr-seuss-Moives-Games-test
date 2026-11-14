@@ -1,0 +1,48 @@
+name: Inspect public Minecraft 1.8 Drive game files
+on:
+  push:
+    paths:
+      - .github/workflows/audit-mc18-drive.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check two owner-supplied Drive file links
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.parse,re,html
+          sources=[
+              ("Minecraft 1.8 Wrust mod","1TBtrBMMw9w9lqc3Z3aw4CARG_O04abIM"),
+              ("Minecraft 1.8 mods","17mqNnsALl6ZvDVOtarz4EuP5pS8E4-R9"),
+          ]
+          for name,file_id in sources:
+              print("\n=== "+name+" ===",flush=True)
+              endpoints=[
+                "https://drive.usercontent.google.com/download?"+urllib.parse.urlencode({"id":file_id,"export":"download","confirm":"t"}),
+                "https://drive.google.com/uc?"+urllib.parse.urlencode({"export":"download","id":file_id}),
+                "https://drive.google.com/file/d/"+file_id+"/view",
+              ]
+              for url in endpoints:
+                  try:
+                      request=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 (compatible; SeussArcadeFileTypeAudit/1.0)"})
+                      with urllib.request.urlopen(request,timeout=25) as resp:
+                          payload=resp.read(16384)
+                          mime=resp.headers.get("Content-Type","")
+                          print("request endpoint",urllib.parse.urlsplit(url).netloc,urllib.parse.urlsplit(url).path)
+                          print("HTTP",resp.status,"final host",urllib.parse.urlsplit(resp.url).hostname,"type",mime,"length",resp.headers.get("Content-Length"),"disposition",resp.headers.get("Content-Disposition"),"partial read",len(payload))
+                          print("signature",repr(payload[:40]))
+                          if "html" in mime.lower():
+                              text=payload.decode("utf-8","replace")
+                              print("HTML title",re.findall(r"<title[^>]*>(.*?)</title>",text,re.I|re.S)[:2])
+                              print("HTML signals",{s:(s.lower() in text.lower()) for s in ["Google Drive","You need access","Sign in","Download anyway","Virus scan warning","file name","preview"]})
+                          else:
+                              print("DOWNLOADABLE CONTENT CONFIRMED")
+                              break
+                  except Exception as err:
+                      print("FETCH ERROR",type(err).__name__,str(err)[:300],flush=True)
+          PY
