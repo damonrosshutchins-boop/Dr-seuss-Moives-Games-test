@@ -48,7 +48,7 @@ Build success does not guarantee playability on every WebGPU device.
 
 ## God of War: Ghost of Sparta (approved Surge source via Render)
 
-The owner-supplied game source is `https://gow-sparta-damon.surge.sh/`.
+The current owner-supplied PSP game source is `https://psp-web-damon.surge.sh/`.
 The Arcade card opens `games/gow-sparta/index.html`, which checks the pinned
 Render endpoint and navigates in the same browser tab to
 `https://seuss-cinema-arcade.onrender.com/approved-games/gow-sparta/`.
@@ -58,9 +58,12 @@ ordinary assets, passes through simple byte ranges (important for large game
 files), and rewrites common HTML/CSS root-relative URLs to stay under the
 approved route. This does **not** provide a general web proxy.
 
-The game must exist and be reachable at its Surge source. Some games use
+The PSP site must exist and be reachable at its Surge source. A GitHub Actions source audit fetched the root HTML successfully (HTTP 200) and found no statically embedded absolute URL hosts in that HTML; this does not verify runtime dependencies. Some games use
 external CDNs, root-absolute JavaScript paths, special response headers,
 websockets or service workers that cannot be verified without inspecting the
 live upstream page; those dependencies are not automatically proxied.
 The launcher reports an unavailable source instead of silently redirecting.
 The successful Pages build/Render deploy alone does not verify gameplay.
+
+
+The PSP site's first-party root-relative fetch/XHR URLs and first-party absolute asset references are rewritten to stay inside the fixed Render game route. Any dynamic third-party endpoints must be inspected and independently approved; arbitrary domains are not automatically granted proxy access.
