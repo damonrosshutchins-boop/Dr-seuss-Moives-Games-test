@@ -1,0 +1,64 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tung Tung Sahur: Obby Challenge · Seuss Arcade</title><base href="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/tungobby/">
+<link rel="stylesheet" href="TemplateData/style.css"><link rel="icon" href="TemplateData/favicon.ico">
+<style>html,body{margin:0;min-height:100%;background:#13141b;color:#fff;font:15px system-ui,sans-serif}
+#unity-container{position:relative;min-height:100vh;display:flex;justify-content:center;align-items:center;flex-direction:column}
+#unity-canvas{display:block;width:min(100vw,960px);height:min(70vh,600px);background:#050505}
+#unity-preview{position:absolute;top:15px;right:15px;max-width:140px}#unity-preview img{max-width:100%}
+#unity-game-title{text-align:center;font-weight:800;font-size:18px;padding:10px}
+#unity-loading-bar{width:min(70%,420px);padding:14px}
+#unity-progress-bar-empty{height:12px;border-radius:10px;background:#394152;overflow:hidden}
+#unity-progress-bar-full{width:0;height:100%;background:#8cd0b1}
+#unity-loading-text{font-size:15px;padding:8px}
+#unity-warning{color:#ffcfab;white-space:pre-wrap;max-width:88vw;padding:10px}
+#orientation-warning{display:none;position:fixed;inset:0;background:#141821;color:white;z-index:3;align-items:center;justify-content:center;flex-direction:column;padding:20px;text-align:center}
+#orientation-warning img{width:125px}
+</style></head><body>
+<div id="unity-container">
+<canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
+<div id="unity-preview"><img src="TemplateData/preview.png" alt="Game preview"></div>
+<div id="unity-game-title">Tung Tung Sahur: Obby Challenge</div>
+<div id="unity-loading-bar"><div id="unity-progress-bar-empty"><div id="unity-progress-bar-full"></div></div></div>
+<div id="unity-loading-text" role="status" aria-live="polite">Checking approved Render game assets…</div>
+<div id="unity-warning" role="alert"></div>
+</div>
+<div id="orientation-warning"><img src="TemplateData/rotate-device.png" alt="Rotate device">Rotate your device to landscape to play.</div>
+<script>
+(async()=>{
+const base="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/tungobby/";
+const path="Build/TungTungSahur-ObbyChallenge-v.1.1";
+const loaderUrl=base+path+".loader.js";
+const canvas=document.getElementById("unity-canvas");
+const progressBarFull=document.getElementById("unity-progress-bar-full");
+const loadingText=document.getElementById("unity-loading-text");
+const warning=document.getElementById("unity-warning");
+function showError(m){warning.textContent=m;loadingText.textContent="Game could not start";console.error(m);}
+function orient(){
+ const portrait=window.innerHeight>window.innerWidth;
+ const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+ document.getElementById("orientation-warning").style.display=mobile&&portrait?"flex":"none";
+}
+window.addEventListener("resize",orient);orient();
+try{
+ const res=await fetch(loaderUrl,{method:"HEAD",cache:"no-store",signal:AbortSignal.timeout(35000)});
+ if(!res.ok)throw Error("Unity loader unavailable (HTTP "+res.status+")");
+ loadingText.textContent="Starting Unity game…";
+ const script=document.createElement("script");script.src=loaderUrl;
+ script.onerror=()=>showError("Could not download Unity loader through Render.");
+ script.onload=()=>{
+  if(typeof createUnityInstance!=="function"){showError("Unity loader did not initialize.");return;}
+  createUnityInstance(canvas,{
+   dataUrl:base+path+".data.unityweb",
+   frameworkUrl:base+path+".framework.js.unityweb",
+   codeUrl:base+path+".wasm.unityweb",
+   streamingAssetsUrl:base+"StreamingAssets",
+   companyName:"Nexus",productName:"Tung Tung Sahur: Obby Challenge",
+   productVersion:"0.1",showBanner:(msg,type)=>{if(type==="error")showError(msg);}
+  },v=>{progressBarFull.style.width=Math.round(v*100)+"%";loadingText.textContent="Loading "+Math.round(v*100)+"%";})
+  .then(()=>{document.getElementById("unity-loading-bar").style.display="none";loadingText.style.display="none";document.getElementById("unity-preview").style.display="none";document.getElementById("unity-game-title").style.display="none";})
+  .catch(e=>showError("Unity startup failed: "+e));
+ };
+ document.body.appendChild(script);
+}catch(e){showError("Render asset check failed: "+(e.message||String(e)));}
+})();
+</script></body></html>
