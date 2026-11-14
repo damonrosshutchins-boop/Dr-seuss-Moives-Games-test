@@ -593,7 +593,14 @@ async function servePinnedFallbackGameFile(req,res,primary,fallback){
         return res.status(502).type("text/plain").send("Pinned game asset unavailable from both approved sources ("+response.status+").");
       }
       res.status(response.status);
+      // GitHub raw serves some .js/.css files as text/plain. Explicit
+      // types are required because the app sets X-Content-Type-Options: nosniff.
       const contentType=url.endsWith(".unityweb")?"application/octet-stream":
+        url.endsWith(".js")?"application/javascript; charset=utf-8":
+        url.endsWith(".css")?"text/css; charset=utf-8":
+        url.endsWith(".json")?"application/json; charset=utf-8":
+        url.endsWith(".png")?"image/png":
+        url.endsWith(".gif")?"image/gif":
         response.headers.get("content-type")||"application/octet-stream";
       res.setHeader("Content-Type",contentType);
       if(response.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",response.headers.get("accept-ranges"));
