@@ -1,22 +1,69 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Minecraft 26.3 Rust · Seuss Arcade</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#090e12;color:#e7f4e8;font:15px system-ui,sans-serif}
-header{height:48px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#15251d;border-bottom:1px solid #3d694e}
-header a{color:#b5edcb;text-decoration:none}header strong{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-button{border:1px solid #7ab78b;background:#294936;color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer}
-iframe{width:100%;height:calc(100% - 48px);border:0;background:#000;display:block}
-#notice{position:absolute;top:60px;left:12px;right:12px;max-width:580px;margin:auto;background:#15241de8;border:1px solid #7ab78b;padding:14px;border-radius:12px;box-shadow:0 12px 30px #0008}
-#notice[hidden]{display:none}#notice p{line-height:1.5}
-</style></head><body>
-<header><a href="../../index.html">← Arcade</a><strong>⛏ Minecraft 26.3 Rust (Horizon)</strong><button id="reload">Reload</button><button id="fullscreen">Fullscreen</button></header>
-<iframe id="game" title="Minecraft 26.3 Rust" src="https://alexboops.github.io/mc-rust-onweb/" allow="fullscreen; autoplay; gamepad; clipboard-read; clipboard-write" allowfullscreen referrerpolicy="no-referrer"></iframe>
-<section id="notice" role="status"><strong>Starting Minecraft…</strong><p>The game is loaded automatically from its public Horizon web build. No file upload is needed. WebGPU support and a substantial initial download are required. If it does not display inside the player, use <a href="https://alexboops.github.io/mc-rust-onweb/" target="_self" style="color:#a7edbd">Open game directly</a>.</p><button id="dismiss">Close</button></section>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{min-height:100vh;margin:0;background:radial-gradient(circle at 50% 30%,#203d2b 0,#101b15 45%,#070d09 100%);color:#e6f7e9;display:grid;place-items:center;padding:20px}
+main{width:min(100%,520px);background:#111f17ed;border:1px solid #4d815e;border-radius:18px;padding:26px;box-shadow:0 18px 60px #0006}
+h1{margin:0 0 12px;font-size:clamp(23px,5vw,31px)}
+p{line-height:1.6;color:#c5d9ca}a{color:#a8edb9}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+button,.button{display:inline-block;border:1px solid #70a680;background:#315d3e;color:white;padding:11px 15px;border-radius:9px;text-decoration:none;cursor:pointer;font:inherit}
+button:focus-visible,a:focus-visible{outline:3px solid #ffd580;outline-offset:3px}
+small{color:#aac1b1}
+</style>
+</head>
+<body>
+<main>
+<h1>⛏ Minecraft 26.3 Rust</h1>
+<p id="status" role="status">Preparing your locally hosted game…</p>
+<p>This is the self-contained Rust/WebGPU game hosted on Seuss Arcade's GitHub Pages. No upload, external game iframe, or general web proxy is required.</p>
+<div class="actions">
+<button id="launch" type="button">Launch game</button>
+<a class="button" href="./index.html?audio=1">Play with sound via Render</a>
+<a href="../../index.html" class="button">← Arcade</a>
+</div>
+<p><small>The default launch skips the optional ~355 MB sound archive. Sound mode uses fixed, approved files through the Render service. Your browser needs WebGPU; saves remain in browser storage.</small></p>
+</main>
 <script>
-const game=document.getElementById("game");
-document.getElementById("reload").onclick=()=>{game.src="https://alexboops.github.io/mc-rust-onweb/";};
-document.getElementById("fullscreen").onclick=()=>game.requestFullscreen?.();
-document.getElementById("dismiss").onclick=()=>{document.getElementById("notice").hidden=true;};
-game.addEventListener("load",()=>{setTimeout(()=>{document.getElementById("notice").hidden=true;},4000);},{once:true});
-</script></body></html>
+"use strict";
+const status=document.getElementById("status");
+const launch=document.getElementById("launch");
+const withAudio=new URLSearchParams(location.search).get("audio")==="1";
+let started=false;
+async function start(){
+ if(started)return;
+ started=true;
+ launch.disabled=true;
+ const target="./play.html"+(withAudio?"?audio=1":"");
+ status.textContent="Starting the locally hosted game…";
+ try{
+   if("serviceWorker" in navigator){
+     status.textContent="Activating the game's local service worker…";
+     await navigator.serviceWorker.register("./sw.js",{scope:"./"});
+     await Promise.race([
+       navigator.serviceWorker.ready,
+       new Promise((_,reject)=>setTimeout(()=>reject(new Error("Service worker activation timed out")),8000))
+     ]);
+     if(!navigator.serviceWorker.controller){
+       await Promise.race([
+         new Promise(resolve=>navigator.serviceWorker.addEventListener("controllerchange",resolve,{once:true})),
+         new Promise(resolve=>setTimeout(resolve,2500))
+       ]);
+     }
+   }
+ }catch(error){
+   console.warn("Horizon service worker not ready; game's own bootstrap may retry:",error);
+ }
+ status.textContent=withAudio?"Launching local Minecraft with approved Render sound assets…":"Launching local Minecraft…";
+ location.replace(target);
+}
+launch.addEventListener("click",()=>{started=false;start();});
+start();
+</script>
+</body>
+</html>
