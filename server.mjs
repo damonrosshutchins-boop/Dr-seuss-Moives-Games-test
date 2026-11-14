@@ -469,6 +469,14 @@ const importedAssetRoots=Object.freeze({
   "1v1":"https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
 });
 const importedExactAssets=Object.freeze({
+  "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.loader.js":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.loader.js",
+  "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.data.unityweb":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.data.unityweb",
+  "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.framework.js.unityweb":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.framework.js.unityweb",
+  "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.wasm.unityweb":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.wasm.unityweb",
+  "tungobby/TemplateData/style.css":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/TemplateData/style.css",
+  "tungobby/TemplateData/favicon.ico":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/TemplateData/favicon.ico",
+  "tungobby/TemplateData/preview.png":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/TemplateData/preview.png",
+  "tungobby/TemplateData/rotate-device.png":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/TemplateData/rotate-device.png",
   "zelda-oot/rom.n64.part1":"https://cdn.jsdelivr.net/gh/bubbls/ugss@ffa46738ce21236742f4a44db08d87160fed6c7d/ocarinaoftime/Legend%20of%20Zelda%2C%20The%20-%20Ocarina%20of%20Time%20(USA).n64.part1",
   "zelda-oot/rom.n64.part2":"https://cdn.jsdelivr.net/gh/bubbls/ugss@ffa46738ce21236742f4a44db08d87160fed6c7d/ocarinaoftime/Legend%20of%20Zelda%2C%20The%20-%20Ocarina%20of%20Time%20(USA).n64.part2",
   "centipede/rom.zip":"https://cdn.jsdelivr.net/gh/ap-math-class/exams@main/mame/centiped.zip",
