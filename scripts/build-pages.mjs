@@ -100,7 +100,7 @@ for(const slug of ["balatro","cheese"]){
 // Publish the four imported game launchers on GitHub Pages. The browser
 // stays inside the arcade; large game binaries are fetched from pinned
 // approved Render routes rather than copied into the Pages artifact.
-const importedGames=["plants-vs-zombies-ds","mario-kart-64","1v1-lol","fnae"];
+const importedGames=["plants-vs-zombies-ds","mario-kart-64","1v1-lol","fnae","zelda-oot","centipede-arcade"];
 for(const slug of importedGames){
   const source=path.join("games",slug,"index.html");
   const destination=path.join(out,"games",slug,"index.html");
