@@ -41,6 +41,10 @@ for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css"
 // This local setup screen does not ship Nintendo disc images or emulator binaries.
 await fs.mkdir(path.join(out,"games","smsrip"),{recursive:true});
 await fs.copyFile(path.join("games","smsrip","index.html"),path.join(out,"games","smsrip","index.html"));
+// Ghost of Sparta is proxied only by Render's fixed-origin route.
+// Publish a same-site launcher, never a direct iframe of the Surge source.
+await fs.mkdir(path.join(out,"games","gow-sparta"),{recursive:true});
+await fs.copyFile(path.join("games","gow-sparta","index.html"),path.join(out,"games","gow-sparta","index.html"));
 // Copy the small Horizon loader and its strictly scoped service worker.
 // A later owner-committed standalone HTML is published automatically.
 await fs.mkdir(path.join(out,"games","horizon"),{recursive:true});
