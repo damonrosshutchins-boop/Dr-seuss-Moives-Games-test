@@ -1,0 +1,50 @@
+name: Audit approved PSP source dependencies
+on:
+  push:
+    paths:
+      - .github/workflows/audit-psp.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect fixed PSP source and its same-host scripts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re, urllib.request, urllib.parse, json
+          root="https://psp-web-damon.surge.sh/"
+          found=set()
+          def inspect(label,url,cap=2500000):
+              request=urllib.request.Request(url,headers={"User-Agent":"Seuss-Arcade-Source-Audit/1.0"})
+              with urllib.request.urlopen(request,timeout=15) as response:
+                  data=response.read(cap)
+                  print(label,"status",response.status,"content-type",response.headers.get("content-type"),"bytes-inspected",len(data),"final-host",urllib.parse.urlsplit(response.url).hostname)
+              text=data.decode("utf-8","replace")
+              urls=re.findall(r"https?://[a-zA-Z0-9._:\\-]+(?:/[a-zA-Z0-9_/%?&=+#.\\-~]*)?",text)
+              hosts={urllib.parse.urlsplit(u).hostname for u in urls}
+              found.update(h for h in hosts if h)
+              print(label,"embedded absolute URL hosts",json.dumps(sorted(hosts)))
+              if label=="index":
+                  references=re.findall(r"""(?:src|href)\s*=\s*["']([^"']+)["']""",text,re.I)
+                  print("index resource references",json.dumps(references[:50]))
+                  return references
+              return []
+          try:
+              refs=inspect("index",root)
+              scanned=0
+              for ref in refs:
+                  url=urllib.parse.urljoin(root,ref)
+                  if urllib.parse.urlsplit(url).hostname!="psp-web-damon.surge.sh" or not url.endswith(".js"):
+                      continue
+                  try: inspect("script-"+str(scanned),url)
+                  except Exception as err: print("script-error",type(err).__name__,str(err)[:300])
+                  scanned+=1
+                  if scanned>=6: break
+              print("ALL OBSERVED HOSTS",json.dumps(sorted(found)))
+          except Exception as err:
+              print("PSP SOURCE FETCH ERROR",type(err).__name__,str(err)[:500])
+          PY
