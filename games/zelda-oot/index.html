@@ -46,13 +46,18 @@ function showSetup(error){
 let monitorTimer=null,videoObserver=null,videoRescueAttempted=false;
 function resizeVideo(){
  const emulator=window.EJS_emulator;
- try{emulator?.frontend?.handleResize?.();}catch(error){console.warn("EmulatorJS resize:",error);}
+ try{
+   // EmulatorJS 4.2.3 exposes handleResize and canvas directly on the emulator;
+   // 4.3 pre-release moved them under frontend. Support both shapes.
+   if(typeof emulator?.handleResize==="function")emulator.handleResize();
+   else emulator?.frontend?.handleResize?.();
+ }catch(error){console.warn("EmulatorJS resize:",error);}
 }
 function checkVideo(tries=0){
  const host=document.getElementById("game");
  if(host.style.display==="none")return;
  const emulator=window.EJS_emulator;
- const canvas=emulator?.frontend?.canvas||host.querySelector("canvas.ejs_canvas");
+ const canvas=emulator?.canvas||emulator?.frontend?.canvas||host.querySelector("canvas.ejs_canvas");
  const parent=host.querySelector(".ejs_parent");
  const hostRect=host.getBoundingClientRect();
  // This is the documented embedding element, not the canvas bitmap.
