@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>God of War: Ghost of Sparta · Seuss Arcade</title>
+<title>PSP Web · God of War: Ghost of Sparta · Seuss Arcade</title>
 <style>
 :root{color-scheme:dark;font:16px system-ui,sans-serif}
 *{box-sizing:border-box}
@@ -17,14 +17,14 @@ small{font-size:13px;color:#baadae}
 </style></head>
 <body>
 <main>
-<h1>God of War: Ghost of Sparta</h1>
+<h1>PSP Web · Ghost of Sparta</h1>
 <p id="status" role="status">Checking your approved Render game route…</p>
-<p>Your Surge-hosted game is requested through Seuss Arcade's restricted Render service. The game opens in this tab so its own browser runtime can use cross-origin isolation when available.</p>
+<p>Your PSP game site at psp-web-damon.surge.sh is loaded through Seuss Arcade's restricted Render route. It opens in this tab to support the emulator's browser runtime.</p>
 <div class="actions">
 <a id="play" href="https://seuss-cinema-arcade.onrender.com/approved-games/gow-sparta/index.html">Play through Render</a>
 <a href="../../index.html">← Back to Arcade</a>
 </div>
-<p><small>This is a fixed-source proxy for the supplied Surge site, not a general browser proxy. Game compatibility depends on the source site and any resources it loads from other hosts.</small></p>
+<p><small>The fixed route serves the PSP site's own files. External hosts are not automatically proxied; additional game dependencies must be explicitly approved.</small></p>
 </main>
 <script>
 (async()=>{
@@ -38,7 +38,7 @@ small{font-size:13px;color:#baadae}
     }
     const result=await response.json();
     if(!result.ok)throw Error(result.note||'Approved game source is unavailable');
-    el.textContent='Render can reach the game. Opening it in this tab…';
+    el.textContent='Render can reach the PSP game site. Opening it in this tab…';
     location.replace(base+'index.html');
   }catch(error){
     el.textContent='Could not confirm the game source: '+(error.message||String(error))+
