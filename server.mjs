@@ -225,7 +225,14 @@ app.get("/approved-games/gow-sparta/status",async(req,res)=>{
    res.status(502).json({ok:false,note:"The approved Surge game source is not reachable from Render"});
  }
 });
-app.get("/approved-games/gow-sparta",(req,res)=>res.redirect(308,spartaRoute));
+// Express 4 ignores trailing slashes by default. A plain redirect handler
+// for the slashless route would ALSO match the canonical trailing-slash URL,
+// causing an infinite 308 redirect loop. Pass the canonical URL through to
+// the wildcard file handler below instead.
+app.get("/approved-games/gow-sparta",(req,res,next)=>{
+ if(req.path===spartaRoute)return next();
+ res.redirect(308,spartaRoute);
+});
 async function serveSpartaFile(req,res){
  if(!approvedGameCors(req,res))return;
  const upstreamUrl=spartaFileUrl(req);
