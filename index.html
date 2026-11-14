@@ -59,7 +59,6 @@ const library=[
 {id:'mario-kart-64',kind:'game',name:'Mario Kart 64',desc:'Nintendo 64 emulator with pinned Render game assets.',icon:'🏎️',bg:'linear-gradient(130deg,#6b302e,#c78244)',url:'./games/mario-kart-64/index.html',local:true},
 {id:'1v1-lol',kind:'game',name:'1v1.LOL',desc:'Local game launcher with Unity build files served by Render; online features may need third-party services.',icon:'🎯',bg:'linear-gradient(130deg,#294963,#7a83d7)',url:'./games/1v1-lol/index.html',local:true},
 {id:'zelda-oot',kind:'game',name:'The Legend of Zelda: Ocarina of Time',desc:'Nintendo 64 emulator with approved, pinned game parts delivered from Render.',icon:'🗡️',bg:'linear-gradient(130deg,#274c3c,#b6a26b)',url:'./games/zelda-oot/index.html',local:true},
-{id:'tung-sahur-obby',kind:'game',name:'Tung Tung Sahur: Obby Challenge',desc:'Unity WebGL obstacle-course game, running inside the Arcade with approved pinned Render assets.',icon:'🏃',bg:'linear-gradient(130deg,#413a24,#b28d54)',url:'./games/tung-sahur-obby/index.html',local:true},
 {id:'tomb-of-the-mask',kind:'game',name:'Tomb of the Mask',desc:'Unity WebGL arcade maze game in the built-in player with fixed, approved Render game assets.',icon:'🗿',bg:'linear-gradient(130deg,#513254,#d5a64d)',url:'./games/tomb-of-the-mask/index.html',local:true},
 {id:'snow-rider-3d',kind:'game',name:'Snow Rider 3D',desc:'Unity WebGL snowboarding game played inside the arcade, with pinned assets through Render.',icon:'🏂',bg:'linear-gradient(130deg,#245d86,#a6dbef)',url:'./games/snow-rider-3d/index.html',local:true},
 {id:'run-2',kind:'game',name:'Run 2 (Flash)',desc:'Classic Run 2 Flash game in the Arcade, using Ruffle and pinned Render assets.',icon:'🏃',bg:'linear-gradient(130deg,#1e4160,#728bd4)',url:'./games/run-2/index.html',local:true},
@@ -89,7 +88,6 @@ const library=[
 {id:'half-life-2',kind:'game',name:'Half-Life 2 Web Port',desc:'In-site viewer of the publisher-hosted build; requires large remote downloads.',icon:'🔶',bg:'linear-gradient(130deg,#5b412a,#b88b4d)',url:'./games/half-life-2/index.html',local:true},
 {id:'portal-1',kind:'game',name:'Portal 1 Web Port',desc:'Opens the original game in this tab so its WebAssembly service worker can enable cross-origin isolation; large downloads required. Use browser Back to return.',icon:'🌀',bg:'linear-gradient(130deg,#26384e,#6b9eb2)',url:'./games/portal-1/index.html',local:true,needsIsolation:true},
 {id:'granny3',kind:'game',name:'Granny 3 Web Port',desc:'In-site launcher; large Unity assets download from the source repository.',icon:'🏚️',bg:'linear-gradient(130deg,#383d46,#81817f)',url:'./games/granny3/index.html',local:true},
-{id:'silksong',kind:'game',name:'Hollow Knight: Silksong Webport',desc:'In-site launcher; very large Unity assets download from the source repository.',icon:'🧵',bg:'linear-gradient(130deg,#4a2935,#ad5a67)',url:'./games/silksong/index.html',local:true},
 {id:'fnash2',kind:'game',name:'Five Nights at Shrek\'s Hotel 2',desc:'Local Unity web build from your FNASH2 fork.',icon:'🏨',bg:'linear-gradient(130deg,#283f2f,#789c52)',url:'./games/fnash2/index.html',local:true},
 {id:'hollowknight',kind:'game',name:'Hollow Knight Webport',desc:'Opens inside the site; downloads a large Unity build from your fork (around 1 GB).',icon:'🦋',bg:'linear-gradient(130deg,#22283d,#72849c)',url:'./games/hollow-knight/index.html',local:true},
 {id:'fish',kind:'game',name:'FISH (Unity web port)',desc:'Run bundled Unity game files from this site.',icon:'🐟',bg:'linear-gradient(130deg,#17596a,#56b5b9)',url:'./games/fish/index.html',local:true},
@@ -128,6 +126,18 @@ window.addEventListener('message',event=>{
   $('frame').dataset.progressReceived='yes';
   updatePlayerProgress(data.stage,data.percent);
   $('viewerStatus').textContent=data.stage;
+});
+// A local game may request a same-site top-level launch as a graphics
+// fallback. Only the currently selected, same-origin Zelda/Centipede frame
+// may ask; an unrelated page cannot redirect the arcade.
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin||event.source!==$('frame').contentWindow)return;
+ const data=event.data;
+ if(!data||data.type!=='seuss-arcade-direct-game')return;
+ if(!selected?.local||!['zelda-oot','centipede-arcade'].includes(selected.id)||data.id!==selected.id)return;
+ const target=new URL(selected.url,location.href);
+ if(target.origin!==location.origin)return;
+ location.assign(target.href);
 });
 function resetPlayerFrame(){
   const old=$('frame');
