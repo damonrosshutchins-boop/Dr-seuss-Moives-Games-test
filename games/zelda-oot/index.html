@@ -60,16 +60,40 @@ play.addEventListener("click",async()=>{
  play.disabled=true;
  status("Checking approved game and stable emulator routes…");
  try{
-  for(const [name,url] of [["Emulator loader",RUNTIME+"loader.js"],["Game file",GAME]]){
-   const response=await fetch(url,{method:"HEAD",signal:AbortSignal.timeout(40000),cache:"no-store"});
-   if(!response.ok)throw Error(name+" returned HTTP "+response.status);
+  let runtime=RUNTIME;
+  const check=async url=>{
+    try{return await fetch(url,{method:"HEAD",signal:AbortSignal.timeout(40000),cache:"no-store"});}
+    catch(error){return {ok:false,status:"network error: "+(error.message||String(error))};}
+  };
+  // The pinned Render route is preferred. Official EmulatorJS CDN is an
+  // approved public-runtime fallback if the new Render route isn't live yet.
+  const loaderHead=await check(runtime+"loader.js");
+  if(!loaderHead.ok){
+    runtime="https://cdn.emulatorjs.org/stable/data/";
+    status("Render emulator route unavailable. Trying official stable runtime…");
+    const fallbackHead=await check(runtime+"loader.js");
+    if(!fallbackHead.ok)throw Error("Official emulator runtime unavailable ("+fallbackHead.status+")");
   }
+  let gameUrl=GAME;
+  const gameHead=await check(GAME);
+  if(!gameHead.ok){
+    status("Merged game route not live. Downloading the two approved game parts…",0);
+    const chunks=[];
+    for(let i=1;i<=2;i++){
+      const response=await fetch(ROOT+"zelda-oot/rom.n64.part"+i,{signal:AbortSignal.timeout(90000)});
+      if(!response.ok)throw Error("Ocarina part "+i+" returned HTTP "+response.status);
+      chunks.push(await response.arrayBuffer());
+      status("Loaded Ocarina part "+i+" of 2",i===1?59:100);
+    }
+    gameUrl=URL.createObjectURL(new Blob(chunks,{type:"application/octet-stream"}));
+  }
+  status("Approved resources located · starting official emulator…");
   window.EJS_player="#game";
   window.EJS_core=document.getElementById("core").value;
   window.EJS_gameName="The Legend of Zelda: Ocarina of Time";
   window.EJS_color="#4cb07a";
-  window.EJS_pathtodata=RUNTIME;
-  window.EJS_gameUrl=GAME;
+  window.EJS_pathtodata=runtime;
+  window.EJS_gameUrl=gameUrl;
   window.EJS_startOnLoaded=true;
   window.EJS_threads=false;
   window.EJS_forceLegacyCores=document.getElementById("legacy").checked;
@@ -80,7 +104,7 @@ play.addEventListener("click",async()=>{
   document.getElementById("setup").style.display="none";
   status("Downloading game and graphics core through Render…");
   const script=document.createElement("script");
-  script.src=RUNTIME+"loader.js";
+  script.src=runtime+"loader.js";
   script.onerror=()=>showSetup("Could not load the official EmulatorJS loader through Render.");
   document.body.appendChild(script);
  }catch(error){showSetup("Launch failed: "+(error.message||String(error)));}
