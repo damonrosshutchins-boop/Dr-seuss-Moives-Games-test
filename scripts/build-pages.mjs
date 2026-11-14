@@ -45,6 +45,12 @@ await fs.copyFile(path.join("games","smsrip","index.html"),path.join(out,"games"
 // Publish a same-site launcher, never a direct iframe of the Surge source.
 await fs.mkdir(path.join(out,"games","gow-sparta"),{recursive:true});
 await fs.copyFile(path.join("games","gow-sparta","index.html"),path.join(out,"games","gow-sparta","index.html"));
+// Two fixed-route Minecraft 1.8 launchers; game files are served by Render.
+for(const slug of ["minecraft-18-wrust","minecraft-18-mods"]){
+  const dir=path.join(out,"games",slug);
+  await fs.mkdir(dir,{recursive:true});
+  await fs.copyFile(path.join("games",slug,"index.html"),path.join(dir,"index.html"));
+}
 // Copy the small Horizon loader and its strictly scoped service worker.
 // A later owner-committed standalone HTML is published automatically.
 await fs.mkdir(path.join(out,"games","horizon"),{recursive:true});
