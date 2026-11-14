@@ -67,3 +67,30 @@ The successful Pages build/Render deploy alone does not verify gameplay.
 
 
 The PSP site's first-party root-relative fetch/XHR URLs and first-party absolute asset references are rewritten to stay inside the fixed Render game route. Any dynamic third-party endpoints must be inspected and independently approved; arbitrary domains are not automatically granted proxy access.
+
+
+## Minecraft 1.8 Wrust Mod and Minecraft 1.8 Mods
+
+These two entries are added as separate Minecraft 1.8 Eaglercraft-style games in
+the Arcade. Clicking a card opens a same-site launcher, which checks Render and
+then navigates in the same tab to a **fixed** Render URL. No visitor-provided
+proxy destination, arbitrary Google Drive ID, or arbitrary CDN path is accepted.
+
+- **Minecraft 1.8 Wrust Mod:** the public Google Drive file
+  `clwurst.html` (27,847,113 bytes), fixed ID
+  `1TBtrBMMw9w9lqc3Z3aw4CARG_O04abIM`. The offline HTML is streamed
+  through `/approved-games/minecraft-18-wrust/index.html` on Render.
+- **Minecraft 1.8 Mods:** the public Google Drive file
+  `cleaglerforge.html` (1,035 bytes), fixed ID
+  `17mqNnsALl6ZvDVOtarz4EuP5pS8E4-R9`. Its four hardcoded CDN
+  downloads are rewritten to the four Render routes
+  `/approved-games/minecraft-18-mods/assets/forge-part1` to
+  `forge-part4`. The server obtains those parts from a pinned GitHub
+  revision and does not accept unapproved hostnames. The four files total
+  about 79 MB.
+
+The approved game **files** are delivered through Render. The original
+EaglercraftX client also contains external multiplayer relay addresses and
+links; these are **not** implicitly proxied or whitelisted. External network
+multiplayer may use direct game server connections or may be unavailable.
+Successful deployment verifies the routes, not gameplay or compatibility.
