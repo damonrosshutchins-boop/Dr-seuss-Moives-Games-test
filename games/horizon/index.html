@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minecraft 26.3 Rust · Seuss Arcade</title>
+<style>:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#0d161b;color:#e8f4eb;font:15px/1.6 system-ui,sans-serif;display:grid;place-items:center;padding:20px}main{width:min(660px,100%);padding:28px;background:#17252b;border:1px solid #49625c;border-radius:18px}h1{font-size:clamp(24px,4vw,34px);margin:2px 0 12px}p{color:#bdcfc7}a{color:#8ce6bc}input[type=file]{display:block;width:100%;padding:16px;background:#0e1b21;border:1px dashed #789481;border-radius:12px;margin:14px 0;color:#dbeee0}button{padding:11px 16px;font:inherit;font-weight:700;border:1px solid #718f7d;border-radius:9px;background:#2a4939;color:white;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}button:hover:not(:disabled){background:#38634b}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}#status{white-space:pre-wrap;border-radius:11px;background:#101d24;padding:14px;min-height:3em;color:#d2f7de}small{color:#9fb7ab;display:block}.back{display:inline-block;margin-bottom:12px}.note{border-top:1px solid #38564b;padding-top:14px;font-size:13px}</style>
+</head><body><main>
+<a class="back" href="../../index.html">← Back to Seuss Arcade</a>
+<h1>⛏ Minecraft 26.3 — Rust / Horizon</h1>
+<p>Run the exact Horizon HTML you supplied. This launcher stores it <strong>in this browser</strong>, without uploading it to a server.</p>
+<div id="status" role="status" aria-live="polite">Preparing game launcher…</div>
+<div class="actions"><button id="play" disabled>Play (quick start)</button><button id="playAudio" disabled>Play with sound via Render</button><button id="reset" type="button" disabled>Remove saved copy</button></div>
+<label for="file"><strong>Import horizon-standalone.html once:</strong></label><input type="file" id="file" accept=".html,.txt,text/html,text/plain">
+<small>The supplied game file is checked by SHA-256. Publishing horizon-standalone.html in this directory will also let visitors load it automatically. Audio mode downloads about 355 MB of approved audio through the existing restricted Render service. Quick start skips that large download.</small>
+<p class="note">Requires WebGPU and enough device memory, over HTTPS. Worlds remain in your browser's storage. Horizon is unofficial and is not an official Minecraft release.</p>
+</main><script type="module">
+const CACHE="seuss-horizon-game-v1";
+const EXPECTED="d54274c77ed28a70b85f82b16193cc756a4baa7ca01fceea1e0707358c512d7d";
+const RELAY="https://seuss-cinema-arcade.onrender.com/approved-games/horizon/";
+const PLAY=new URL("./play.html",location.href).href;
+const $=id=>document.getElementById(id);
+const state=msg=>{$("status").textContent=msg;};
+let registration;
+function controls(on){for(const id of ["play","playAudio","reset"])$(id).disabled=!on;}
+async function bootWorker(){
+ if(!navigator.serviceWorker||!window.caches)throw Error("Service workers and Cache Storage are required.");
+ registration=await navigator.serviceWorker.register("./sw.js",{scope:"./",updateViaCache:"none"});
+ if(!registration.active){
+  await new Promise((resolve,reject)=>{
+   const timeout=setTimeout(()=>reject(Error("Horizon service worker activation failed.")),15000);
+   const done=()=>{if(registration.active){clearTimeout(timeout);resolve();}};
+   registration.addEventListener("updatefound",()=>registration.installing?.addEventListener("statechange",done));
+   registration.installing?.addEventListener("statechange",done);
+   registration.waiting?.postMessage("SKIP_WAITING");done();
+  });
+ }
+}
+async function digest(s){
+ const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+ return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function install(input){
+ state("Verifying your standalone Minecraft file…");
+ let html=input;
+ const first=html.indexOf("<!doctype html>");
+ const last=html.lastIndexOf("</html>");
+ if(first<0||last<first)throw Error("Not a Horizon standalone HTML file.");
+ html=html.slice(first,last+7);
+ if(await digest(html)!==EXPECTED)throw Error("This file differs from the Horizon build supplied in chat. Select the exact standalone HTML.");
+ if(!html.includes("https://cdn.jsdelivr.net/gh/AlexBoops/mc-rust-onweb@")||!html.includes('const SOUND_FALLBACK = "https://alexboops.github.io/mc-rust-onweb/";')||!html.includes("const files = await downloadSoundArchive();"))throw Error("The game audio loader is different than expected.");
+ html=html.replace(/^const SOUND_CDN = [^\n]+;$/m,'const SOUND_CDN = "'+RELAY+'";')
+   .replace('const SOUND_FALLBACK = "https://alexboops.github.io/mc-rust-onweb/";','const SOUND_FALLBACK = "'+RELAY+'";')
+   .replace("const files = await downloadSoundArchive();",'const files = new URLSearchParams(location.search).get("audio") === "1" ? await downloadSoundArchive() : new Map();')
+   .replace("jsDelivr parts.json:","Render sound manifest:");
+ await(await caches.open(CACHE)).put(PLAY,new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8"}}));
+ controls(true);state("Verified and installed locally. Quick start is ready; optional sound uses Render.");
+}
+async function hasGame(){return !!await(await caches.open(CACHE)).match(PLAY);}
+async function checkPublished(){
+ const response=await fetch("./horizon-standalone.html",{cache:"no-store"});
+ if(response.ok){await install(await response.text());return true;}
+ return false;
+}
+async function launch(audio){
+ try{
+  if(!await hasGame())throw Error("Import the standalone HTML first.");
+  await bootWorker();
+  if(!navigator.gpu)throw Error("WebGPU is unavailable in this browser. Try a browser with WebGPU enabled.");
+  const target=new URL("./play.html",location.href);
+  if(audio){
+   state("Checking the approved Render sound route…");
+   const response=await fetch(RELAY+"parts.json",{cache:"no-store"});
+   if(!response.ok)throw Error("Render sound route unavailable ("+response.status+"). Try quick start.");
+   target.searchParams.set("audio","1");
+  }
+  location.assign(target.href);
+ }catch(e){state(e.message||String(e));}
+}
+$("play").onclick=()=>launch(false);
+$("playAudio").onclick=()=>launch(true);
+$("file").onchange=async event=>{
+ const file=event.target.files?.[0];if(!file)return;
+ try{await install(await file.text());}catch(e){controls(false);state(e.message||String(e));}
+};
+$("reset").onclick=async()=>{await caches.delete(CACHE);controls(false);state("Local copy deleted. Import the HTML again to play.");};
+try{
+ await bootWorker();
+ if(await hasGame()){controls(true);state("Horizon is already installed here. Select Play.");}
+ else{
+  state("Choose your standalone HTML file to install and play.");
+  try{await checkPublished();}catch(e){console.info("No published Horizon bundle available:",e.message);}
+ }
+}catch(e){state("Setup unavailable: "+(e.message||String(e)));}
+</script></body></html>
