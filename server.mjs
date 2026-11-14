@@ -166,7 +166,7 @@ app.options("/approved-games/horizon/*",(req,res)=>{
 // God of War: Ghost of Sparta — fixed-source Surge reverse route.
 // Keep this separate from Wisp: clients may request paths from ONE
 // owner-approved host only; they cannot choose a URL, port or destination.
-const spartaUpstream="https://gow-sparta-damon.surge.sh/";
+const spartaUpstream="https://psp-web-damon.surge.sh/";
 const spartaRoute="/approved-games/gow-sparta/";
 function spartaFileUrl(req){
  const file=req.params[0]||"index.html";
@@ -180,10 +180,11 @@ function spartaFileUrl(req){
  return url.href;
 }
 function spartaRewriteRootPaths(source){
- // Relative paths stay relative to the injected <base>. Rewrite common
- // root-absolute HTML/CSS URL forms to stay within the Render route.
+ // Keep first-party absolute links and root-relative HTML/CSS resources
+ // on this fixed Render game route, not on the original Surge origin.
  return source
-   .replace(/\b(src|href|poster|data)\s*=\s*(["'])\/(?!\/)/gi,
+   .replaceAll(spartaUpstream,"https://seuss-cinema-arcade.onrender.com"+spartaRoute)
+   .replace(/\b(src|href|poster|data|action|srcset)\s*=\s*(["'])\/(?!\/)/gi,
      (_full,attr,quote)=>attr+"="+quote+spartaRoute)
    .replace(/url\(\s*(["']?)\/(?!\/)/gi,
      (_full,quote)=>"url("+quote+spartaRoute);
@@ -193,7 +194,26 @@ function spartaRewriteHtml(html){
  // Common inline loaders use absolute fetch/worker paths.
  page=page.replace(/\b(fetch|Worker|SharedWorker|register)\s*\(\s*(["'])\/(?!\/)/g,
    (_full,fn,quote)=>fn+"("+quote+spartaRoute);
- const base='<base href="'+spartaRoute+'">';
+ // Rewrite first-party root-absolute runtime requests without exposing
+ // a browser-chosen destination host or an open HTTP proxy.
+ const bridge='<script>(()=>{'+
+  'const upstream="https://psp-web-damon.surge.sh";'+
+  'const route="/approved-games/gow-sparta/";'+
+  'const reroute=(input)=>{try{const value=String(input);'+
+   'if(value.startsWith("/")&&!value.startsWith("//"))return route+value.slice(1);'+
+   'const u=new URL(value,location.href);'+
+   'if(u.origin===upstream)return route+u.pathname.replace(/^\\//,"")+u.search+u.hash;'+
+   '}catch(e){}return input;};'+
+  'const nativeFetch=window.fetch;window.fetch=function(resource,options){'+
+   'if(typeof resource==="string"||resource instanceof URL)'+
+    'return nativeFetch.call(this,reroute(resource),options);'+
+   'if(resource instanceof Request){const rewritten=reroute(resource.url);'+
+    'if(rewritten!==resource.url)return nativeFetch.call(this,new Request(rewritten,resource),options);}'+
+   'return nativeFetch.call(this,resource,options);};'+
+  'const originalOpen=XMLHttpRequest.prototype.open;'+
+  'XMLHttpRequest.prototype.open=function(method,url,...rest){return originalOpen.call(this,method,reroute(url),...rest);};'+
+  '})();<\\/script>'; // encoded close to avoid terminating the outer JS string
+ const base='<base href="'+spartaRoute+'">'+bridge;
  if(/<head\b[^>]*>/i.test(page))
    page=page.replace(/<head\b[^>]*>/i,match=>match+"\n"+base);
  else page=base+page;
