@@ -100,7 +100,7 @@ for(const slug of ["balatro","cheese"]){
 // Publish the four imported game launchers on GitHub Pages. The browser
 // stays inside the arcade; large game binaries are fetched from pinned
 // approved Render routes rather than copied into the Pages artifact.
-const importedGames=["plants-vs-zombies-ds","mario-kart-64","1v1-lol","fnae","zelda-oot","centipede-arcade","tung-sahur-obby","run-2","uwu-client","tomb-of-the-mask","snow-rider-3d"];
+const importedGames=["plants-vs-zombies-ds","mario-kart-64","1v1-lol","fnae","zelda-oot","centipede-arcade","run-2","uwu-client","tomb-of-the-mask","snow-rider-3d"];
 for(const slug of importedGames){
   const source=path.join("games",slug,"index.html");
   const destination=path.join(out,"games",slug,"index.html");
@@ -258,10 +258,6 @@ async function addRemoteAssetLauncher(name, ownerRepo, revision, transforms) {
 }
 await addRemoteAssetLauncher("granny3","AlexBoops/granny3rip","a8e59b3d10ff96d54881903a83a4fc9fcc02bf28",[
   ['<base href="./">','<base href="https://cdn.jsdelivr.net/gh/AlexBoops/granny3rip@a8e59b3d10ff96d54881903a83a4fc9fcc02bf28/">']
-]);
-await addRemoteAssetLauncher("silksong","web-ports/hollow-knight-silksong","bcbe014765f2f6ca4b1d82ac25755a0299a600ab",[
-  ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@master/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/'],
-  ['https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@latest/','https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@bcbe014765f2f6ca4b1d82ac25755a0299a600ab/']
 ]);
 // Half-Life 2 remains source-hosted in an iframe, with no local game asset copy.
 for(const [slug,title,source] of [
