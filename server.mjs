@@ -466,6 +466,7 @@ for(let i=1;i<=4;i++){
 // No user-provided upstream URLs, protocols, hostnames or redirect following.
 const importedAssetRoots=Object.freeze({
   "emu":"https://cdn.jsdelivr.net/gh/bubblfan/emu@main/",
+  "emu-stable":"https://cdn.emulatorjs.org/stable/data/",
   "1v1":"https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
 });
 const importedExactAssets=Object.freeze({
@@ -568,6 +569,39 @@ async function servePinnedFallbackGameFile(req,res,primary,fallback){
     }
   }
 }
+// A fixed, approved two-part Ocarina file assembled as one .n64 response.
+// EmulatorJS expects a normal URL with an extension, not a browser File object.
+// Neither filename nor upstream destination is supplied by the requester.
+const approvedZeldaParts=[
+  importedExactAssets["zelda-oot/rom.n64.part1"],
+  importedExactAssets["zelda-oot/rom.n64.part2"]
+];
+async function approvedZeldaRom(req,res){
+  if(!approvedGameCors(req,res))return;
+  res.setHeader("Content-Type","application/octet-stream");
+  res.setHeader("Cache-Control","public, max-age=3600");
+  res.setHeader("Accept-Ranges","none");
+  if(req.method==="HEAD")return res.status(200).end();
+  try{
+    // Append the exact pinned parts in order without buffering the whole ROM.
+    for(const url of approvedZeldaParts){
+      const source=await fetch(url,{redirect:"error",signal:AbortSignal.timeout(90000)});
+      if(!source.ok||!source.body){
+        await source.body?.cancel();
+        if(res.headersSent){res.destroy();return;}
+        return res.status(502).type("text/plain").send("Approved Ocarina source unavailable ("+source.status+")");
+      }
+      await pipeline(Readable.fromWeb(source.body),res,{end:false});
+    }
+    res.end();
+  }catch(error){
+    console.error("Approved Ocarina game stream failed:",String(error));
+    if(res.headersSent)res.destroy();
+    else res.status(502).type("text/plain").send("Approved Ocarina game source could not be streamed.");
+  }
+}
+app.get("/approved-assets/imported/zelda-oot/rom.n64",approvedZeldaRom);
+app.head("/approved-assets/imported/zelda-oot/rom.n64",approvedZeldaRom);
 app.get("/approved-assets/imported/*",importedHandler);
 app.head("/approved-assets/imported/*",importedHandler);
 app.options("/approved-assets/imported/*",(req,res)=>{
