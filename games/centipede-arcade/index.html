@@ -1,74 +1,88 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Centipede Arcade · Seuss Arcade</title>
-<style>html,body{margin:0;background:#060a0c;color:#fff;font:15px system-ui;height:100%}#game{display:none;position:relative;width:100vw;height:100dvh;min-height:360px;overflow:hidden}#game .ejs_parent,#game .ejs_game{min-height:360px}#game canvas.ejs_canvas{display:block!important;visibility:visible!important;opacity:1!important}#game canvas{display:block;max-width:100%}#panel{padding:24px;max-width:600px;margin:8vh auto}button{background:#2a6d4c;border:1px solid #9cd4a9;color:white;padding:12px 22px;border-radius:8px;cursor:pointer}#status{line-height:1.5;color:#ecdfa8;white-space:pre-wrap}</style></head><body>
-<section id="panel"><h1>🐛 Centipede (Arcade)</h1><p>Launch the classic arcade game in the Seuss Arcade player with emulator and game assets from approved Render routes.</p><label for="core" style="display:block;margin:14px 0 6px">Graphics / emulator core</label><select id="core" style="font:inherit;padding:10px;border-radius:8px;background:#172822;color:#fff;border:1px solid #84a691"><option value="mame2003">MAME 2003 (compatibility)</option><option value="arcade">FBNeo (original)</option></select><label style="display:block;margin:12px 0"><input id="legacy" type="checkbox"> Use compatibility graphics (WebGL 1)</label><p style="color:#bad4c6;font-size:13px">If you hear sound with a black screen, use Reload in the arcade player and try the other core or turn off compatibility graphics.</p><button id="play">PLAY</button><p id="status" role="status">Ready.</p></section><div id="game"></div>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Centipede (Arcade) · Seuss Arcade</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;min-height:100%;color:#f5fff9;font:15px system-ui,sans-serif;background:#080d10}
+#setup{max-width:680px;margin:6vh auto;padding:22px 24px;background:#15271e;border:1px solid #5a866d;border-radius:12px}
+h1{margin-top:0}p{line-height:1.6;color:#cde2d6}label{display:block;margin:12px 0 6px}
+select,button{border:1px solid #93b99a;background:#254d48;color:#fff;font:inherit;border-radius:8px;padding:10px 15px}
+button{cursor:pointer;margin-top:12px}button:disabled{opacity:.5;cursor:wait}
+#message{white-space:pre-wrap;color:#e2f1d8;margin-top:14px;min-height:2em}
+#game{display:none;width:100%;height:100dvh;min-height:350px;overflow:hidden;position:relative;background:#000}
+#game .ejs_parent{width:100%;height:100%}#game canvas{max-width:100%}
+</style></head><body>
+<section id="setup">
+<h1>Centipede (Arcade)</h1>
+<p>This version uses the stable EmulatorJS runtime and loads the game through the arcade's approved Render routes.</p>
+<label for="core">Emulator</label>
+<select id="core"><option value="mame2003">Default (mame2003)</option><option value="mame2003_plus">Alternative (MAME 2003 Plus)</option></select>
+<label><input id="legacy" type="checkbox"> Use legacy WebGL 1 graphics</label>
+<p>If the screen is black, use the arcade's Reload button and select the other core or legacy graphics.</p>
+<button id="play" type="button">Start Centipede</button>
+<div id="message" role="status" aria-live="polite">Ready.</div>
+</section>
+<div id="game"></div>
 <script>
-const BASE="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
-const status=document.getElementById("status"),play=document.getElementById("play");
-const EXPECTED_GAME_BYTES=8739;
-// Restore canvas dimensions after the emulator finishes loading its core.
-function refreshVideo(){
- const host=document.getElementById("game");
- if(getComputedStyle(host).display==="none")return;
- const e=window.EJS_emulator;
- const canvas=host.querySelector("canvas.ejs_canvas");
- if(canvas){
-   canvas.style.display="block";
-   canvas.style.visibility="visible";
-   canvas.style.opacity="1";
-   const bounds=canvas.getBoundingClientRect();
-   if(bounds.width<2||bounds.height<2){
-     canvas.style.width="100%";canvas.style.height="100%";
-   }
- }
- try{e?.handleResize?.();}catch(error){console.warn("Emulator video resize:",error);}
- window.dispatchEvent(new Event("resize"));
- if(canvas&&(canvas.width===0||canvas.height===0)){
-   report("Graphics canvas has zero size; try the other graphics mode",null);
- }
+"use strict";
+const ROOT="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
+const RUNTIME=ROOT+"emu-stable/";
+const GAME=ROOT+"centipede/rom.zip";
+const message=document.getElementById("message");
+const play=document.getElementById("play");
+function status(stage,percent=null){
+ message.textContent=stage;
+ try{if(window.parent!==window)window.parent.postMessage({type:"seuss-arcade-progress",stage,percent},location.origin);}catch(_){}
 }
-function report(stage,percent=null){
- status.textContent=stage;
- if(window.parent!==window)window.parent.postMessage({type:"seuss-arcade-progress",stage,percent},location.origin);
+function showSetup(error){
+ document.getElementById("setup").style.display="block";
+ document.getElementById("game").style.display="none";
+ play.disabled=false;
+ status(String(error||"Unable to start the emulator"));
 }
-async function downloadGame(){
- const res=await fetch(BASE+"centipede/rom.zip",{method:"GET",mode:"cors"});
- if(!res.ok)throw Error("Game archive returned HTTP "+res.status);
- if(!res.body){const data=await res.arrayBuffer();report("Centipede archive downloaded · "+data.byteLength+" bytes",100);return data;}
- const reader=res.body.getReader(),chunks=[];let bytes=0;
- for(;;){
-  const {value,done}=await reader.read();
-  if(done)break;
-  chunks.push(value);bytes+=value.byteLength;
-  report("Downloading Centipede · "+bytes+" / "+EXPECTED_GAME_BYTES+" bytes",Math.min(100,bytes/EXPECTED_GAME_BYTES*100));
- }
- const result=new Uint8Array(bytes);let offset=0;
- for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.byteLength;}
- report("Centipede archive downloaded · "+bytes+" bytes",100);
- return result.buffer;
+function checkVideo(){
+ const canvas=document.querySelector("#game canvas.ejs_canvas");
+ if(!canvas)return status("Emulator started but no video canvas exists. Reload and select the other core.");
+ const b=canvas.getBoundingClientRect();
+ if(b.width<2||b.height<2||canvas.width<2||canvas.height<2)
+   return status("Video canvas is zero-sized. Reload and choose the other graphics setting.");
+ try{window.EJS_emulator?.handleResize?.();}catch(e){console.warn("Video resizing failed",e);}
+ status("Centipede core started · video canvas "+canvas.width+" × "+canvas.height,100);
 }
-// Check for WebGL2 before selecting an emulation graphics path.
-const hasWebGL2=!!document.createElement("canvas").getContext("webgl2");
-document.getElementById("legacy").checked=!hasWebGL2;
+window.addEventListener("error",event=>{
+ if(document.getElementById("setup").style.display==="none"&&event.message)
+   status("Emulator error: "+event.message+" · Reload to try the other core.");
+});
+window.addEventListener("unhandledrejection",event=>{
+ if(document.getElementById("setup").style.display==="none")
+   status("Emulator error: "+(event.reason?.message||String(event.reason)));
+});
 play.addEventListener("click",async()=>{
- play.disabled=true;report("Downloading Centipede arcade game…",0);
+ play.disabled=true;
+ status("Checking approved game and stable emulator routes…");
  try{
-  const gameUrl=new File([await downloadGame()],"centiped.zip",{type:"application/zip"});
-  report("Game download complete · starting arcade emulator…");
-  window.EJS_ready=()=>report("Arcade emulator ready · initializing game…");
-  window.EJS_onGameStart=()=>{report("Centipede started · checking video output…",100);refreshVideo();setTimeout(refreshVideo,500);setTimeout(refreshVideo,1500);};
-  window.EJS_player="#game";window.EJS_core=document.getElementById("core").value;window.EJS_gameName="Centipede";
-  window.EJS_color="#000000";window.EJS_startOnLoaded=true;
-  window.EJS_pathtodata=BASE+"emu/";window.EJS_gameUrl=gameUrl;
-  window.EJS_forceLegacyCores=document.getElementById("legacy").checked;
+  for(const [name,url] of [["Emulator loader",RUNTIME+"loader.js"],["Game file",GAME]]){
+   const response=await fetch(url,{method:"HEAD",signal:AbortSignal.timeout(40000),cache:"no-store"});
+   if(!response.ok)throw Error(name+" returned HTTP "+response.status);
+  }
+  window.EJS_player="#game";
+  window.EJS_core=document.getElementById("core").value;
+  window.EJS_gameName="Centipede (Arcade)";
+  window.EJS_color="#4cb07a";
+  window.EJS_pathtodata=RUNTIME;
+  window.EJS_gameUrl=GAME;
+  window.EJS_startOnLoaded=true;
   window.EJS_threads=false;
-  window.EJS_defaultOptions={vsync:"enabled",shader:"disabled",webgl2Enabled:window.EJS_forceLegacyCores?"disabled":"enabled"};
-  window.EJS_disableLocalStorage=true; // Reset stale renderer/shader preferences; save files stay in IndexedDB.
-  document.getElementById("panel").style.display="none";
+  window.EJS_forceLegacyCores=document.getElementById("legacy").checked;
+  window.EJS_disableLocalStorage=true;
+  window.EJS_ready=()=>status("Emulator ready · loading Centipede game files…");
+  window.EJS_onGameStart=()=>{status("Emulator initialized · starting video…");requestAnimationFrame(checkVideo);setTimeout(checkVideo,500);setTimeout(checkVideo,1500);};
   document.getElementById("game").style.display="block";
-  const script=document.createElement("script");script.src=BASE+"emu/loader.js";
-  script.onerror=()=>{document.getElementById("panel").style.display="block";report("Emulator loader could not be downloaded.",0);play.disabled=false;};
-  script.addEventListener("load",()=>{requestAnimationFrame(refreshVideo);});
+  document.getElementById("setup").style.display="none";
+  status("Downloading game and graphics core through Render…");
+  const script=document.createElement("script");
+  script.src=RUNTIME+"loader.js";
+  script.onerror=()=>showSetup("Could not load the official EmulatorJS loader through Render.");
   document.body.appendChild(script);
- }catch(e){report("Download failed: "+(e.message||String(e))+". Check the approved Render asset route.",0);play.disabled=false;}
+ }catch(error){showSetup("Launch failed: "+(error.message||String(error)));}
 });
 </script></body></html>
