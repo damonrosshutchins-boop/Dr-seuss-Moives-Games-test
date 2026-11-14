@@ -523,7 +523,49 @@ function importedHandler(req,res){
   if(!approvedGameCors(req,res))return;
   const url=importedAssetUrl(req);
   if(!url)return res.sendStatus(404);
+  // CDN releases can evict pinned files despite their GitHub blobs existing.
+  // For this ONE pinned Unity game only, retry the exact same GitHub
+  // commit/path using GitHub's raw asset host. Never accept client URLs.
+  const fallbackPrefix="https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/";
+  if(asset.startsWith("tungobby/")&&url.startsWith(fallbackPrefix)){
+    const original=url;
+    const relative=original.slice(fallbackPrefix.length);
+    const fallback="https://raw.githubusercontent.com/Pok12d/ta/090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/"+relative;
+    void servePinnedFallbackGameFile(req,res,original,fallback);
+    return;
+  }
   void serveApprovedGameFile(req,res,url);
+}
+async function servePinnedFallbackGameFile(req,res,primary,fallback){
+  for(const [i,url] of [primary,fallback].entries()){
+    try{
+      const headers={};
+      if(req.get("Range"))headers.Range=req.get("Range");
+      const response=await fetch(url,{method:req.method==="HEAD"?"HEAD":"GET",
+        redirect:"error",headers,signal:AbortSignal.timeout(45000)});
+      if(!response.ok){
+        console.warn("Pinned Tung Sahur asset unavailable",i?"GitHub raw":"jsDelivr",response.status,new URL(url).pathname);
+        await response.body?.cancel();
+        if(i===0)continue;
+        return res.status(502).type("text/plain").send("Pinned game asset unavailable from both approved sources ("+response.status+").");
+      }
+      res.status(response.status);
+      const contentType=url.endsWith(".unityweb")?"application/octet-stream":
+        response.headers.get("content-type")||"application/octet-stream";
+      res.setHeader("Content-Type",contentType);
+      if(response.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",response.headers.get("accept-ranges"));
+      if(response.headers.get("content-range"))res.setHeader("Content-Range",response.headers.get("content-range"));
+      // Undici may decode an HTTP-compressed upstream response. Omitting
+      // Content-Encoding and Content-Length avoids mismatched wire payloads.
+      if(req.method==="HEAD"||!response.body){res.end();return;}
+      await pipeline(Readable.fromWeb(response.body),res);
+      return;
+    }catch(error){
+      console.warn("Pinned Tung Sahur download error",i?"GitHub raw":"jsDelivr",String(error));
+      if(res.headersSent){res.destroy();return;}
+      if(i===1)return res.status(502).type("text/plain").send("Both approved game asset hosts were unreachable.");
+    }
+  }
 }
 app.get("/approved-assets/imported/*",importedHandler);
 app.head("/approved-assets/imported/*",importedHandler);
