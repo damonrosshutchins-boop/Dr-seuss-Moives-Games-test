@@ -461,6 +461,49 @@ for(let i=1;i<=4;i++){
  });
 }
 
+
+// Approved imported games: fixed CDN origins and fixed path prefixes only.
+// No user-provided upstream URLs, protocols, hostnames or redirect following.
+const importedAssetRoots=Object.freeze({
+  "emu":"https://cdn.jsdelivr.net/gh/bubblfan/emu@master/",
+  "1v1":"https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
+});
+const importedExactAssets=Object.freeze({
+  "mario-kart/rom.zip":"https://cdn.jsdelivr.net/gh/a456pur/seraph@ae2fcc6d6a9cd051654fcc0519080db1f79cf2a7/games/mariokart64/mariokart64.zip",
+  "ocarina/rom.7z":"https://cdn.jsdelivr.net/gh/schoolstuff1337/supplies@main/n64/SM64_%20Ocarina%20of%20Time%20-%20v.Latest.7z"
+});
+function importedAssetUrl(req){
+  let asset;
+  try { asset=decodeURIComponent(req.params[0]||""); }catch{return null;}
+  if(!asset||asset.length>400||asset.startsWith("/")||asset.includes("//")||
+     !/^[a-zA-Z0-9_./()\- %]+$/.test(asset)||
+     asset.split("/").some(x=>x==="."||x===".."))return null;
+  if(importedExactAssets[asset])return importedExactAssets[asset];
+  const pvz="pvz/rom.nds";
+  if(asset.startsWith(pvz+".part")&&/^pvz\/rom\.nds\.part[1-4]$/.test(asset))
+    return "https://cdn.jsdelivr.net/gh/greeniYT/ROM-s@main/pvz/5495%20-%20Plants%20vs.%20Zombies%20(U).nds"+asset.slice(pvz.length);
+  const slash=asset.indexOf("/");
+  if(slash<0)return null;
+  const category=asset.slice(0,slash),file=asset.slice(slash+1);
+  const root=importedAssetRoots[category];
+  if(!root||!file)return null;
+  return root+file.split("/").map(encodeURIComponent).join("/");
+}
+function importedHandler(req,res){
+  if(!approvedGameCors(req,res))return;
+  const url=importedAssetUrl(req);
+  if(!url)return res.sendStatus(404);
+  void serveApprovedGameFile(req,res,url);
+}
+app.get("/approved-assets/imported/*",importedHandler);
+app.head("/approved-assets/imported/*",importedHandler);
+app.options("/approved-assets/imported/*",(req,res)=>{
+  if(!approvedGameCors(req,res))return;
+  res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
+  res.sendStatus(204);
+});
+
 app.use("/scram/",express.static(scramjetPath));
 app.use("/utils/",express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controller")));
