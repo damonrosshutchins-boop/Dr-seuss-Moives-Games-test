@@ -200,6 +200,7 @@ function spartaRewriteHtml(html){
   'const upstream="https://psp-web-damon.surge.sh";'+
   'const route="/approved-games/gow-sparta/";'+
   'const reroute=(input)=>{try{const value=String(input);'+
+   'if(value.startsWith(route))return value;'+
    'if(value.startsWith("/")&&!value.startsWith("//"))return route+value.slice(1);'+
    'const u=new URL(value,location.href);'+
    'if(u.origin===upstream)return route+u.pathname.replace(/^\\//,"")+u.search+u.hash;'+
@@ -212,7 +213,7 @@ function spartaRewriteHtml(html){
    'return nativeFetch.call(this,resource,options);};'+
   'const originalOpen=XMLHttpRequest.prototype.open;'+
   'XMLHttpRequest.prototype.open=function(method,url,...rest){return originalOpen.call(this,method,reroute(url),...rest);};'+
-  '})();<\\/script>'; // encoded close to avoid terminating the outer JS string
+  '})();</script>'; // encoded close to avoid terminating the outer JS string
  const base='<base href="'+spartaRoute+'">'+bridge;
  if(/<head\b[^>]*>/i.test(page))
    page=page.replace(/<head\b[^>]*>/i,match=>match+"\n"+base);
