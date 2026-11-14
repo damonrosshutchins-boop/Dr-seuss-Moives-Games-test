@@ -526,6 +526,7 @@ function importedHandler(req,res){
   // CDN releases can evict pinned files despite their GitHub blobs existing.
   // For this ONE pinned Unity game only, retry the exact same GitHub
   // commit/path using GitHub's raw asset host. Never accept client URLs.
+  const asset=decodeURIComponent(req.params[0]||"");
   const fallbackPrefix="https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/";
   if(asset.startsWith("tungobby/")&&url.startsWith(fallbackPrefix)){
     const original=url;
