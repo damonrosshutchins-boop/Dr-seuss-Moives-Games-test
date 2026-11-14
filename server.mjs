@@ -613,6 +613,64 @@ async function approvedZeldaRom(req,res){
 }
 app.get("/approved-assets/imported/zelda-oot/rom.n64",approvedZeldaRom);
 app.head("/approved-assets/imported/zelda-oot/rom.n64",approvedZeldaRom);
+// UwU Client is a single offline HTML split into two immutable ~19.4 MB parts.
+// Only these exact source files are allowed; clients cannot choose a URL or path.
+// The client executes on the Render origin in a sandboxed frame in the Arcade.
+const uwuClientParts=Object.freeze([
+  "https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/uwuclient/cluwuclient.html.part1",
+  "https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/uwuclient/cluwuclient.html.part2"
+]);
+async function serveUwuClient(req,res){
+  if(!approvedGameCors(req,res))return;
+  res.setHeader("Content-Type","text/html; charset=utf-8");
+  res.setHeader("X-Content-Type-Options","nosniff");
+  res.setHeader("Cache-Control","public, max-age=300");
+  if(req.method==="HEAD"){
+    try{
+      // Check both sources instead of returning a misleading 200 for missing parts.
+      const responses=await Promise.all(uwuClientParts.map(url=>fetch(url,{
+        method:"HEAD",redirect:"error",signal:AbortSignal.timeout(45000)
+      })));
+      const failed=responses.find(response=>!response.ok);
+      for(const response of responses)await response.body?.cancel();
+      if(failed)return res.status(502).type("text/plain").send("Pinned UwU Client part unavailable ("+failed.status+")");
+      return res.status(200).end();
+    }catch(error){
+      console.error("UwU Client HEAD check failed",String(error));
+      return res.status(502).type("text/plain").send("Approved UwU Client sources unavailable");
+    }
+  }
+  // Start both upstream fetches before sending an HTML status; on failure, a
+  // meaningful 502 can still be returned to the game's launcher.
+  const sources=[];
+  try{
+    for(const url of uwuClientParts){
+      const source=await fetch(url,{redirect:"error",signal:AbortSignal.timeout(120000)});
+      if(!source.ok||!source.body){
+        for(const prior of sources)await prior.body?.cancel();
+        await source.body?.cancel();
+        return res.status(502).type("text/plain").send("Approved UwU Client source unavailable ("+source.status+")");
+      }
+      sources.push(source);
+    }
+    res.status(200);
+    for(const source of sources){
+      await pipeline(Readable.fromWeb(source.body),res,{end:false});
+    }
+    res.end();
+  }catch(error){
+    console.error("UwU Client stream failed:",String(error));
+    if(res.headersSent)res.destroy();
+    else res.status(502).type("text/plain").send("Could not stream the approved UwU Client.");
+  }
+}
+app.get("/approved-games/uwu-client/index.html",serveUwuClient);
+app.head("/approved-games/uwu-client/index.html",serveUwuClient);
+app.options("/approved-games/uwu-client/index.html",(req,res)=>{
+  if(!approvedGameCors(req,res))return;
+  res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+  res.sendStatus(204);
+});
 app.get("/approved-assets/imported/*",importedHandler);
 app.head("/approved-assets/imported/*",importedHandler);
 app.options("/approved-assets/imported/*",(req,res)=>{
