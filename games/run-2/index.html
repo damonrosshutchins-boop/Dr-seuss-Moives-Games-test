@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Run 2 · Seuss Arcade</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#060b13;color:#eef8ff;font:15px system-ui,sans-serif}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+#stage{width:min(100vw,calc(100dvh * 4 / 3));height:min(100dvh,calc(100vw * 3 / 4));max-width:100%;max-height:100dvh;background:#000;position:relative;display:grid;place-items:center}
+#player{width:100%;height:100%;display:none;position:absolute;inset:0}
+#player ruffle-player{display:block;width:100%;height:100%}
+#overlay{position:relative;z-index:2;text-align:center;width:min(92%,540px);padding:25px;background:#122239eb;border:1px solid #42628c;border-radius:16px;box-shadow:0 18px 40px #0009}
+h1{margin:0 0 8px;font-size:clamp(24px,5vw,34px)}p{line-height:1.5;color:#ceddf0}
+button{background:#588ad5;border:0;border-radius:9px;padding:12px 22px;font:700 16px system-ui;color:white;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}
+#status{margin-top:14px;min-height:2em;color:#deefff;white-space:pre-wrap;font-size:13px}
+#retry{display:none}
+</style></head>
+<body>
+<div id="stage">
+  <div id="player" aria-label="Run 2 Flash game"></div>
+  <section id="overlay">
+    <h1>🏃 Run 2</h1>
+    <p>Run 2 runs using the Ruffle Flash emulator. The game and runtime files load through the approved Render asset route, without leaving Seuss Arcade.</p>
+    <button id="start" type="button">Play Run 2</button>
+    <button id="retry" type="button">Retry</button>
+    <div id="status" role="status" aria-live="polite">Ready</div>
+  </section>
+</div>
+<script>
+"use strict";
+const ROOT="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/run2/";
+const SCRIPT=ROOT+"ruffle.js";
+const GAME=ROOT+"Run2.swf";
+const playerHost=document.getElementById("player");
+const overlay=document.getElementById("overlay");
+const statusNode=document.getElementById("status");
+const start=document.getElementById("start");
+const retry=document.getElementById("retry");
+function report(message,percent=null){
+ statusNode.textContent=message;
+ if(window.parent!==window){
+  try{window.parent.postMessage({type:"seuss-arcade-progress",stage:message,percent},location.origin);}catch(error){console.warn("Progress notification failed",error);}
+ }
+}
+function failure(error){
+ overlay.style.display="block";
+ report("Unable to load Run 2: "+(error?.message||String(error)));
+ retry.style.display="inline-block";
+ start.style.display="none";
+ start.disabled=false;
+ retry.disabled=false;
+ console.error("Run 2 player failure:",error);
+}
+function loadScript(src){
+ return new Promise((resolve,reject)=>{
+  const script=document.createElement("script");
+  script.src=src;
+  script.async=true;
+  script.onload=resolve;
+  script.onerror=()=>reject(Error("Ruffle runtime failed to load from the approved Render route"));
+  document.head.appendChild(script);
+ });
+}
+async function checkAsset(url,label){
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),45000);
+ try{
+  const response=await fetch(url,{method:"HEAD",signal:controller.signal,cache:"no-store"});
+  if(!response.ok)throw Error(label+" returned HTTP "+response.status);
+ }finally{clearTimeout(timeout);}
+}
+async function launch(){
+ start.disabled=true;
+ retry.disabled=true;
+ report("Checking approved Run 2 game file and Flash runtime…");
+ try{
+  await checkAsset(SCRIPT,"Ruffle runtime");
+  await checkAsset(GAME,"Run 2 game");
+  report("Loading the Ruffle Flash emulator…");
+  if(!window.RufflePlayer?.newest)await loadScript(SCRIPT);
+  const factory=window.RufflePlayer?.newest?.();
+  if(!factory?.createPlayer)throw Error("Ruffle did not initialize its player");
+  const player=factory.createPlayer();
+  player.style.width="100%";
+  player.style.height="100%";
+  playerHost.replaceChildren(player);
+  playerHost.style.display="block";
+  const ruffle=typeof player.ruffle==="function"?player.ruffle():player;
+  if(typeof ruffle.load!=="function")throw Error("Ruffle player cannot load SWF files");
+  player.addEventListener("loadeddata",()=>{report("Run 2 loaded",100);overlay.style.display="none";},{once:true});
+  player.addEventListener("error",event=>failure(event?.error||Error("The Flash player reported an error")));
+  report("Downloading Run 2 and starting the Flash game…");
+  const loaded=ruffle.load(GAME);
+  if(loaded&&typeof loaded.then==="function")await loaded;
+  // The player can report loadeddata before or after the load promise.
+  report("Run 2 game initialized",100);
+  overlay.style.display="none";
+ }catch(error){failure(error);}
+}
+start.addEventListener("click",launch);
+retry.addEventListener("click",launch);
+</script>
+</body></html>
