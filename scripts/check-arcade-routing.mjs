@@ -60,7 +60,7 @@ for(const [label,source,required] of [
   ["Viewer restricted remote launcher",html,["await openProxied(frame,x.url","frame.src=path.href","location.assign(localUrl.href)","if(path.origin!==location.origin)"]],
   ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-cinema-arcade.onrender.com/wisp/","Only approved games and movie destinations"]],
   ["Render Wisp policy",server,["wisp.options.hostname_whitelist=","wisp.options.allow_private_ips=false","wisp.options.allow_direct_ip=false","const allowedOrigin=new Set","function approvedGameCors"]],
-  ["Pinned game routes",server,["tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.framework.js.unityweb","zelda-oot/rom.n64.part1","centipede/rom.zip","run2/Run2.swf","run2/ruffle.js","run2/4d882486fa9bfce731b9.wasm","run2/f7f28eb60b84863611ca.wasm"]]
+  ["Pinned game routes",server,["tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.framework.js.unityweb","zelda-oot/rom.n64.part1","centipede/rom.zip","run2/Run2.swf","run2/ruffle.js","run2/4d882486fa9bfce731b9.wasm","run2/f7f28eb60b84863611ca.wasm","cluwuclient.html.part1","cluwuclient.html.part2","/approved-games/uwu-client/index.html"]]
 ]){
   for(const snippet of required)if(!source.includes(snippet))errors.push(label+": missing "+snippet);
 }
