@@ -40,8 +40,18 @@ function orient(){
 }
 window.addEventListener("resize",orient);orient();
 try{
- const res=await fetch(loaderUrl,{method:"HEAD",cache:"no-store",signal:AbortSignal.timeout(35000)});
- if(!res.ok)throw Error("Unity loader unavailable (HTTP "+res.status+")");
+ for(const [name,url] of [
+  ["Unity loader",loaderUrl],
+  ["Unity framework",base+path+".framework.js.unityweb"],
+  ["Unity WebAssembly",base+path+".wasm.unityweb"],
+  ["Unity game data",base+path+".data.unityweb"]
+ ]){
+   loadingText.textContent="Checking "+name+" through Render…";
+   let res;
+   try{res=await fetch(url,{method:"HEAD",cache:"no-store",signal:AbortSignal.timeout(45000)});}
+   catch(e){throw Error(name+" request failed: "+(e.message||String(e)));}
+   if(!res.ok)throw Error(name+" unavailable through Render (HTTP "+res.status+")");
+ }
  loadingText.textContent="Starting Unity game…";
  const script=document.createElement("script");script.src=loaderUrl;
  script.onerror=()=>showError("Could not download Unity loader through Render.");
