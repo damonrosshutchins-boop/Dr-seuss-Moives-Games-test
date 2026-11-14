@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.mjs",
+    "start": "node scripts/assemble-minecraft.mjs && node server.mjs",
     "build:pages": "node scripts/build-pages.mjs"
   },
   "engines": {

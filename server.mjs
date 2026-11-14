@@ -143,6 +143,35 @@ app.head("/approved-games/cheese/*",(req,res)=>{
  void serveApprovedGameFile(req,res,url);
 });
 
+
+ // Minecraft 26.3 Horizon: serve the exact user-supplied standalone HTML on
+ // Render so the top-level page receives the isolation headers above.
+ // The file is reassembled from checked-in chunks by npm start.
+const minecraftStandalone=path.join(process.cwd(),"games","minecraft-26.3","index.html");
+app.get("/approved-games/minecraft/",(req,res)=>{
+ res.setHeader("Cache-Control","public, max-age=3600");
+ res.sendFile(minecraftStandalone);
+});
+// Sound assets are pinned to one version of one repo. No client-supplied
+// upstream URLs, domain selection, redirects, or path traversal permitted.
+const minecraftSoundRoot="https://raw.githubusercontent.com/AlexBoops/mc-rust-onweb/b21a7ae704b415182631429a7e71c797287661df/";
+const minecraftSounds=new Set(["parts.json",...Array.from({length:18},(_,i)=>
+ "fs/res/assets/minecraft/sound.tar.gz.part"+i)]);
+app.options("/approved-games/minecraft-sounds/*",(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+ res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
+ res.sendStatus(204);
+});
+for(const method of ["get","head"]){
+ app[method]("/approved-games/minecraft-sounds/*",(req,res)=>{
+  if(!approvedGameCors(req,res))return;
+  const file=req.params[0];
+  if(!minecraftSounds.has(file))return res.sendStatus(404);
+  void serveApprovedGameFile(req,res,minecraftSoundRoot+file);
+ });
+}
+
 app.use("/scram/",express.static(scramjetPath));
 app.use("/utils/",express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controller")));
