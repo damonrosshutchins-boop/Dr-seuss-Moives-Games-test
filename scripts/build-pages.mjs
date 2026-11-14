@@ -97,6 +97,22 @@ for(const slug of ["balatro","cheese"]){
 
 
 
+// Publish the four imported game launchers on GitHub Pages. The browser
+// stays inside the arcade; large game binaries are fetched from pinned
+// approved Render routes rather than copied into the Pages artifact.
+const importedGames=["plants-vs-zombies-ds","mario-kart-64","1v1-lol","sm64-ocarina"];
+for(const slug of importedGames){
+  const source=path.join("games",slug,"index.html");
+  const destination=path.join(out,"games",slug,"index.html");
+  if(!await exists(source))throw Error("Missing imported game launcher: "+source);
+  await fs.mkdir(path.dirname(destination),{recursive:true});
+  await fs.copyFile(source,destination);
+  const contents=await fs.readFile(destination,"utf8");
+  if(!contents.trim()||!contents.toLowerCase().includes("<html"))
+    throw Error("Invalid imported game launcher: "+destination);
+  console.log("Published imported launcher: "+slug);
+}
+
 await copyRuntime("scram",scramjetPath,"scramjet.js");
 await copyRuntime("controller",pkgDir("@mercuryworkshop/scramjet-controller"),"controller.api.js");
 await copyRuntime("utils",pkgDir("@mercuryworkshop/scramjet-utils"),"scramjet-utils.js");
