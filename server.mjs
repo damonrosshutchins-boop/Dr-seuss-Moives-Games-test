@@ -162,6 +162,134 @@ app.options("/approved-games/horizon/*",(req,res)=>{
  res.sendStatus(204);
 });
 
+
+// God of War: Ghost of Sparta — fixed-source Surge reverse route.
+// Keep this separate from Wisp: clients may request paths from ONE
+// owner-approved host only; they cannot choose a URL, port or destination.
+const spartaUpstream="https://gow-sparta-damon.surge.sh/";
+const spartaRoute="/approved-games/gow-sparta/";
+function spartaFileUrl(req){
+ const file=req.params[0]||"index.html";
+ if(file.length>800||! /^[A-Za-z0-9._/\-]+$/.test(file) ||
+   file.startsWith("/")||file.includes("//")||
+   file.split("/").some(part=>part===".."||part==="."))return null;
+ const url=new URL(file,spartaUpstream);
+ if(url.origin!==new URL(spartaUpstream).origin)return null;
+ // A query may select a game setting or asset version, never a hostname.
+ url.search=new URL(req.originalUrl,"https://seuss-cinema-arcade.onrender.com").search;
+ return url.href;
+}
+function spartaRewriteRootPaths(source){
+ // Relative paths stay relative to the injected <base>. Rewrite common
+ // root-absolute HTML/CSS URL forms to stay within the Render route.
+ return source
+   .replace(/\b(src|href|poster|data)\s*=\s*(["'])\/(?!\/)/gi,
+     (_full,attr,quote)=>attr+"="+quote+spartaRoute)
+   .replace(/url\(\s*(["']?)\/(?!\/)/gi,
+     (_full,quote)=>"url("+quote+spartaRoute);
+}
+function spartaRewriteHtml(html){
+ let page=spartaRewriteRootPaths(html);
+ // Common inline loaders use absolute fetch/worker paths.
+ page=page.replace(/\b(fetch|Worker|SharedWorker|register)\s*\(\s*(["'])\/(?!\/)/g,
+   (_full,fn,quote)=>fn+"("+quote+spartaRoute);
+ const base='<base href="'+spartaRoute+'">';
+ if(/<head\b[^>]*>/i.test(page))
+   page=page.replace(/<head\b[^>]*>/i,match=>match+"\n"+base);
+ else page=base+page;
+ // A visible same-tab route back to the arcade; never a destination picker.
+ const back='<nav id="seuss-sparta-back" style="position:fixed;z-index:2147483646;top:8px;left:8px">'+
+   '<a href="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/" '+
+   'style="display:inline-block;padding:8px 11px;background:#152821ef;color:#fff;'+
+   'border:1px solid #82c9a1;border-radius:8px;font:13px system-ui;text-decoration:none">'+
+   '← Back to Seuss Arcade</a></nav>';
+ if(/<body\b[^>]*>/i.test(page))
+   page=page.replace(/<body\b[^>]*>/i,match=>match+"\n"+back);
+ return page;
+}
+app.get("/approved-games/gow-sparta/status",async(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ res.setHeader("Cache-Control","no-store");
+ try{
+   const response=await fetch(spartaUpstream,{
+     redirect:"error",signal:AbortSignal.timeout(12000)
+   });
+   await response.body?.cancel();
+   res.status(response.ok?200:502).json({
+     ok:response.ok,upstreamStatus:response.status,
+     source:"fixed Surge game host",
+     note:response.ok?"Surge source reachable":"Surge source returned an error"
+   });
+ }catch(error){
+   console.error("Ghost of Sparta upstream status failed",String(error));
+   res.status(502).json({ok:false,note:"The approved Surge game source is not reachable from Render"});
+ }
+});
+app.get("/approved-games/gow-sparta",(req,res)=>res.redirect(308,spartaRoute));
+async function serveSpartaFile(req,res){
+ if(!approvedGameCors(req,res))return;
+ const upstreamUrl=spartaFileUrl(req);
+ if(!upstreamUrl)return res.sendStatus(404);
+ try{
+   const headers={"Accept-Encoding":"identity"};
+   const range=req.get("Range");
+   if(range){
+     if(!/^bytes=\d*-\d*$/.test(range))return res.sendStatus(416);
+     headers.Range=range;
+   }
+   const response=await fetch(upstreamUrl,{
+     method:req.method==="HEAD"?"HEAD":"GET",
+     headers,redirect:"error",signal:AbortSignal.timeout(120000)
+   });
+   if(!response.ok){
+     await response.body?.cancel();
+     return res.status(response.status).type("text/plain")
+       .send("The approved Surge game file is unavailable ("+response.status+")");
+   }
+   res.status(response.status);
+   const contentType=response.headers.get("content-type")||"application/octet-stream";
+   res.setHeader("Content-Type",contentType);
+   if(response.headers.get("accept-ranges"))
+     res.setHeader("Accept-Ranges",response.headers.get("accept-ranges"));
+   if(response.headers.get("content-range"))
+     res.setHeader("Content-Range",response.headers.get("content-range"));
+   res.setHeader("Cache-Control","public, max-age=300");
+   // Never forward upstream cookies, redirects, CSP, encoding or user-supplied URLs.
+   if(req.method==="HEAD"||!response.body){res.end();return;}
+   const contentLength=Number(response.headers.get("content-length")||0);
+   const encoding=response.headers.get("content-encoding");
+   if(/text\/html/i.test(contentType)&&(!contentLength||contentLength<=8000000)){
+     const html=await response.text();
+     if(html.length>8000000)
+       return res.status(502).type("text/plain").send("Game HTML exceeds safe rewrite size");
+     res.setHeader("Cache-Control","no-store");
+     return res.send(spartaRewriteHtml(html));
+   }
+   if(/text\/css/i.test(contentType)&&(!contentLength||contentLength<=2000000)){
+     const css=await response.text();
+     if(css.length>2000000)
+       return res.status(502).type("text/plain").send("Game CSS exceeds safe rewrite size");
+     return res.send(spartaRewriteRootPaths(css));
+   }
+   // Range-sensitive ROM/WASM resources stream unmodified.
+   if((!encoding||encoding==="identity")&&response.headers.get("content-length"))
+     res.setHeader("Content-Length",response.headers.get("content-length"));
+   await pipeline(Readable.fromWeb(response.body),res);
+ }catch(error){
+   console.error("Ghost of Sparta approved file fetch failed",String(error));
+   if(res.headersSent)res.destroy();
+   else res.status(502).type("text/plain").send("The approved Surge game file could not be fetched");
+ }
+}
+app.options("/approved-games/gow-sparta/*",(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+ res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
+ res.sendStatus(204);
+});
+app.get("/approved-games/gow-sparta/*",(req,res)=>void serveSpartaFile(req,res));
+app.head("/approved-games/gow-sparta/*",(req,res)=>void serveSpartaFile(req,res));
+
 app.use("/scram/",express.static(scramjetPath));
 app.use("/utils/",express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controller")));
