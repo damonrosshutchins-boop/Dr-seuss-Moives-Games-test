@@ -11,6 +11,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+
+      - name: Inspect game HTML dependencies without publishing game data
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.parse,re,hashlib,json,collections
+          files=[("wrust","1TBtrBMMw9w9lqc3Z3aw4CARG_O04abIM"),("mods","17mqNnsALl6ZvDVOtarz4EuP5pS8E4-R9")]
+          for name,file_id in files:
+              url="https://drive.usercontent.google.com/download?"+urllib.parse.urlencode({"id":file_id,"export":"download","confirm":"t"})
+              print("FILE",name,flush=True)
+              try:
+                  request=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0"})
+                  with urllib.request.urlopen(request,timeout=50) as response:
+                      b=response.read(32000000)
+                      content=b.decode("utf-8","replace")
+                      print("FILE SIZE",len(b),"SHA256",hashlib.sha256(b).hexdigest(),"content-type",response.headers.get("content-type"),flush=True)
+                      print("DOCTYPE",bool(re.search(r"<!doctype html",content,re.I)),"INLINE SCRIPT COUNT",len(re.findall(r"<script\\b",content,re.I)),"IFRAMES",len(re.findall(r"<iframe\\b",content,re.I)))
+                      print("TITLES",json.dumps(re.findall(r"<title[^>]*>([^<]{0,150})",content,re.I)[:6]))
+                      print("SCRIPTS",json.dumps(re.findall(r"<script[^>]+src=[\\"']([^\\"']+)",content,re.I)[:16]))
+                      print("LINKS",json.dumps(re.findall(r"<link[^>]+href=[\\"']([^\\"']+)",content,re.I)[:16]))
+                      print("FRAMES",json.dumps(re.findall(r"<iframe[^>]+src=[\\"']([^\\"']+)",content,re.I)[:12]))
+                      domains=collections.Counter(re.findall(r"https?://([a-z0-9.-]+)",content,re.I))
+                      print("EXTERNAL DOMAINS",json.dumps(domains.most_common(35)))
+                      print("META REFRESH",json.dumps(re.findall(r"<meta[^>]*http-equiv=[\\"']refresh[\\"'][^>]*>",content,re.I)[:3]))
+                      print("FIRST 1400 CHARS",json.dumps(content[:1400]))
+                      if len(content)<10000: print("SHORT FILE CONTENT",json.dumps(content[:8000]))
+              except Exception as err: print("ERROR",name,type(err).__name__,str(err)[:300])
+          PY
       - name: Check two owner-supplied Drive file links
         shell: bash
         run: |
