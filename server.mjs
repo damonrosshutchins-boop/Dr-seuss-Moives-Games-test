@@ -490,7 +490,6 @@ const importedExactAssets=Object.freeze({
   "fnae/StreamingAssets/202512191935.webm.part2":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/StreamingAssets/202512191935.webm.part2",
   "fnae/StreamingAssets/202512191935.webm.part3":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/StreamingAssets/202512191935.webm.part3",
   "mario-kart/rom.zip":"https://cdn.jsdelivr.net/gh/a456pur/seraph@ae2fcc6d6a9cd051654fcc0519080db1f79cf2a7/games/mariokart64/mariokart64.zip",
-  "ocarina/rom.7z":"https://cdn.jsdelivr.net/gh/schoolstuff1337/supplies@main/n64/SM64_%20Ocarina%20of%20Time%20-%20v.Latest.7z"
 });
 function importedAssetUrl(req){
   let asset;
