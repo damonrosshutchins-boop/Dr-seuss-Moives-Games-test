@@ -46,9 +46,37 @@ await fs.copyFile(path.join("games","smsrip","index.html"),path.join(out,"games"
 await fs.mkdir(path.join(out,"games","horizon"),{recursive:true});
 for(const file of ["index.html","sw.js"])
   await fs.copyFile(path.join("games","horizon",file),path.join(out,"games","horizon",file));
-if(await exists(path.join("games","horizon","horizon-standalone.html")))
-  await fs.copyFile(path.join("games","horizon","horizon-standalone.html"),
-    path.join(out,"games","horizon","horizon-standalone.html"));
+// Reassemble the exact user-provided standalone HTML at build time.
+// GitHub's API ingests 12 small text chunks instead of a 45.6 MB file.
+// Only the completed playable HTML enters the public Pages artifact.
+const horizonParts=[];
+for(let n=0;n<12;n++){
+  const name="part"+String(n).padStart(2,"0")+".txt";
+  horizonParts.push(await fs.readFile(path.join("games","horizon","parts",name)));
+}
+const horizonInput=Buffer.concat(horizonParts);
+const expectedHorizonHash="d54274c77ed28a70b85f82b16193cc756a4baa7ca01fceea1e0707358c512d7d";
+const actualHorizonHash=(await import("node:crypto")).createHash("sha256").update(horizonInput).digest("hex");
+if(actualHorizonHash!==expectedHorizonHash)
+  throw Error("Horizon standalone file integrity mismatch: "+actualHorizonHash);
+let horizonHTML=horizonInput.toString("utf8");
+// Preserve the self-contained WASM and prepared resources, while restricting
+// optional audio fetches to the existing pinned Render asset routes.
+// Default quick launch skips the 355 MB audio archive.
+for(const [from,to] of [
+ ["const SOUND_CDN = \x60https://cdn.jsdelivr.net/gh/AlexBoops/mc-rust-onweb@\x24{SOUND_COMMIT}/\x60;",
+  'const SOUND_CDN = "https://seuss-cinema-arcade.onrender.com/approved-games/horizon/";'],
+ ['const SOUND_FALLBACK = "https://alexboops.github.io/mc-rust-onweb/";',
+  'const SOUND_FALLBACK = "https://seuss-cinema-arcade.onrender.com/approved-games/horizon/";'],
+ ["const files = await downloadSoundArchive();",
+  'const files = new URLSearchParams(location.search).get("audio") === "1" ? await downloadSoundArchive() : new Map();']
+]){
+ if(!horizonHTML.includes(from))throw Error("Horizon entrypoint unexpectedly changed: "+from.slice(0,55));
+ horizonHTML=horizonHTML.replace(from,to);
+}
+await fs.writeFile(path.join(out,"games","horizon","play.html"),horizonHTML);
+console.log("Published verified 45.6 MB Horizon self-contained game for automatic play.");
+
 
  // These games use locally hosted entry pages. Their network game assets are
  // fetched ONLY from pinned, path-restricted Render proxy routes.

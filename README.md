@@ -24,12 +24,23 @@ Render hosts the Node.js service in `server.mjs` (frontend and Wisp combined). `
 Service worker interception, content security policies, cross-origin isolation, and some game/video sites' embedded resources may cause incompatibilities. A successful build is **not** proof that each game or movie plays successfully. Only use media sources you have permission to access. This does not circumvent DRM or subscription requirements.
 
 
+
 ## Minecraft 26.3 Rust / Horizon
 
-The Minecraft 26.3 Rust (Horizon) library card opens games/horizon/index.html. The owner-provided standalone HTML is about 45 MB and contains the game WASM and prepared startup files. The launcher accepts the exact uploaded file, verifies its SHA-256, and caches it in the current browser. Future visits can launch locally. The game opens top-level in the same tab (not a nested iframe) to support game-scoped service-worker isolation.
+Selecting Minecraft 26.3 Rust (Horizon) in the Arcade automatically launches
+the bundled standalone game, without requiring a user to import an HTML file.
+The 45.6 MB authorized source file is committed as 12 versioned text chunks under
+`games/horizon/parts/`. The Pages build reconstructs the exact
+source bytes, verifies the supplied SHA-256 hash, and publishes
+`games/horizon/play.html` (the chunks themselves are not published).
+The separate loader installs a game-scoped service worker and navigates into
+the same-site game page; this enables cross-origin isolation on GitHub Pages.
+The game uses the browser's WebGPU runtime and local save storage.
 
-To make the game load automatically for every visitor, the owner can commit the authorized horizon-standalone.html under games/horizon/ using git. The Pages build copies it automatically if present, and the loader verifies it before use. Only publish copyrighted game content with appropriate permission.
+Default play skips the game's ~355 MB optional sound archive.
+The optional sound mode requests only pinned `parts.json` and 18 fixed
+numbered sound chunks via the existing Render service:
+`https://seuss-cinema-arcade.onrender.com/approved-games/horizon/`.
+The server-side restriction does not permit arbitrary URL fetches.
 
-Quick start skips a 355 MB optional sound download. Play with sound via Render streams only the pinned manifest and 18 numbered sound chunks through /approved-games/horizon/ on the existing Render backend. It cannot be used as an unrestricted proxy. The audio source is pinned to AlexBoops/mc-rust-onweb revision b21a7ae704b415182631429a7e71c797287661df.
-
-WebGPU, substantial browser memory, HTTPS and device support are required. A deployment does not guarantee the game plays on all devices.
+Build success does not guarantee playability on every WebGPU device.
