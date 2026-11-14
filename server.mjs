@@ -498,14 +498,6 @@ const importedExactAssets=Object.freeze({
   "run2/core.ruffle.ae1054522f49580946c0.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/core.ruffle.ae1054522f49580946c0.js",
   "run2/4d882486fa9bfce731b9.wasm":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/4d882486fa9bfce731b9.wasm",
   "run2/f7f28eb60b84863611ca.wasm":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/f7f28eb60b84863611ca.wasm",
-  "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.loader.js":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.loader.js",
-  "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.data.unityweb":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.data.unityweb",
-  "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.framework.js.unityweb":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.framework.js.unityweb",
-  "tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.wasm.unityweb":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/Build/TungTungSahur-ObbyChallenge-v.1.1.wasm.unityweb",
-  "tungobby/TemplateData/style.css":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/TemplateData/style.css",
-  "tungobby/TemplateData/favicon.ico":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/TemplateData/favicon.ico",
-  "tungobby/TemplateData/preview.png":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/TemplateData/preview.png",
-  "tungobby/TemplateData/rotate-device.png":"https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/TemplateData/rotate-device.png",
   "zelda-oot/rom.n64.part1":"https://cdn.jsdelivr.net/gh/bubbls/ugss@ffa46738ce21236742f4a44db08d87160fed6c7d/ocarinaoftime/Legend%20of%20Zelda%2C%20The%20-%20Ocarina%20of%20Time%20(USA).n64.part1",
   "zelda-oot/rom.n64.part2":"https://cdn.jsdelivr.net/gh/bubbls/ugss@ffa46738ce21236742f4a44db08d87160fed6c7d/ocarinaoftime/Legend%20of%20Zelda%2C%20The%20-%20Ocarina%20of%20Time%20(USA).n64.part2",
   "centipede/rom.zip":"https://cdn.jsdelivr.net/gh/ap-math-class/exams@main/mame/centiped.zip",
@@ -552,11 +544,7 @@ function importedHandler(req,res){
   if(!approvedGameCors(req,res))return;
   const url=importedAssetUrl(req);
   if(!url)return res.sendStatus(404);
-  // CDN releases can evict pinned files despite their GitHub blobs existing.
-  // For this ONE pinned Unity game only, retry the exact same GitHub
-  // commit/path using GitHub's raw asset host. Never accept client URLs.
   const asset=decodeURIComponent(req.params[0]||"");
-  const fallbackPrefix="https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/";
   // These are exact, pinned Unity files, never a domain-wide proxy.
   // Retry the same immutable GitHub commit when jsDelivr evicts an asset.
   const pinnedUnitySources=[
@@ -570,13 +558,6 @@ function importedHandler(req,res){
       return;
     }
   }
-  if(asset.startsWith("tungobby/")&&url.startsWith(fallbackPrefix)){
-    const original=url;
-    const relative=original.slice(fallbackPrefix.length);
-    const fallback="https://raw.githubusercontent.com/Pok12d/ta/090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/"+relative;
-    void servePinnedFallbackGameFile(req,res,original,fallback);
-    return;
-  }
   void serveApprovedGameFile(req,res,url);
 }
 async function servePinnedFallbackGameFile(req,res,primary,fallback){
@@ -587,7 +568,7 @@ async function servePinnedFallbackGameFile(req,res,primary,fallback){
       const response=await fetch(url,{method:req.method==="HEAD"?"HEAD":"GET",
         redirect:"error",headers,signal:AbortSignal.timeout(45000)});
       if(!response.ok){
-        console.warn("Pinned Tung Sahur asset unavailable",i?"GitHub raw":"jsDelivr",response.status,new URL(url).pathname);
+        console.warn("Pinned Unity game asset unavailable",i?"GitHub raw":"jsDelivr",response.status,new URL(url).pathname);
         await response.body?.cancel();
         if(i===0)continue;
         return res.status(502).type("text/plain").send("Pinned game asset unavailable from both approved sources ("+response.status+").");
@@ -611,7 +592,7 @@ async function servePinnedFallbackGameFile(req,res,primary,fallback){
       await pipeline(Readable.fromWeb(response.body),res);
       return;
     }catch(error){
-      console.warn("Pinned Tung Sahur download error",i?"GitHub raw":"jsDelivr",String(error));
+      console.warn("Pinned Unity game asset error",i?"GitHub raw":"jsDelivr",String(error));
       if(res.headersSent){res.destroy();return;}
       if(i===1)return res.status(502).type("text/plain").send("Both approved game asset hosts were unreachable.");
     }
