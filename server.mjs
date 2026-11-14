@@ -318,6 +318,149 @@ app.options("/approved-games/gow-sparta/*",(req,res)=>{
 app.get("/approved-games/gow-sparta/*",(req,res)=>void serveSpartaFile(req,res));
 app.head("/approved-games/gow-sparta/*",(req,res)=>void serveSpartaFile(req,res));
 
+
+// Minecraft 1.8 fixed-file Render routes. Both supplied Google Drive IDs are
+// public HTML files, not arbitrary browser-supplied URLs:
+//  - clwurst.html: 27,847,113 bytes (EaglercraftX 1.8 offline)
+//  - cleaglerforge.html: 1,035-byte EaglerForge loader
+// Each file ID and each EaglerForge part is immutable in this allowlist.
+const mc18Sources=new Map([
+ ["minecraft-18-wrust",{
+   id:"1TBtrBMMw9w9lqc3Z3aw4CARG_O04abIM",
+   filename:"clwurst.html",
+   expectedSize:27847113
+ }],
+ ["minecraft-18-mods",{
+   id:"17mqNnsALl6ZvDVOtarz4EuP5pS8E4-R9",
+   filename:"cleaglerforge.html",
+   expectedSize:1035
+ }]
+]);
+const mc18ForgeCommit="ba062f533d86966ff2bcddec4f5859aab7c23346";
+const mc18ForgeBase="https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@"+
+  mc18ForgeCommit+"/PineTools.com_files/cleaglerforge.html.part";
+const mc18ForgeRoute="/approved-games/minecraft-18-mods/assets/forge-part";
+const mc18DriveURL=(item)=>{
+ const u=new URL("https://drive.usercontent.google.com/download");
+ u.searchParams.set("id",item.id);
+ u.searchParams.set("export","download");
+ u.searchParams.set("confirm","t");
+ return u.href;
+};
+// Fixed route: never accepts a URL, hostname, file ID or redirect from users.
+async function serveMc18DriveHtml(req,res,item){
+ if(!approvedGameCors(req,res))return;
+ try{
+   const response=await fetch(mc18DriveURL(item),{
+     method:"GET",redirect:"error",signal:AbortSignal.timeout(150000),
+     headers:{"User-Agent":"Mozilla/5.0"}
+   });
+   if(!response.ok){
+     await response.body?.cancel();
+     return res.status(502).type("text/plain").send("Approved Drive file is unavailable ("+response.status+")");
+   }
+   const disposition=response.headers.get("content-disposition")||"";
+   const size=Number(response.headers.get("content-length")||0);
+   // Google may return an HTML login or quota notice with status 200.
+   if(!disposition.toLowerCase().includes(item.filename.toLowerCase())||
+      (size&&size!==item.expectedSize)){
+     await response.body?.cancel();
+     return res.status(502).type("text/plain").send(
+       "The approved Google Drive game file is unavailable or changed. Check its public sharing and version.");
+   }
+   res.setHeader("Content-Type","text/html; charset=utf-8");
+   res.setHeader("Cache-Control","public, max-age=3600");
+   if(req.method==="HEAD"){await response.body?.cancel();return res.status(200).end();}
+   res.status(200);
+   if(item.id==="17mqNnsALl6ZvDVOtarz4EuP5pS8E4-R9"){
+     const html=await response.text();
+     if(html.length>10000)
+       return res.status(502).type("text/plain").send("The mod launcher changed format");
+     let modified=html;
+     for(let i=1;i<=4;i++){
+       const source="https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@main/PineTools.com_files/cleaglerforge.html.part"+i;
+       if(!modified.includes(source))
+         return res.status(502).type("text/plain").send("Expected Forge launcher asset is missing");
+       modified=modified.replaceAll(source,mc18ForgeRoute+i);
+     }
+     return res.send(modified);
+   }
+   if(!response.body)return res.end();
+   await pipeline(Readable.fromWeb(response.body),res);
+ }catch(error){
+   console.error("Approved Minecraft Drive file fetch failed",item.filename,String(error));
+   if(res.headersSent)res.destroy();
+   else res.status(502).type("text/plain").send("Minecraft game source is temporarily unavailable");
+ }
+}
+for(const [slug,item] of mc18Sources){
+ const route="/approved-games/"+slug+"/index.html";
+ app.get(route,(req,res)=>{void serveMc18DriveHtml(req,res,item);});
+ app.head(route,(req,res)=>{void serveMc18DriveHtml(req,res,item);});
+ app.options(route,(req,res)=>{
+   if(!approvedGameCors(req,res))return;
+   res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+   res.sendStatus(204);
+ });
+ // Very small status probe: check headers and cancel the full download.
+ app.get("/approved-games/"+slug+"/status",async(req,res)=>{
+   if(!approvedGameCors(req,res))return;
+   res.setHeader("Cache-Control","no-store");
+   try{
+     const upstream=await fetch(mc18DriveURL(item),{
+       redirect:"error",signal:AbortSignal.timeout(20000),
+       headers:{"User-Agent":"Mozilla/5.0"}
+     });
+     const disposition=upstream.headers.get("content-disposition")||"";
+     const size=Number(upstream.headers.get("content-length")||0);
+     const ok=upstream.ok&&disposition.toLowerCase().includes(item.filename.toLowerCase())&&
+       (!size||size===item.expectedSize);
+     await upstream.body?.cancel();
+     res.status(ok?200:502).json({ok,file:item.filename,source:"fixed Google Drive file ID",
+       message:ok?"Approved game file reachable":"Approved game file unavailable or changed"});
+   }catch(error){
+     console.error("Minecraft Drive probe failed",item.filename,String(error));
+     res.status(502).json({ok:false,message:"The approved game file could not be reached"});
+   }
+ });
+}
+// The forge loader has four declared files at one pinned Git commit.
+// Keep the exact same-origin URLs: no generic CDN path passthrough.
+for(let i=1;i<=4;i++){
+ const route=mc18ForgeRoute+i;
+ const serve=(req,res)=>{
+   if(!approvedGameCors(req,res))return;
+   void (async()=>{
+     try{
+       const response=await fetch(mc18ForgeBase+i,{
+         method:"GET",redirect:"error",signal:AbortSignal.timeout(150000)
+       });
+       if(!response.ok){
+         await response.body?.cancel();
+         return res.status(502).type("text/plain").send("Approved Forge part unavailable ("+i+")");
+       }
+       res.setHeader("Content-Type","text/plain; charset=utf-8");
+       res.setHeader("Cache-Control","public, max-age=86400, immutable");
+       if(req.method==="HEAD"){await response.body?.cancel();return res.status(200).end();}
+       res.status(200);
+       if(response.body)await pipeline(Readable.fromWeb(response.body),res);
+       else res.end();
+     }catch(error){
+       console.error("Pinned Minecraft Forge part failed",i,String(error));
+       if(res.headersSent)res.destroy();
+       else res.status(502).type("text/plain").send("Approved Forge asset could not be reached");
+     }
+   })();
+ };
+ app.get(route,serve);
+ app.head(route,serve);
+ app.options(route,(req,res)=>{
+   if(!approvedGameCors(req,res))return;
+   res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+   res.sendStatus(204);
+ });
+}
+
 app.use("/scram/",express.static(scramjetPath));
 app.use("/utils/",express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controller")));
