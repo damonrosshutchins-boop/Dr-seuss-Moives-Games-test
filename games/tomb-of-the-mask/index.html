@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tomb of the Mask · Seuss Arcade</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;color:#f4faff;font:15px system-ui,sans-serif}
+#gameContainer{position:fixed;inset:0;width:100vw;height:100dvh;min-width:240px;min-height:180px;background:#06090e}
+#gameContainer canvas{display:block;width:100%!important;height:100%!important;object-fit:contain}
+#hud{position:fixed;z-index:20;top:0;left:0;right:0;background:#111c2fe8;padding:10px 16px;pointer-events:none}
+#hudText{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#dfebfa}
+#track{height:5px;background:#394761;margin-top:6px;border-radius:8px;overflow:hidden}
+#fill{height:100%;width:0;background:#dbb654;transition:width .2s}
+#setup{position:fixed;inset:0;display:grid;place-items:center;z-index:30;background:#06101cde;padding:20px}
+#card{width:min(92vw,550px);border:1px solid #667992;border-radius:15px;background:#14233b;padding:27px;box-shadow:0 20px 70px #0009}
+h1{font-size:clamp(24px,4vw,33px);margin:0 0 9px}
+p{line-height:1.5;color:#c8d9ea}
+button{border:1px solid #a2bed7;border-radius:8px;color:#fff;background:#36557c;font:700 15px system-ui;padding:11px 20px;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}
+#error{white-space:pre-wrap;color:#ffd3c5;line-height:1.5;font-size:13px}
+</style></head>
+<body>
+<div id="gameContainer" aria-label="Tomb of the Mask game"></div>
+<div id="hud" role="status" aria-live="polite"><div id="hudText"><span id="message">Ready to launch Tomb of the Mask</span><span id="percent"></span></div><div id="track"><div id="fill"></div></div></div>
+<div id="setup"><div id="card">
+<h1>🗿 Tomb of the Mask</h1>
+<p>Arcade maze game running inside Seuss Arcade. The original Unity WebGL files are fetched only through this game's approved Render routes.</p>
+<button type="button" id="start">Play Tomb of the Mask</button>
+<p id="error" role="alert"></p>
+</div></div>
+<script>
+"use strict";
+const ROOT="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/tomb-mask/";
+const MANIFEST=ROOT+"totm.json";
+const LOADER=ROOT+"UnityLoader.js";
+const setup=document.getElementById("setup");
+const start=document.getElementById("start");
+const error=document.getElementById("error");
+const hud=document.getElementById("hud");
+const message=document.getElementById("message");
+let started=false;
+function progress(stage,percent=null){
+ message.textContent=stage;
+ if(typeof percent==="number"&&Number.isFinite(percent)){
+  const value=Math.round(Math.max(0,Math.min(100,percent)));
+  document.getElementById("fill").style.width=value+"%";
+  document.getElementById("percent").textContent=value+"%";
+ }else document.getElementById("percent").textContent="";
+ if(parent!==window){
+  try{parent.postMessage({type:"seuss-arcade-progress",stage,percent},location.origin);}
+  catch(e){console.warn("Arcade progress event failed",e);}
+ }
+}
+function fail(cause){
+ const reason=cause?.message||String(cause);
+ console.error("Tomb of the Mask launch failed:",cause);
+ error.textContent="Unable to start Tomb of the Mask: "+reason+". Select Reload to retry.";
+ start.textContent="Reload";
+ start.disabled=false;
+ start.onclick=()=>location.reload();
+ setup.style.display="grid";
+ progress("Tomb of the Mask failed to initialize");
+}
+async function check(url,label){
+ const response=await fetch(url,{method:"HEAD",cache:"no-store",signal:AbortSignal.timeout(55000)});
+ if(!response.ok)throw Error(label+" returned HTTP "+response.status);
+}
+function loadScript(url){
+ return new Promise((resolve,reject)=>{
+  const s=document.createElement("script");s.src=url;
+  s.onload=resolve;s.onerror=()=>reject(Error("The Unity loader did not load from Render"));
+  document.head.appendChild(s);
+ });
+}
+window.addEventListener("error",e=>{
+ if(started&&setup.style.display==="none"&&e.message)
+  progress("Game error: "+e.message);
+});
+window.addEventListener("unhandledrejection",e=>{
+ if(started&&setup.style.display==="none")
+  progress("Game error: "+(e.reason?.message||String(e.reason)));
+});
+async function launch(){
+ if(started)return;
+ started=true;
+ start.disabled=true;
+ error.textContent="";
+ progress("Checking approved Tomb of the Mask game assets…");
+ try{
+  const gl=document.createElement("canvas");
+  if(!gl.getContext("webgl2")&&!gl.getContext("webgl"))
+   throw Error("WebGL is unavailable in this browser. Enable hardware acceleration.");
+  await check(LOADER,"Unity loader");
+  await check(MANIFEST,"Unity game manifest");
+  progress("Loading Tomb of the Mask Unity runtime…");
+  await loadScript(LOADER);
+  if(typeof UnityLoader?.instantiate!=="function")
+   throw Error("UnityLoader did not initialize");
+  setup.style.display="none";
+  progress("Downloading Tomb of the Mask data and WebAssembly…",0);
+  const instance=UnityLoader.instantiate("gameContainer",MANIFEST,{
+   onProgress:(_instance,p)=>{
+    if(typeof p==="number"){
+     const value=Math.round(p*100);
+     progress(value>=100?"Tomb of the Mask loaded · starting game…":"Loading Tomb of the Mask · "+value+"%",value);
+    }
+   },
+   Module:{
+    onRuntimeInitialized(){
+     progress("Tomb of the Mask is running",100);
+     setTimeout(()=>{hud.style.display="none";},3500);
+    }
+   }
+  });
+  if(!instance)throw Error("Unity failed to create the game player");
+ }catch(e){fail(e);}
+}
+start.addEventListener("click",launch);
+</script>
+</body>
+</html>
