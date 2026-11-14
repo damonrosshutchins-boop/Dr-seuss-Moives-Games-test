@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UwU Client · Seuss Arcade</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#090f1b;color:#eff5ff;font:14px system-ui,sans-serif}
+body{display:flex;flex-direction:column}
+header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:9px 14px;background:#20253e;border-bottom:1px solid #636a99}
+header strong{font-size:16px}
+header small{font-size:12px;color:#c3cbe5;flex:1}
+button{border-radius:8px;background:#555d95;color:white;border:1px solid #a2a9dd;padding:9px 15px;font:inherit;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}
+#status{padding:9px 14px;background:#151c30;color:#c5dbff;min-height:36px;white-space:pre-wrap}
+#game{display:block;flex:1;min-height:0;width:100%;border:0;background:black}
+#notice{display:none;position:absolute;inset:auto 5% 8%;max-width:720px;margin:0 auto;padding:18px;border-radius:12px;background:#282f4a;color:#fff;border:1px solid #99a1cf;box-shadow:0 14px 40px #000b}
+#notice strong{display:block;margin-bottom:10px;font-size:17px}
+</style>
+</head>
+<body>
+<header>
+  <strong>UwU Client</strong>
+  <small>Minecraft-style web client · approved Render game route · in-site player</small>
+  <button type="button" id="reload">↻ Reload</button>
+</header>
+<div id="status" role="status" aria-live="polite">Ready to load UwU Client.</div>
+<iframe id="game" title="UwU Client game" sandbox="allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads" allow="fullscreen; autoplay; gamepad; pointer-lock" allowfullscreen referrerpolicy="no-referrer"></iframe>
+<div id="notice" role="alert"><strong>UwU Client could not be loaded.</strong><span id="errorText"></span></div>
+<script>
+"use strict";
+const GAME_URL="https://seuss-cinema-arcade.onrender.com/approved-games/uwu-client/index.html";
+const frame=document.getElementById("game");
+const label=document.getElementById("status");
+const reload=document.getElementById("reload");
+const notice=document.getElementById("notice");
+const errorText=document.getElementById("errorText");
+let session=0;
+function progress(stage,percent=null){
+ label.textContent=stage;
+ if(parent!==window){
+  try{parent.postMessage({type:"seuss-arcade-progress",stage,percent},location.origin);}catch(error){console.warn("Arcade status update failed:",error);}
+ }
+}
+async function launch(){
+ const current=++session;
+ reload.disabled=true;notice.style.display="none";
+ frame.removeAttribute("src");
+ progress("Checking the approved Render UwU Client route…");
+ try{
+  const response=await fetch(GAME_URL,{method:"HEAD",mode:"cors",cache:"no-store",signal:AbortSignal.timeout(60000)});
+  if(!response.ok)throw new Error("Approved game route returned HTTP "+response.status);
+  if(current!==session)return;
+  progress("Loading UwU Client (about 39 MB) from Render…");
+  // Keep the game isolated on Render's origin, inside the arcade frame.
+  // It is not sent to the original CDN and cannot navigate the parent frame.
+  frame.addEventListener("load",()=>{
+   if(current!==session)return;
+   progress("UwU Client document loaded · initializing game…");
+   reload.disabled=false;
+  },{once:true});
+  frame.src=GAME_URL;
+ }catch(error){
+  if(current!==session)return;
+  errorText.textContent=(error?.message||String(error))+". Reload to retry.";
+  notice.style.display="block";
+  progress("UwU Client route unavailable.");
+  reload.disabled=false;
+ }
+}
+reload.addEventListener("click",launch);
+launch();
+</script>
+</body>
+</html>
