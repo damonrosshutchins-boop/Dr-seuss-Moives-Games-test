@@ -465,7 +465,7 @@ for(let i=1;i<=4;i++){
 // Approved imported games: fixed CDN origins and fixed path prefixes only.
 // No user-provided upstream URLs, protocols, hostnames or redirect following.
 const importedAssetRoots=Object.freeze({
-  "emu":"https://cdn.jsdelivr.net/gh/bubblfan/emu@master/",
+  "emu":"https://cdn.jsdelivr.net/gh/bubblfan/emu@main/",
   "1v1":"https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
 });
 const importedExactAssets=Object.freeze({
