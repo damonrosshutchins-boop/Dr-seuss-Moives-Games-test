@@ -143,6 +143,25 @@ app.head("/approved-games/cheese/*",(req,res)=>{
  void serveApprovedGameFile(req,res,url);
 });
 
+// Horizon 26.3 audio: pinned exact-revision and only 18 numbered
+// sound parts plus parts.json. No arbitrary hostname or path accepted.
+const horizonRoot="https://raw.githubusercontent.com/AlexBoops/mc-rust-onweb/b21a7ae704b415182631429a7e71c797287661df/";
+app.get("/approved-games/horizon/parts.json",(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ void serveApprovedGameFile(req,res,horizonRoot+"parts.json");
+});
+app.get("/approved-games/horizon/fs/res/assets/minecraft/:file",(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ const file=req.params.file;
+ if(!/^sound[.]tar[.]gz[.]part(0|[1-9]|1[0-7])$/.test(file))return res.sendStatus(404);
+ void serveApprovedGameFile(req,res,horizonRoot+"fs/res/assets/minecraft/"+file);
+});
+app.options("/approved-games/horizon/*",(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+ res.sendStatus(204);
+});
+
 app.use("/scram/",express.static(scramjetPath));
 app.use("/utils/",express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controller")));
