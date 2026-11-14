@@ -64,7 +64,8 @@ async function serveApprovedGameFile(req,res,upstreamUrl){
    if(req.get("Range"))headers.Range=req.get("Range");
    const response=await fetch(upstreamUrl,{
      method:req.method==="HEAD"?"HEAD":"GET",
-     headers,redirect:"error",signal:AbortSignal.timeout(30000)
+     headers,redirect:"error",signal:AbortSignal.timeout(
+       upstreamUrl.startsWith("https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/")&&upstreamUrl.endsWith(".wasm")?90000:30000)
    });
    if(!response.ok){
      res.status(response.status).type("text/plain").send("Approved game file unavailable at its source ("+response.status+")");
