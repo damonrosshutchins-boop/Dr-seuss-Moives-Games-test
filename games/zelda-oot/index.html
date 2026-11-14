@@ -17,7 +17,7 @@ button{cursor:pointer;margin-top:12px}button:disabled{opacity:.5;cursor:wait}
 <p>This version uses the stable EmulatorJS runtime and loads the game through the arcade's approved Render routes.</p>
 <label for="core">Emulator</label>
 <select id="core"><option value="n64">Default (n64)</option><option value="parallel-n64">Alternative (Parallel N64)</option></select>
-<label><input id="legacy" type="checkbox"> Use legacy WebGL 1 graphics</label>
+<label><input id="legacy" type="checkbox" checked> Use legacy WebGL 1 graphics (recommended)</label>
 <p>If the screen is black, use the arcade's Reload button and select the other core or legacy graphics.</p>
 <button id="play" type="button">Start Zelda</button>
 <div id="message" role="status" aria-live="polite">Ready.</div>
@@ -40,71 +40,64 @@ function showSetup(error){
  play.disabled=false;
  status(String(error||"Unable to start the emulator"));
 }
-// Keep a real-sized rendering surface throughout emulator initialization.
-// The official EmulatorJS embed example uses a sized parent; its canvas can
-// otherwise inherit zero height during startup in an embedded flex iframe.
-let monitorTimer=null,videoObserver=null,videoRescueAttempted=false;
-function resizeVideo(){
- const emulator=window.EJS_emulator;
- try{
-   // EmulatorJS 4.2.3 exposes handleResize and canvas directly on the emulator;
-   // 4.3 pre-release moved them under frontend. Support both shapes.
-   if(typeof emulator?.handleResize==="function")emulator.handleResize();
-   else emulator?.frontend?.handleResize?.();
- }catch(error){console.warn("EmulatorJS resize:",error);}
+// Leave the WebGL drawing buffer under emulator control. A 0x0 canvas
+// during core initialization is not evidence that video is broken.
+let monitorTimer=null,videoObserver=null;
+function getEmulator(){
+ return window.EJS_emulator?.frontend||window.EJS_emulator||null;
 }
-function checkVideo(tries=0){
+function resizeVideo(){
+ const emulator=getEmulator();
+ try{emulator?.handleResize?.();}catch(error){console.warn("EmulatorJS resize:",error);}
+}
+function inspectVideo(tries=0){
  const host=document.getElementById("game");
- if(host.style.display==="none")return;
- const emulator=window.EJS_emulator;
- const canvas=emulator?.canvas||emulator?.frontend?.canvas||host.querySelector("canvas.ejs_canvas");
- const parent=host.querySelector(".ejs_parent");
- const hostRect=host.getBoundingClientRect();
- // This is the documented embedding element, not the canvas bitmap.
- if(hostRect.width<2||hostRect.height<2){
-   host.style.width=Math.max(320,window.innerWidth)+"px";
-   host.style.height=Math.max(240,window.innerHeight)+"px";
+ if(getComputedStyle(host).display==="none")return;
+ const emulator=getEmulator();
+ const canvas=emulator?.canvas||host.querySelector("canvas.ejs_canvas");
+ const box=host.getBoundingClientRect();
+ // The host is fixed at the size of the iframe's visible viewport.
+ if(box.width<2||box.height<2){
+  status("Video container unavailable ("+Math.round(box.width)+"×"+Math.round(box.height)+").");
+  return;
  }
- resizeVideo();
- if(canvas){
-   const view=canvas.getBoundingClientRect();
-   const validCSS=view.width>=2&&view.height>=2;
-   const validBitmap=canvas.width>=2&&canvas.height>=2;
-   if(validCSS&&validBitmap){
-     status("Zelda video surface initialized ("+canvas.width+" × "+canvas.height+").",100);
-     return;
-   }
-   // Only recover a bitmap that the emulator left at 0×0. Do not reset an
-   // already initialized WebGL drawing buffer because that would erase video.
-   if(tries>=8&&!videoRescueAttempted&&validCSS&&!validBitmap){
-     videoRescueAttempted=true;
-     const width=Math.min(1920,Math.max(320,Math.round(view.width*(devicePixelRatio||1))));
-     const height=Math.min(1080,Math.max(240,Math.round(view.height*(devicePixelRatio||1))));
-     try{
-       if(typeof emulator?.Module?.setCanvasSize==="function")
-         emulator.Module.setCanvasSize(width,height);
-       else {canvas.width=width;canvas.height=height;}
-       resizeVideo();
-     }catch(error){console.warn("Video surface recovery:",error);}
-   }
- }
- if(tries>=40){
-   const details="host "+Math.round(host.getBoundingClientRect().width)+"×"+Math.round(host.getBoundingClientRect().height)+
-     ", parent "+Math.round(parent?.getBoundingClientRect().width||0)+"×"+Math.round(parent?.getBoundingClientRect().height||0)+
-     ", canvas "+(canvas?.width||0)+"×"+(canvas?.height||0);
-   status("Video output could not initialize ("+details+"). Try another emulator core or check WebGL support.");
+ // Canvas can be created before the libretro core has produced its first frame.
+ // Resize only the module owned by the emulator; changing canvas.width/height
+ // directly can discard its WebGL context and leave audio playing with no picture.
+ const draw=canvas?.getBoundingClientRect();
+ if(canvas&&draw?.width>=2&&draw?.height>=2){
+  resizeVideo();
+  const dims=canvas.width+"×"+canvas.height;
+  if(canvas.width>=2&&canvas.height>=2){
+   status("Zelda graphics initialized ("+dims+"). If picture is black, try the alternate core or legacy graphics.",100);
    return;
+  }
+  if(tries>=8&&typeof emulator?.Module?.setCanvasSize==="function"){
+   try{
+    const w=Math.max(2,Math.round(draw.width*(devicePixelRatio||1)));
+    const h=Math.max(2,Math.round(draw.height*(devicePixelRatio||1)));
+    emulator.Module.setCanvasSize(w,h);
+   }catch(error){console.warn("Emulator graphics recovery:",error);}
+  }
  }
- monitorTimer=setTimeout(()=>checkVideo(tries+1),250);
+ if(tries>=60){
+  const gl2=!!document.createElement("canvas").getContext("webgl2");
+  const gl1=!!document.createElement("canvas").getContext("webgl");
+  const details="host "+Math.round(box.width)+"×"+Math.round(box.height)+
+   ", canvas "+(canvas?canvas.width+"×"+canvas.height:"missing")+
+   ", WebGL1 "+(gl1?"yes":"no")+", WebGL2 "+(gl2?"yes":"no");
+  status("Video renderer did not initialize ("+details+"). Try the alternate core or legacy graphics.");
+  return;
+ }
+ monitorTimer=setTimeout(()=>inspectVideo(tries+1),500);
 }
 function beginVideoMonitor(){
  if(monitorTimer!==null)clearTimeout(monitorTimer);
- videoRescueAttempted=false;
  if(!videoObserver&&typeof ResizeObserver!=="undefined"){
-   videoObserver=new ResizeObserver(()=>resizeVideo());
-   videoObserver.observe(document.getElementById("game"));
+  videoObserver=new ResizeObserver(()=>resizeVideo());
+  videoObserver.observe(document.getElementById("game"));
  }
- requestAnimationFrame(()=>checkVideo(0));
+ requestAnimationFrame(()=>inspectVideo(0));
 }
 window.addEventListener("resize",resizeVideo,{passive:true});
 window.addEventListener("error",event=>{
@@ -117,6 +110,10 @@ window.addEventListener("unhandledrejection",event=>{
 });
 play.addEventListener("click",async()=>{
  play.disabled=true;
+ const hasWebGL=!!document.createElement("canvas").getContext("webgl");
+ const hasWebGL2=!!document.createElement("canvas").getContext("webgl2");
+ if(!hasWebGL&&!hasWebGL2){showSetup("Browser graphics unavailable: WebGL could not initialize. Check browser hardware acceleration and graphics settings.");return;}
+ if(!hasWebGL&&hasWebGL2)document.getElementById("legacy").checked=false;
  status("Checking approved game and stable emulator routes…");
  try{
   let runtime=RUNTIME;
