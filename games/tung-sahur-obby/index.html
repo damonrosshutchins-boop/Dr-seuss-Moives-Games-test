@@ -53,9 +53,21 @@ try{
    if(!res.ok)throw Error(name+" unavailable through Render (HTTP "+res.status+")");
  }
  loadingText.textContent="Starting Unity game…";
- const script=document.createElement("script");script.src=loaderUrl;
- script.onerror=()=>showError("Could not download Unity loader through Render.");
+ // The upstream Unity loader has a broken framework bootstrap:
+ // it creates a blob URL but tries to execute "blob.js" instead.
+ // Patch the one broken assignment in memory; keep the original file upstream.
+ loadingText.textContent="Preparing corrected Unity loader…";
+ const loaderResponse=await fetch(loaderUrl,{mode:"cors",cache:"no-store",signal:AbortSignal.timeout(45000)});
+ if(!loaderResponse.ok)throw Error("Unity loader GET returned HTTP "+loaderResponse.status);
+ const originalLoader=await loaderResponse.text();
+ const broken='a.src="blob.js"';
+ if(!originalLoader.includes(broken))throw Error("Unity loader changed; cannot safely apply known framework fix");
+ const correctedLoader=originalLoader.replace(broken,'a.src=s');
+ const fixedUrl=URL.createObjectURL(new Blob([correctedLoader],{type:"application/javascript"}));
+ const script=document.createElement("script");script.src=fixedUrl;
+ script.onerror=()=>{URL.revokeObjectURL(fixedUrl);showError("Corrected Unity loader could not execute.");};
  script.onload=()=>{
+  URL.revokeObjectURL(fixedUrl);
   if(typeof createUnityInstance!=="function"){showError("Unity loader did not initialize.");return;}
   createUnityInstance(canvas,{
    dataUrl:base+path+".data.unityweb",
