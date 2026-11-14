@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test"
-          for file in scram/scramjet.js controller/controller.api.js controller/controller.sw.js utils/scramjet-utils.js libcurl/index.mjs games/plants-vs-zombies-ds/index.html games/mario-kart-64/index.html games/1v1-lol/index.html games/fnae/index.html; do
+          for file in scram/scramjet.js controller/controller.api.js controller/controller.sw.js utils/scramjet-utils.js libcurl/index.mjs games/plants-vs-zombies-ds/index.html games/mario-kart-64/index.html games/1v1-lol/index.html games/fnae/index.html games/zelda-oot/index.html games/centipede-arcade/index.html; do
             echo "Checking $BASE/$file"
             curl --fail --location --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors --max-time 20 -o /tmp/asset-check "$BASE/$file"
             test -s /tmp/asset-check
