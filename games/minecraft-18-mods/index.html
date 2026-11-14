@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minecraft 1.8 Mods · Seuss Arcade</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{min-height:100vh;display:grid;place-items:center;background:radial-gradient(ellipse at top,#263f2e,#101b13 52%,#070b09);color:#e8f8ee;margin:0;padding:20px;font:15px/1.6 system-ui,-apple-system,sans-serif}
+main{width:min(100%,540px);border:1px solid #5a916b;border-radius:15px;background:#15241c;padding:24px;box-shadow:0 18px 54px #0007}
+h1{font-size:clamp(24px,5vw,32px);margin:0 0 12px}
+p{color:#cbd9ce}.buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+a,button{display:inline-block;border:1px solid #80bb8f;border-radius:8px;background:#315e3e;color:#fff;padding:10px 14px;text-decoration:none;font:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:3px solid #ffe09c;outline-offset:3px}
+small{color:#b4cbb9}
+</style></head>
+<body><main>
+<h1>⛏ Minecraft 1.8 Mods</h1>
+<p id="status" role="status">Checking the approved Render game connection…</p>
+<p>EaglerForge launcher and four pinned game chunks, all delivered through fixed Render paths. No Drive sign-in, file upload, or external game iframe is needed when the shared file is publicly available.</p>
+<div class="buttons">
+<a id="play" href="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-mods/index.html">Play through Render</a>
+<a href="../../index.html">← Back to Arcade</a>
+</div>
+<p><small>Initial game data: About 79 MB of game chunks. Large game downloads may take time. Browser Back returns to the Arcade. Multiplayer and other external services are not included in the fixed asset allowlist.</small></p>
+</main>
+<script>
+(async()=>{
+ const el=document.getElementById("status");
+ const origin="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-mods/";
+ try{
+   const response=await fetch(origin+"status",{cache:"no-store",signal:AbortSignal.timeout(25000)});
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok||!data.ok)throw Error(data.message||"Render game source unavailable ("+response.status+")");
+   el.textContent="Game source verified. Opening through Render…";
+   location.replace(origin+"index.html");
+ }catch(error){
+   el.textContent="Could not confirm the game source: "+(error.message||String(error))+
+     ". Use Play through Render to retry, or return to the Arcade.";
+ }
+})();
+</script>
+</body></html>
