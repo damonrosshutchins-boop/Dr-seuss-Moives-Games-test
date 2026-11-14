@@ -4,19 +4,45 @@
 <script>
 const BASE="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
 const status=document.getElementById("status"),start=document.getElementById("start");
+const PART_BYTES=[19922944,13631488];
+const TOTAL_BYTES=PART_BYTES.reduce((a,b)=>a+b,0);
+let downloadedBytes=0;
+function report(stage,percent=null){
+ status.textContent=stage;
+ if(window.parent!==window)window.parent.postMessage({type:"seuss-arcade-progress",stage,percent},location.origin);
+}
 async function fetchPart(name){
  const response=await fetch(BASE+name,{mode:"cors"});
  if(!response.ok)throw Error(name+" returned HTTP "+response.status);
- return response.arrayBuffer();
+ const stream=response.body;
+ if(!stream){const data=await response.arrayBuffer();downloadedBytes+=data.byteLength;report("Downloading Ocarina of Time · "+(downloadedBytes/1048576).toFixed(1)+" MB / "+(TOTAL_BYTES/1048576).toFixed(1)+" MB",Math.min(100,downloadedBytes/TOTAL_BYTES*100));return data;}
+ const reader=stream.getReader(),chunks=[];
+ let size=0,lastReported=0;
+ for(;;){
+  const {done,value}=await reader.read();
+  if(done)break;
+  chunks.push(value);size+=value.byteLength;downloadedBytes+=value.byteLength;
+  if(downloadedBytes-lastReported>=262144||downloadedBytes>=TOTAL_BYTES){
+   lastReported=downloadedBytes;
+   report("Downloading Ocarina of Time · "+(downloadedBytes/1048576).toFixed(1)+" MB / "+(TOTAL_BYTES/1048576).toFixed(1)+" MB",Math.min(100,downloadedBytes/TOTAL_BYTES*100));
+  }
+ }
+ const bytes=new Uint8Array(size);let offset=0;
+ for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+ report("Downloading Ocarina of Time · "+(downloadedBytes/1048576).toFixed(1)+" MB / "+(TOTAL_BYTES/1048576).toFixed(1)+" MB",Math.min(100,downloadedBytes/TOTAL_BYTES*100));
+ return bytes.buffer;
 }
 start.addEventListener("click",async()=>{
  start.disabled=true;
  try{
-  status.textContent="Downloading Ocarina of Time game parts…";
+  downloadedBytes=0;
+  report("Downloading Ocarina of Time game parts…",0);
   const chunks=[];
-  for(let n=1;n<=2;n++){chunks.push(await fetchPart("zelda-oot/rom.n64.part"+n));status.textContent="Downloaded part "+n+" of 2";}
+  for(let n=1;n<=2;n++){chunks.push(await fetchPart("zelda-oot/rom.n64.part"+n));report("Downloaded game part "+n+" of 2",downloadedBytes/TOTAL_BYTES*100);}
   const gameUrl=URL.createObjectURL(new Blob(chunks,{type:"application/octet-stream"}));
-  status.textContent="Starting Nintendo 64 emulator…";
+  report("Game download complete · starting Nintendo 64 emulator…");
+  window.EJS_ready=()=>report("Emulator ready · initializing game…");
+  window.EJS_onGameStart=()=>report("Ocarina of Time is running",100);
   window.EJS_player="#game";window.EJS_core=document.getElementById("core").value;window.EJS_gameName="The Legend of Zelda: Ocarina of Time";
   window.EJS_color="#0064ff";window.EJS_startOnLoaded=true;
   window.EJS_pathtodata=BASE+"emu/";window.EJS_gameUrl=gameUrl;
@@ -26,9 +52,9 @@ start.addEventListener("click",async()=>{
   document.getElementById("game").style.display="block";
   document.getElementById("panel").style.display="none";
   const script=document.createElement("script");script.src=BASE+"emu/loader.js";
-  script.onerror=()=>{document.getElementById("panel").style.display="block";status.textContent="Emulator loader failed to download from Render.";start.disabled=false;};
+  script.onerror=()=>{document.getElementById("panel").style.display="block";report("Emulator loader failed to download from Render.",0);start.disabled=false;};
   script.addEventListener("load",()=>{requestAnimationFrame(()=>{window.dispatchEvent(new Event("resize"));});});
   document.body.appendChild(script);
- }catch(e){status.textContent="Download failed: "+(e.message||String(e))+". Check the approved Render route.";start.disabled=false;}
+ }catch(e){report("Download failed: "+(e.message||String(e))+". Check the approved Render route.",0);start.disabled=false;}
 });
 </script></body></html>
