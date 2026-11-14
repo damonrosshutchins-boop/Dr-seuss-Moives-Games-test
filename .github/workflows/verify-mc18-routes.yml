@@ -1,0 +1,46 @@
+name: Verify Minecraft 1.8 restricted Render routes
+on:
+  push:
+    paths:
+      - .github/workflows/verify-mc18-routes.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify two fixed-source Minecraft games and four Forge assets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request, json
+          base="https://seuss-cinema-arcade.onrender.com/approved-games/"
+          def req(path,method="GET",read=10000):
+              url=base+path
+              request=urllib.request.Request(url,method=method,headers={"User-Agent":"SeussArcadeRouteVerifier/1.0"})
+              try:
+                  with urllib.request.urlopen(request,timeout=90) as resp:
+                      content=resp.read(read) if method=="GET" else b""
+                      typ=resp.headers.get("content-type","")
+                      print("ROUTE",path,"METHOD",method,"STATUS",resp.status,"TYPE",typ,"BYTES_READ",len(content),"FINAL",resp.url,flush=True)
+                      if resp.status!=200: raise RuntimeError("Unexpected status: "+str(resp.status))
+                      if resp.url!=url: raise RuntimeError("Unexpected redirect")
+                      return content
+              except Exception as error:
+                  print("FAILED",path,type(error).__name__,str(error)[:400],flush=True)
+                  raise
+          for game in ("minecraft-18-wrust","minecraft-18-mods"):
+              status=json.loads(req(game+"/status"))
+              print("STATUS_JSON",game,status,flush=True)
+              if not status.get("ok"): raise RuntimeError("Game status failed: "+game)
+              req(game+"/index.html",method="HEAD")
+          html=req("minecraft-18-mods/index.html",read=10000).decode("utf-8","replace")
+          for part in range(1,5):
+              route="/approved-games/minecraft-18-mods/assets/forge-part"+str(part)
+              if route not in html: raise RuntimeError("Forge launcher missing proxy route for part "+str(part))
+              req("minecraft-18-mods/assets/forge-part"+str(part),method="HEAD")
+          if "cdn.jsdelivr.net" in html: raise RuntimeError("The Forge launcher still contains a direct CDN")
+          print("PASS: both game launchers and all four Forge parts served by fixed Render routes",flush=True)
+          PY
