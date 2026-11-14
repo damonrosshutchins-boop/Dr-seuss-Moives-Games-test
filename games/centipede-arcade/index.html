@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Centipede Arcade · Seuss Arcade</title>
+<style>html,body{margin:0;background:#060a0c;color:#fff;font:15px system-ui;height:100%}#game{width:100%;height:100%;display:none}#panel{padding:24px;max-width:600px;margin:8vh auto}button{background:#2a6d4c;border:1px solid #9cd4a9;color:white;padding:12px 22px;border-radius:8px;cursor:pointer}#status{line-height:1.5;color:#ecdfa8;white-space:pre-wrap}</style></head><body>
+<section id="panel"><h1>🐛 Centipede (Arcade)</h1><p>Launch the classic arcade game in the Seuss Arcade player with emulator and game assets from approved Render routes.</p><button id="play">PLAY</button><p id="status" role="status">Ready.</p></section><div id="game"></div>
+<script>
+const BASE="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
+const status=document.getElementById("status"),play=document.getElementById("play");
+play.addEventListener("click",async()=>{
+ play.disabled=true;status.textContent="Checking approved Centipede game file…";
+ try{
+  const res=await fetch(BASE+"centipede/rom.zip",{method:"GET",mode:"cors"});
+  if(!res.ok)throw Error("Game archive returned HTTP "+res.status);
+  const gameUrl=URL.createObjectURL(new Blob([await res.arrayBuffer()],{type:"application/zip"}));
+  status.textContent="Starting arcade emulator…";
+  window.EJS_player="#game";window.EJS_core="arcade";window.EJS_gameName="Centipede";
+  window.EJS_color="#000000";window.EJS_startOnLoaded=true;
+  window.EJS_pathtodata=BASE+"emu/";window.EJS_gameUrl=gameUrl;
+  document.getElementById("panel").style.display="none";
+  document.getElementById("game").style.display="block";
+  const script=document.createElement("script");script.src=BASE+"emu/loader.js";
+  script.onerror=()=>{document.getElementById("panel").style.display="block";status.textContent="Emulator loader could not be downloaded.";play.disabled=false;};
+  document.body.appendChild(script);
+ }catch(e){status.textContent="Download failed: "+(e.message||String(e))+". Check the approved Render asset route.";play.disabled=false;}
+});
+</script></body></html>
