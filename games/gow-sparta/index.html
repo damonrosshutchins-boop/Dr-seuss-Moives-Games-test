@@ -21,7 +21,7 @@ small{font-size:13px;color:#baadae}
 <p id="status" role="status">Checking your approved Render game route…</p>
 <p>Your Surge-hosted game is requested through Seuss Arcade's restricted Render service. The game opens in this tab so its own browser runtime can use cross-origin isolation when available.</p>
 <div class="actions">
-<a id="play" href="https://seuss-cinema-arcade.onrender.com/approved-games/gow-sparta/">Play through Render</a>
+<a id="play" href="https://seuss-cinema-arcade.onrender.com/approved-games/gow-sparta/index.html">Play through Render</a>
 <a href="../../index.html">← Back to Arcade</a>
 </div>
 <p><small>This is a fixed-source proxy for the supplied Surge site, not a general browser proxy. Game compatibility depends on the source site and any resources it loads from other hosts.</small></p>
@@ -39,7 +39,7 @@ small{font-size:13px;color:#baadae}
     const result=await response.json();
     if(!result.ok)throw Error(result.note||'Approved game source is unavailable');
     el.textContent='Render can reach the game. Opening it in this tab…';
-    location.replace(base);
+    location.replace(base+'index.html');
   }catch(error){
     el.textContent='Could not confirm the game source: '+(error.message||String(error))+
       '. Use Play through Render to retry, or Back to Arcade.';
