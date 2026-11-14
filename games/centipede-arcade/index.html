@@ -4,13 +4,34 @@
 <script>
 const BASE="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
 const status=document.getElementById("status"),play=document.getElementById("play");
+const EXPECTED_GAME_BYTES=8739;
+function report(stage,percent=null){
+ status.textContent=stage;
+ if(window.parent!==window)window.parent.postMessage({type:"seuss-arcade-progress",stage,percent},location.origin);
+}
+async function downloadGame(){
+ const res=await fetch(BASE+"centipede/rom.zip",{method:"GET",mode:"cors"});
+ if(!res.ok)throw Error("Game archive returned HTTP "+res.status);
+ if(!res.body){const data=await res.arrayBuffer();report("Centipede archive downloaded · "+data.byteLength+" bytes",100);return data;}
+ const reader=res.body.getReader(),chunks=[];let bytes=0;
+ for(;;){
+  const {value,done}=await reader.read();
+  if(done)break;
+  chunks.push(value);bytes+=value.byteLength;
+  report("Downloading Centipede · "+bytes+" / "+EXPECTED_GAME_BYTES+" bytes",Math.min(100,bytes/EXPECTED_GAME_BYTES*100));
+ }
+ const result=new Uint8Array(bytes);let offset=0;
+ for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.byteLength;}
+ report("Centipede archive downloaded · "+bytes+" bytes",100);
+ return result.buffer;
+}
 play.addEventListener("click",async()=>{
- play.disabled=true;status.textContent="Checking approved Centipede game file…";
+ play.disabled=true;report("Downloading Centipede arcade game…",0);
  try{
-  const res=await fetch(BASE+"centipede/rom.zip",{method:"GET",mode:"cors"});
-  if(!res.ok)throw Error("Game archive returned HTTP "+res.status);
-  const gameUrl=URL.createObjectURL(new Blob([await res.arrayBuffer()],{type:"application/zip"}));
-  status.textContent="Starting arcade emulator…";
+  const gameUrl=URL.createObjectURL(new Blob([await downloadGame()],{type:"application/zip"}));
+  report("Game download complete · starting arcade emulator…");
+  window.EJS_ready=()=>report("Arcade emulator ready · initializing game…");
+  window.EJS_onGameStart=()=>report("Centipede is running",100);
   window.EJS_player="#game";window.EJS_core=document.getElementById("core").value;window.EJS_gameName="Centipede";
   window.EJS_color="#000000";window.EJS_startOnLoaded=true;
   window.EJS_pathtodata=BASE+"emu/";window.EJS_gameUrl=gameUrl;
@@ -19,9 +40,9 @@ play.addEventListener("click",async()=>{
   document.getElementById("panel").style.display="none";
   document.getElementById("game").style.display="block";
   const script=document.createElement("script");script.src=BASE+"emu/loader.js";
-  script.onerror=()=>{document.getElementById("panel").style.display="block";status.textContent="Emulator loader could not be downloaded.";play.disabled=false;};
+  script.onerror=()=>{document.getElementById("panel").style.display="block";report("Emulator loader could not be downloaded.",0);play.disabled=false;};
   script.addEventListener("load",()=>{requestAnimationFrame(()=>{window.dispatchEvent(new Event("resize"));});});
   document.body.appendChild(script);
- }catch(e){status.textContent="Download failed: "+(e.message||String(e))+". Check the approved Render asset route.";play.disabled=false;}
+ }catch(e){report("Download failed: "+(e.message||String(e))+". Check the approved Render asset route.",0);play.disabled=false;}
 });
 </script></body></html>
