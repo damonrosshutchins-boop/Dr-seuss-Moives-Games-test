@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Five Night's at BIG E · Seuss Arcade</title>
+<link rel="stylesheet" href="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/fnae/TemplateData/style.css">
+<style>html,body{margin:0;background:#09090b;color:#eee;font:15px system-ui,sans-serif;min-height:100%;}#loading-text{position:fixed;top:12px;left:12px;z-index:8;padding:10px;background:#17171ddd;max-width:90vw;border-radius:6px}#unity-container{width:100vw;height:100vh;display:grid;place-items:center}#unity-canvas{width:min(100vw,100%);height:min(100vh,100%);max-height:100vh;object-fit:contain;background:#101013}#unity-loading-bar{position:absolute;bottom:24px;width:60%;max-width:450px}#unity-progress-bar-empty{height:10px;background:#34343c;border-radius:10px}#unity-progress-bar-full{height:100%;width:0;background:#88ba9b;border-radius:10px}#error{color:#ffbabb;white-space:pre-wrap}</style>
+</head><body>
+<div id="loading-text" role="status" aria-live="polite">Loading Five Night's at BIG E… <span id="progress"></span><p id="error"></p></div>
+<div id="unity-container"><canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas><div id="unity-loading-bar"><div id="unity-progress-bar-empty"><div id="unity-progress-bar-full"></div></div></div></div>
+<script>
+(async()=>{
+ const base="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/fnae/";
+ const status=document.getElementById("loading-text"),progress=document.getElementById("progress"),error=document.getElementById("error");
+ let loaded=0;
+ async function read(url){
+  const response=await fetch(base+url,{mode:"cors"});
+  if(!response.ok)throw new Error(url+" returned HTTP "+response.status+" through Render");
+  if(!response.body)return response.arrayBuffer();
+  const reader=response.body.getReader(),chunks=[];let count=0;
+  for(;;){
+   const {value,done}=await reader.read();
+   if(done)break;
+   chunks.push(value);count+=value.byteLength;loaded+=value.byteLength;
+   progress.textContent=(loaded/1048576).toFixed(1)+" MB downloaded";
+  }
+  const out=new Uint8Array(count);let at=0;
+  for(const part of chunks){out.set(part,at);at+=part.byteLength;}
+  return out.buffer;
+ }
+ async function parts(prefix,n){
+  const results=[];
+  for(let i=1;i<=n;i++)results.push(await read(prefix+".part"+i));
+  return URL.createObjectURL(new Blob(results,{type:"application/octet-stream"}));
+ }
+ try{
+  const [dataUrl,wasmUrl,webmUrl]=await Promise.all([
+    parts("Build/fnae.data",3),
+    parts("Build/fnae.wasm",2),
+    parts("StreamingAssets/202512191935.webm",3)
+  ]);
+  window.randomwebm=webmUrl;
+  const descriptor=Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,"src");
+  if(descriptor?.set&&descriptor?.get)Object.defineProperty(HTMLMediaElement.prototype,"src",{
+   configurable:true,get(){return descriptor.get.call(this);},
+   set(v){return descriptor.set.call(this,typeof v==="string"&&v.includes("202512191935.mp4")?webmUrl:v);}
+  });
+  progress.textContent="Starting Unity…";
+  const script=document.createElement("script");
+  script.src=base+"Build/fnae.loader.js";
+  script.onerror=()=>{error.textContent="Could not load Unity launcher through Render.";};
+  script.onload=()=>{
+   if(typeof createUnityInstance!=="function"){error.textContent="Unity loader was not initialized.";return;}
+   createUnityInstance(document.getElementById("unity-canvas"),{
+    arguments:[],dataUrl,frameworkUrl:base+"Build/fnae.framework.js",codeUrl:wasmUrl,
+    streamingAssetsUrl:base+"StreamingAssets",companyName:"DefaultCompany",
+    productName:"fnae",productVersion:"1.0",showBanner:(msg,type)=>{if(type==="error")error.textContent=msg;}
+   },p=>document.getElementById("unity-progress-bar-full").style.width=Math.round(p*100)+"%")
+   .then(()=>status.remove()).catch(e=>error.textContent="Unity startup failed: "+e);
+  };
+  document.body.appendChild(script);
+ }catch(e){
+  error.textContent="Game asset download failed: "+(e.message||String(e))+". Check the approved Render game route.";
+ }
+})();
+</script></body></html>
