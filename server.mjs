@@ -475,6 +475,23 @@ const importedAssetRoots=Object.freeze({
   "1v1":"https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
 });
 const importedExactAssets=Object.freeze({
+  "tomb-mask/UnityLoader.js":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/UnityLoader.js",
+  "tomb-mask/totm.json":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/totm.json",
+  "tomb-mask/totm.data.unityweb":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/totm.data.unityweb",
+  "tomb-mask/totm.wasm.code.unityweb":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/totm.wasm.code.unityweb",
+  "tomb-mask/totm.wasm.framework.unityweb":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/totm.wasm.framework.unityweb",
+  "tomb-mask/UnityProgress.js":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/UnityProgress.js",
+  "tomb-mask/style.css":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/style.css",
+  "snow-rider/Build/UnityLoader.js":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/UnityLoader.js",
+  "snow-rider/Build/SnowRider3D-gd-1.json":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.json",
+  "snow-rider/Build/SnowRider3D-gd-1.data.unityweb":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.data.unityweb",
+  "snow-rider/Build/SnowRider3D-gd-1.wasm.code.unityweb":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.wasm.code.unityweb",
+  "snow-rider/Build/SnowRider3D-gd-1.wasm.framework.unityweb.js":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.wasm.framework.unityweb.js",
+  "snow-rider/Build/SnowRider3D-gd-1.wasm.framework.unityweb":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.wasm.framework.unityweb",
+  "snow-rider/TemplateData/UnityProgress.js":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/TemplateData/UnityProgress.js",
+  "snow-rider/TemplateData/style.css":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/TemplateData/style.css",
+  "snow-rider/TemplateData/logo.png":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/TemplateData/logo.png",
+  "snow-rider/TemplateData/gears.gif":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/TemplateData/gears.gif",
   "run2/Run2.swf":"https://cdn.jsdelivr.net/gh/bubbls/UGS-file-encryption@f69cc42a2ca577ff18acdf1158d3dc6940afd3d3/Run2.swf",
   "run2/ruffle.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/ruffle.js",
   "run2/core.ruffle.9085ee9763de4e85853c.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/core.ruffle.9085ee9763de4e85853c.js",
@@ -540,6 +557,19 @@ function importedHandler(req,res){
   // commit/path using GitHub's raw asset host. Never accept client URLs.
   const asset=decodeURIComponent(req.params[0]||"");
   const fallbackPrefix="https://cdn.jsdelivr.net/gh/Pok12d/ta@090bed9fe39fa693940121ecffec4c023ebff33b/tungobby/";
+  // These are exact, pinned Unity files, never a domain-wide proxy.
+  // Retry the same immutable GitHub commit when jsDelivr evicts an asset.
+  const pinnedUnitySources=[
+    ["tomb-mask/","https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/","https://raw.githubusercontent.com/bubbls/UGS-Assets/9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/"],
+    ["snow-rider/","https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/","https://raw.githubusercontent.com/Vrkids2009/snowrider3d/6b7c2b9167b592528b221428414e63f06c4640b9/"]
+  ];
+  for(const [prefix,primaryBase,fallbackBase] of pinnedUnitySources){
+    if(asset.startsWith(prefix)&&Object.hasOwn(importedExactAssets,asset)&&url.startsWith(primaryBase)){
+      const assetFile=url.slice(primaryBase.length);
+      void servePinnedFallbackGameFile(req,res,url,fallbackBase+assetFile);
+      return;
+    }
+  }
   if(asset.startsWith("tungobby/")&&url.startsWith(fallbackPrefix)){
     const original=url;
     const relative=original.slice(fallbackPrefix.length);
