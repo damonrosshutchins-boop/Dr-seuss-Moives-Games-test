@@ -44,7 +44,7 @@ const balatroAssets = new Set([
   ...Array.from({length:7},(_,i)=>"game-"+String(i).padStart(2,"0")+".bin")
 ]);
 const balatroRoot="https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@cb01302a4ee9d3712676daa7a8bf58e04f9e8fa8/";
-const cheeseRoot="https://cdn.jsdelivr.net/gh/SomeRandomFella/portsandrips@9546494b3052e8e078fb28df7430ac35f42a8787/CheeseRollingWeb/";
+const cheeseRoot="https://raw.githubusercontent.com/SomeRandomFella/portsandrips/9546494b3052e8e078fb28df7430ac35f42a8787/CheeseRollingWeb/";
 function approvedGameCors(req,res){
  const origin=req.get("Origin");
  if(origin && !allowedOrigin.has(origin) && origin!=="https://seuss-cinema-arcade.onrender.com"){
@@ -75,7 +75,13 @@ async function serveApprovedGameFile(req,res,upstreamUrl,timeoutMs){
    }
    res.status(response.status);
    const isPinnedRuffle=upstreamUrl.startsWith("https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/");
-   const contentType=isPinnedRuffle&&upstreamUrl.endsWith(".wasm")?"application/wasm":
+   const isCheese=upstreamUrl.startsWith(cheeseRoot);
+   const contentType=isCheese&&upstreamUrl.endsWith(".js")?"application/javascript; charset=utf-8":
+     isCheese&&upstreamUrl.endsWith(".css")?"text/css; charset=utf-8":
+     isCheese&&upstreamUrl.endsWith(".webmanifest")?"application/manifest+json":
+     isCheese&&upstreamUrl.endsWith(".png")?"image/png":
+     isCheese&&upstreamUrl.endsWith(".ico")?"image/x-icon":
+     isPinnedRuffle&&upstreamUrl.endsWith(".wasm")?"application/wasm":
      isPinnedRuffle&&upstreamUrl.endsWith(".js")?"application/javascript; charset=utf-8":
      response.headers.get("content-type")||"application/octet-stream";
    res.setHeader("Content-Type",contentType);
