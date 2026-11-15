@@ -115,6 +115,14 @@ passed through because the parts are large, and
 `/approved-games/gamble-with-your-friends/status` reports whether the source is
 reachable.
 
+Network audit: a live run of the published page requests nothing outside this
+route — all 69 parts, the loader, the framework and the addressables files come
+from Render. The compiled game data still contains dormant Mirror multiplayer
+client strings (`api.diabolical.studio` REST and `wss`, plus
+`api.edgegap.com/v1/lobbies`), but they are baked into the C# bundle, unused by
+this solo port, and that REST host returns no CORS headers, so online play is not
+proxied and not available here.
+
 None of the game's own files are copied into the GitHub Pages artifact: the split
 parts exceed GitHub's per-file and repository limits, so only the entry page is
 published. Render must be redeployed for the new route to exist on

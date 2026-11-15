@@ -278,8 +278,10 @@ await addRemoteAssetLauncher("granny3","AlexBoops/granny3rip","a8e59b3d10ff96d54
      '"loaderUrl": "'+gambleRoute+'Build/build.loader.js"'],
     ['"frameworkUrl": "Build/build.framework.js"',
      '"frameworkUrl": "'+gambleRoute+'Build/build.framework.js"'],
+    // No trailing slash: Unity appends "/aa/..." itself and would request
+    // StreamingAssets//aa/settings.json, which the route rejects.
     ["streamingAssetsUrl:'StreamingAssets'",
-     "streamingAssetsUrl:'"+gambleRoute+"StreamingAssets/'"],
+     "streamingAssetsUrl:'"+gambleRoute+"StreamingAssets'"],
     ['src="assets/port-by-camzzz.png"',
      'src="'+gambleRoute+'assets/port-by-camzzz.png"']
   ]){
