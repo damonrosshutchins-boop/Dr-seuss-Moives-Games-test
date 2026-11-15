@@ -44,7 +44,7 @@ const balatroAssets = new Set([
   ...Array.from({length:7},(_,i)=>"game-"+String(i).padStart(2,"0")+".bin")
 ]);
 const balatroRoot="https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@cb01302a4ee9d3712676daa7a8bf58e04f9e8fa8/";
-const cheeseRoot="https://wasm.rip/files/cheese-rolling/";
+const cheeseRoot="https://cdn.jsdelivr.net/gh/SomeRandomFella/portsandrips@9546494b3052e8e078fb28df7430ac35f42a8787/CheeseRollingWeb/";
 function approvedGameCors(req,res){
  const origin=req.get("Origin");
  if(origin && !allowedOrigin.has(origin) && origin!=="https://seuss-cinema-arcade.onrender.com"){
@@ -59,14 +59,14 @@ function approvedGameCors(req,res){
  res.setHeader("Cache-Control","public, max-age=3600");
  return true;
 }
-async function serveApprovedGameFile(req,res,upstreamUrl){
+async function serveApprovedGameFile(req,res,upstreamUrl,timeoutMs){
  try{
    const headers={};
    if(req.get("Range"))headers.Range=req.get("Range");
    const response=await fetch(upstreamUrl,{
      method:req.method==="HEAD"?"HEAD":"GET",
-     headers,redirect:"error",signal:AbortSignal.timeout(
-       upstreamUrl.startsWith("https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/")&&upstreamUrl.endsWith(".wasm")?90000:30000)
+     headers,redirect:"error",signal:AbortSignal.timeout(timeoutMs??(
+       upstreamUrl.startsWith("https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/")&&upstreamUrl.endsWith(".wasm")?90000:30000))
    });
    if(!response.ok){
      res.status(response.status).type("text/plain").send("Approved game file unavailable at its source ("+response.status+")");
@@ -109,45 +109,93 @@ app.head("/approved-assets/balatro/:file",(req,res)=>{
  if(!balatroAssets.has(file))return res.sendStatus(404);
  void serveApprovedGameFile(req,res,balatroRoot+file);
 });
-// Cheese Rolling is kept in a single approved upstream directory. Block
-// path traversal and URL redirects so this cannot reach other hostnames.
-function cheeseFileUrl(req){
- const file=req.params[0]||"index.html";
- if(!/^[A-Za-z0-9._/-]+$/.test(file)||file.startsWith("/")||file.includes("//")||
-    file.split("/").includes(".."))return null;
- const url=new URL(file,cheeseRoot);
- if(!url.href.startsWith(cheeseRoot))return null;
- url.search=new URL(req.originalUrl,"https://seuss-cinema-arcade.onrender.com").search;
- return url.href;
+// Cheese Rolling: exact files from the provided Unity WebGL port, at a pinned
+// Git commit. Only these paths are available; clients cannot select a host,
+// redirect destination, arbitrary repository path, or different revision.
+const cheeseAllowedFiles=new Set([
+  "index.html",
+  "manifest.webmanifest",
+  "ServiceWorker.js",
+  "Build/CheeseRollingWeb.loader.js",
+  "Build/CheeseRollingWeb.framework.js",
+  "Build/CheeseRollingWeb.data.part001",
+  "Build/CheeseRollingWeb.data.part002",
+  "Build/CheeseRollingWeb.data.part003",
+  "Build/CheeseRollingWeb.data.part004",
+  "Build/CheeseRollingWeb.data.part005",
+  "Build/CheeseRollingWeb.wasm.part001",
+  "Build/CheeseRollingWeb.wasm.part002",
+  "TemplateData/favicon.ico",
+  "TemplateData/style.css",
+  "TemplateData/progress-bar-empty-dark.png",
+  "TemplateData/progress-bar-empty-light.png",
+  "TemplateData/progress-bar-full-dark.png",
+  "TemplateData/progress-bar-full-light.png",
+  "TemplateData/unity-logo-dark.png",
+  "TemplateData/unity-logo-light.png",
+  "TemplateData/icons/unity-logo-dark.png",
+  "TemplateData/icons/unity-logo-light.png"
+]);
+const cheeseBasePath="/approved-games/cheese/";
+const cheeseCheckFiles=["index.html","Build/CheeseRollingWeb.loader.js","Build/CheeseRollingWeb.data.part001"];
+async function serveCheeseIndex(req,res){
+ try{
+   const upstream=await fetch(cheeseRoot+"index.html",{
+     method:req.method==="HEAD"?"HEAD":"GET",redirect:"error",
+     signal:AbortSignal.timeout(30000)
+   });
+   if(!upstream.ok){
+     await upstream.body?.cancel();
+     return res.status(502).type("text/plain").send("Approved Cheese Rolling entry unavailable ("+upstream.status+")");
+   }
+   // Override the upstream absolute CDN <base>. All Unity scripts and split
+   // data/wasm parts must stay on our restricted Render routes.
+   if(req.method==="HEAD"){
+     await upstream.body?.cancel();
+     return res.status(200).type("html").end();
+   }
+   const html=await upstream.text();
+   if(!/<base\\b[^>]*>/i.test(html))throw Error("Pinned Cheese Rolling HTML has no expected base element");
+   res.status(200).type("html").send(
+     html.replace(/<base\\b[^>]*>/i,'<base href="/approved-games/cheese/">')
+   );
+ }catch(error){
+   console.error("Cheese Rolling entry fetch failed:",String(error));
+   if(res.headersSent)res.destroy();
+   else res.status(502).type("text/plain").send("The pinned Cheese Rolling entry cannot be loaded through Render.");
+ }
 }
 app.get("/approved-games/cheese/status",async(req,res)=>{
  if(!approvedGameCors(req,res))return;
  try{
-   const response=await fetch(cheeseRoot+"index.html",{
-     redirect:"error",signal:AbortSignal.timeout(12000)
-   });
-   await response.body?.cancel();
-   res.status(response.ok?200:502).json({
-     ok:response.ok,sourceStatus:response.status,
-     note:response.ok?"Approved Cheese Rolling upstream reachable":"Upstream game entry is unavailable"
+   const checks=await Promise.all(cheeseCheckFiles.map(async file=>{
+     const response=await fetch(cheeseRoot+file,{
+       method:"HEAD",redirect:"error",signal:AbortSignal.timeout(30000)
+     });
+     await response.body?.cancel();
+     return {file,ok:response.ok,status:response.status};
+   }));
+   const ok=checks.every(check=>check.ok);
+   res.status(ok?200:502).json({
+     ok,source:"SomeRandomFella/portsandrips/CheeseRollingWeb",
+     revision:"9546494b3052e8e078fb28df7430ac35f42a8787",checks,
+     note:ok?"Pinned Unity game entry, loader and first data part reachable":"One or more pinned game files are unavailable"
    });
  }catch(error){
    console.error("Cheese Rolling upstream probe failed:",String(error));
-   res.status(502).json({ok:false,note:"Cheese Rolling upstream server cannot be reached"});
+   res.status(502).json({ok:false,note:"Pinned Cheese Rolling files could not be reached"});
  }
 });
-app.get("/approved-games/cheese/*",(req,res)=>{
+function serveCheeseFile(req,res){
  if(!approvedGameCors(req,res))return;
- const url=cheeseFileUrl(req);
- if(!url)return res.sendStatus(404);
- void serveApprovedGameFile(req,res,url);
-});
-app.head("/approved-games/cheese/*",(req,res)=>{
- if(!approvedGameCors(req,res))return;
- const url=cheeseFileUrl(req);
- if(!url)return res.sendStatus(404);
- void serveApprovedGameFile(req,res,url);
-});
+ const file=req.params[0]||"index.html";
+ if(!cheeseAllowedFiles.has(file))return res.sendStatus(404);
+ if(file==="index.html")return void serveCheeseIndex(req,res);
+ // Large Unity part files can take longer to stream on Render's free tier.
+ void serveApprovedGameFile(req,res,cheeseRoot+file,120000);
+}
+app.get("/approved-games/cheese/*",serveCheeseFile);
+app.head("/approved-games/cheese/*",serveCheeseFile);
 
 // Horizon 26.3 audio: pinned exact-revision and only 18 numbered
 // sound parts plus parts.json. No arbitrary hostname or path accepted.

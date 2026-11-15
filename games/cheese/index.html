@@ -24,7 +24,7 @@ button:focus-visible{outline:3px solid #ffe3a2;outline-offset:3px}
  sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock" referrerpolicy="no-referrer"></iframe>
 <div id="status" role="status" aria-live="polite"><div class="panel">
 <h1>Cheese Rolling</h1>
-<p id="message">Checking the approved Render game connection…</p>
+<p id="message">Checking the updated Cheese Rolling game through Render…</p>
 <button type="button" id="retry" hidden>Try again</button>
 </div></div>
 </main>
@@ -46,13 +46,13 @@ async function launch(){
     if(!response.ok||!detail.ok){
       throw Error(detail.note||"The upstream game is temporarily unavailable (HTTP "+response.status+").");
     }
-    message.textContent="Loading Cheese Rolling from the approved game server…";
+    message.textContent="Loading the new Cheese Rolling Unity build through Render…";
     game.onload=()=>{status.hidden=true;};
     game.src=base+"index.html";
   }catch(error){
     message.textContent="Cheese Rolling could not connect through the restricted Render game route. "+
       (error.message||String(error))+
-      " This may mean the original game server is unavailable.";
+      " The pinned game source or the Render connection may be temporarily unavailable.";
     retry.hidden=false;
   }
 }
