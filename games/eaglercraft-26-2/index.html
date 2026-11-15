@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eaglercraft 26.2 · Seuss Arcade</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}html,body{height:100%;margin:0;background:#090e19;color:#eef7ff;font:14px system-ui,sans-serif}
+body{display:flex;flex-direction:column}header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;background:#1b2942;border-bottom:1px solid #5d7898}
+strong{font-size:16px}#status{flex:1;font-size:12px;color:#d2e5f5}
+button,.fileLabel{font:inherit;color:white;background:#315a78;border:1px solid #8eb4c8;border-radius:8px;padding:8px 12px;cursor:pointer}
+.fileLabel input{display:none}iframe{display:block;flex:1;width:100%;min-height:0;border:0;background:#000}
+#notice{display:none;padding:12px;background:#24364e;color:#f1f7fd;line-height:1.5}
+</style></head><body>
+<header><strong>Eaglercraft 26.2</strong><span id="status" role="status">Checking locally hosted game…</span>
+<label class="fileLabel">Choose original HTML<input id="localFile" type="file" accept=".html,text/html"></label>
+<button type="button" id="reload">Reload</button></header>
+<div id="notice">The Drive file was not available for the public GitHub Pages build. You can select the original Eaglercraft 26.2 HTML you supplied; it opens entirely within this arcade tab and is not uploaded anywhere.</div>
+<iframe id="game" title="Eaglercraft 26.2 client" allow="fullscreen; autoplay; gamepad; pointer-lock" allowfullscreen sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms allow-downloads"></iframe>
+<script>
+"use strict";
+const url="./game.html";
+const frame=document.getElementById("game");
+const status=document.getElementById("status");
+const notice=document.getElementById("notice");
+const input=document.getElementById("localFile");
+let selected=null,ownedUrl=null;
+function report(stage){
+ status.textContent=stage;
+ try{if(parent!==window)parent.postMessage({type:"seuss-arcade-progress",stage},location.origin);}catch(e){console.warn(e);}
+}
+async function launch(){
+ if(selected){
+   if(ownedUrl)URL.revokeObjectURL(ownedUrl);
+   ownedUrl=URL.createObjectURL(selected);
+   frame.src=ownedUrl;notice.style.display="none";
+   report("Loading your original Eaglercraft HTML locally (not uploaded)…");
+   return;
+ }
+ report("Checking the published 26.2 game file…");
+ try{
+   const response=await fetch(url,{method:"HEAD",cache:"no-store",signal:AbortSignal.timeout(30000)});
+   if(!response.ok)throw Error("game.html returned HTTP "+response.status);
+   frame.src=url;notice.style.display="none";
+   report("Loading Eaglercraft 26.2 from the arcade's own GitHub Pages origin…");
+ }catch(error){
+   frame.removeAttribute("src");
+   notice.style.display="block";
+   report("Public game file unavailable. Choose the original HTML file.");
+   console.warn("Eaglercraft public package unavailable:",error);
+ }
+}
+input.addEventListener("change",()=>{
+ const file=input.files?.[0];
+ if(!file)return;
+ if(!/\.html?$/i.test(file.name)&&file.type!=="text/html"){report("Select the original .html file.");return;}
+ selected=file;launch();
+});
+document.getElementById("reload").addEventListener("click",launch);
+window.addEventListener("pagehide",()=>{if(ownedUrl)URL.revokeObjectURL(ownedUrl);});
+launch();
+</script></body></html>
