@@ -752,6 +752,83 @@ async function serveBtd6Asset(req,res){
     }
   }
 }
+// R.E.P.O. WebGL: restricted to the licensed, immutable Halloween build.
+// This never forwards user-supplied URLs or hosts; all assets come from one
+// pinned GitHub tree and are guarded by the existing arcade Origin policy.
+const repoHalloweenCommit="edd5e11fae76bfe8966633f19a6e43935874a8b4";
+const repoHalloweenCdn="https://cdn.jsdelivr.net/gh/Vanta-git/repo-halloween-v1@"+repoHalloweenCommit+"/";
+const repoHalloweenRaw="https://raw.githubusercontent.com/Vanta-git/repo-halloween-v1/"+repoHalloweenCommit+"/";
+function approvedRepoHalloweenFile(req){
+  let file;
+  try{file=decodeURIComponent(req.params[0]||"");}catch{return null;}
+  if(!file||file.startsWith("/")||file.includes("//")||file.includes("\\")||
+     file.split("/").some(segment=>segment===".."||segment==="."||!segment)||
+     !/^[A-Za-z0-9._/()# -]+$/.test(file))return null;
+  if(file==="split-manifest.json" || file==="Build/1234.loader.js" ||
+     file==="Build/1234.framework.js.unityweb")return file;
+  const data=file.match(/^Build\/1234\.data\.unityweb\.part(\d{3})$/);
+  if(data&&Number(data[1])<237)return file;
+  const wasm=file.match(/^Build\/1234\.wasm\.unityweb\.part(\d{2})$/);
+  if(wasm&&Number(wasm[1])<7)return file;
+  if(file.startsWith("StreamingAssets/"))return file;
+  return null;
+}
+async function serveRepoHalloweenFile(req,res){
+  if(!approvedGameCors(req,res))return;
+  const asset=approvedRepoHalloweenFile(req);
+  if(!asset)return res.status(404).type("text/plain").send("Not an approved R.E.P.O. game file");
+  const encoded=asset.split("/").map(encodeURIComponent).join("/");
+  res.setHeader("Cache-Control","public, max-age=86400, immutable");
+  for(const [i,root] of [repoHalloweenCdn,repoHalloweenRaw].entries()){
+    try{
+      const headers={};
+      if(req.get("Range"))headers.Range=req.get("Range");
+      const upstream=await fetch(root+encoded,{
+        method:req.method==="HEAD"?"HEAD":"GET",
+        redirect:"error",headers,
+        signal:AbortSignal.timeout(120000)
+      });
+      if(!upstream.ok){
+        await upstream.body?.cancel();
+        if(i===0)continue;
+        return res.status(502).type("text/plain").send("Pinned R.E.P.O. asset unavailable: HTTP "+upstream.status);
+      }
+      const lower=asset.toLowerCase();
+      const mime=lower.endsWith(".js")?"application/javascript; charset=utf-8":
+        lower.endsWith(".json")?"application/json; charset=utf-8":
+        lower.endsWith(".wasm")?"application/wasm":
+        lower.endsWith(".css")?"text/css; charset=utf-8":
+        lower.endsWith(".png")?"image/png":
+        lower.endsWith(".jpg")||lower.endsWith(".jpeg")?"image/jpeg":
+        lower.endsWith(".txt")?"text/plain; charset=utf-8":
+        lower.endsWith(".xml")?"application/xml; charset=utf-8":
+        lower.endsWith(".ogg")?"audio/ogg":
+        "application/octet-stream";
+      res.status(upstream.status);
+      res.setHeader("Content-Type",mime);
+      if(upstream.headers.get("content-range"))res.setHeader("Content-Range",upstream.headers.get("content-range"));
+      if(upstream.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",upstream.headers.get("accept-ranges"));
+      // Node fetch may decompress upstream content, so do not forward a
+      // potentially incorrect Content-Encoding or Content-Length.
+      if(req.method==="HEAD"||!upstream.body){res.end();return;}
+      await pipeline(Readable.fromWeb(upstream.body),res);
+      return;
+    }catch(error){
+      console.warn("R.E.P.O. pinned asset fetch failed:",i?"raw":"jsDelivr",String(error));
+      if(res.headersSent){res.destroy();return;}
+      if(i===1)return res.status(502).type("text/plain").send("R.E.P.O. game sources unavailable");
+    }
+  }
+}
+app.get("/approved-assets/repo-halloween/*",serveRepoHalloweenFile);
+app.head("/approved-assets/repo-halloween/*",serveRepoHalloweenFile);
+app.options("/approved-assets/repo-halloween/*",(req,res)=>{
+  if(!approvedGameCors(req,res))return;
+  if(!approvedRepoHalloweenFile(req))return res.sendStatus(404);
+  res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
+  res.sendStatus(204);
+});
 app.get("/approved-assets/btd6/*",serveBtd6Asset);
 app.head("/approved-assets/btd6/*",serveBtd6Asset);
 app.options("/approved-assets/btd6/*",(req,res)=>{
