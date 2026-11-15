@@ -87,6 +87,10 @@ console.log("Published verified 45.6 MB Horizon self-contained game for automati
 
  // These games use locally hosted entry pages. Their network game assets are
  // fetched ONLY from pinned, path-restricted Render proxy routes.
+// Slime Rancher keeps its Unity chunks on jsDelivr, so only the 8 KB entry page
+// ships here; the launcher pins the CDN base itself.
+await fs.mkdir(path.join(out,"games","slimeranch"),{recursive:true});
+await fs.copyFile(path.join("games","slimeranch","index.html"),path.join(out,"games","slimeranch","index.html"));
 for(const slug of ["balatro","cheese"]){
   await fs.mkdir(path.join(out,"games",slug),{recursive:true});
   await fs.copyFile(path.join("games",slug,"index.html"),path.join(out,"games",slug,"index.html"));
