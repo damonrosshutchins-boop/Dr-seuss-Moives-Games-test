@@ -91,6 +91,12 @@ console.log("Published verified 45.6 MB Horizon self-contained game for automati
 // ships here; the launcher pins the CDN base itself.
 await fs.mkdir(path.join(out,"games","slimeranch"),{recursive:true});
 await fs.copyFile(path.join("games","slimeranch","index.html"),path.join(out,"games","slimeranch","index.html"));
+// Reeyuki Unity ports: only the launcher pages ship, their Build/ assets come
+// from the pinned jsDelivr mirrors their <base> tags point at.
+for(const slug of ["lobcorp","plague-inc","tabs"]){
+  await fs.mkdir(path.join(out,"games",slug),{recursive:true});
+  await fs.copyFile(path.join("games",slug,"index.html"),path.join(out,"games",slug,"index.html"));
+}
 for(const slug of ["balatro","cheese"]){
   await fs.mkdir(path.join(out,"games",slug),{recursive:true});
   await fs.copyFile(path.join("games",slug,"index.html"),path.join(out,"games",slug,"index.html"));

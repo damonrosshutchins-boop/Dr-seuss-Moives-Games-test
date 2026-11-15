@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta charset="utf-8">
+  <base href="https://cdn.jsdelivr.net/gh/Reeyuki/lobcorp@main/">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Lobotomy Corporation</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #08080a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    #unityContainer {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-color: #08080a;
+    }
+
+    #loader-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at center, #12131a 0%, #08080a 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      transition: opacity 0.5s ease-in-out;
+    }
+
+    .loader-content {
+      text-align: center;
+      width: 80%;
+      max-width: 450px;
+    }
+
+    .game-title {
+      font-size: 2.8rem;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: #ffffff;
+      margin-bottom: 2.5rem;
+      text-transform: uppercase;
+      text-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+    }
+
+    .progress-container {
+      width: 100%;
+      height: 4px;
+      background-color: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 1.2rem;
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      box-shadow: 0 0 8px rgba(96, 165, 250, 0.5);
+      border-radius: 2px;
+      transition: width 0.15s ease-out;
+    }
+
+    .progress-text {
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+
+    #fullscreen-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 5;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e2e8f0;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      outline: none;
+    }
+
+    #fullscreen-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="unityContainer"></div>
+  <div id="loader-overlay">
+    <div class="loader-content">
+      <div class="game-title">LOBOTOMY CORPORATION</div>
+      <div class="progress-container">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+      <div id="progress-text" class="progress-text">Loading Assets... 0%</div>
+    </div>
+  </div>
+  <button id="fullscreen-btn">
+    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"
+      stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle;">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+    </svg>
+    <span style="vertical-align: middle;">FULLSCREEN</span>
+  </button>
+  <script src="Build/UnityLoader.js"></script>
+  <script>
+    (function () {
+      const cdn = 'https://cdn.jsdelivr.net/gh/Reeyuki/lobcorp@main/Build/';
+      const DATA_COUNT = 58;
+      const CHUNK_SIZE = 20971520;
+      const LAST_CHUNK_SIZE = 11890053;
+      // Small files (json/framework/code) + compressed data total. Used only for progress.
+      const TOTAL_COMPRESSED = 501 + 95575 + 8211250 + ((DATA_COUNT - 1) * CHUNK_SIZE + LAST_CHUNK_SIZE);
+
+      const progressText = document.getElementById('progress-text');
+      const progressBar = document.getElementById('progress-bar');
+      const loaderOverlay = document.getElementById('loader-overlay');
+      const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+      let loadedBytes = 0;
+      function setProgress(downloaded) {
+        loadedBytes = downloaded;
+        const pct = Math.min(100, Math.round((loadedBytes / TOTAL_COMPRESSED) * 100));
+        progressText.textContent = 'Loading Assets... ' + pct + '%';
+        progressBar.style.width = pct + '%';
+      }
+      function fail(err) {
+        console.error(err);
+        progressText.textContent = 'Error: ' + (err && err.message ? err.message : err);
+        progressText.style.color = '#ef4444';
+      }
+
+      const EXPECTED_COMPRESSED_TOTAL = ((DATA_COUNT - 1) * CHUNK_SIZE + LAST_CHUNK_SIZE);
+      const EXPECTED_DECOMPRESSED = 1356129408; // gzip ISIZE trailer of web.data.unityweb
+      const EXPECTED_FRAMEWORK = 95575;
+      const EXPECTED_CODE = 8211250;
+
+      function chunkName(i) { return 'web.data.unityweb' + String(i).padStart(2, '0'); }
+      function expectedChunkSize(i) { return i === DATA_COUNT - 1 ? LAST_CHUNK_SIZE : CHUNK_SIZE; }
+      function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+      // Local Build/ first (same-origin, no cross-origin flakiness), CDN fallback.
+      function sourcesFor(name) { return ['Build/' + name, cdn + name]; }
+
+      async function fetchSmall(name, kind, expectedSize) {
+        let lastErr = null;
+        for (const url of sourcesFor(name)) {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(name + ' from ' + url + ': HTTP ' + res.status);
+              if (kind === 'text') return await res.text();
+              const blob = await res.blob();
+              if (expectedSize && blob.size !== expectedSize) {
+                throw new Error(name + ' from ' + url + ': expected ' + expectedSize + ' bytes, got ' + blob.size);
+              }
+              return blob;
+            } catch (e) {
+              lastErr = e;
+              console.warn('[loader] ' + name + ' attempt ' + attempt + ' via ' + url + ' failed: ' + (e && e.message));
+              await sleep(500 * attempt);
+            }
+          }
+        }
+        throw new Error(name + ': failed via local and CDN after retries. Last error: ' + (lastErr && lastErr.message));
+      }
+
+      // Fetch one 20MB chunk with retries + exact byte-count validation.
+      // Throws identifying the chunk instead of silently assembling short.
+      async function fetchChunkValidated(i) {
+        const name = chunkName(i);
+        const expected = expectedChunkSize(i);
+        let lastErr = null;
+        for (const url of sourcesFor(name)) {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(name + ' from ' + url + ': HTTP ' + res.status);
+              const buf = await res.arrayBuffer();
+              if (buf.byteLength !== expected) {
+                throw new Error(name + ' from ' + url + ': expected ' + expected + ' bytes, got ' + buf.byteLength);
+              }
+              if (attempt > 1 || url !== sourcesFor(name)[0]) console.info('[loader] ' + name + ' ok via ' + url + ' (attempt ' + attempt + ')');
+              return buf;
+            } catch (e) {
+              lastErr = e;
+              console.warn('[loader] ' + name + ' attempt ' + attempt + ' via ' + url + ' failed: ' + (e && e.message));
+              await sleep(500 * attempt);
+            }
+          }
+        }
+        throw new Error(name + ': failed via local and CDN after retries. Last error: ' + (lastErr && lastErr.message));
+      }
+
+      // Stream the 58 gzip chunks in order through native gzip decompression.
+      // This avoids ever holding the 1.2GB compressed buffer AND the 1.35GB
+      // decompressed buffer in JS/worker memory at the same time, which made
+      // Unity's worker inflate() throw (returned undefined) and crash
+      // processDataJob with "Cannot read properties of undefined (reading 'buffer')".
+      // Serving already-decompressed bytes makes Unity take its fast `identity`
+      // path and skip the worker entirely.
+      async function fetchDataDecompressed() {
+        const compressedStream = new ReadableStream({
+          async start(controller) {
+            let downloaded = loadedBytes;
+            for (let i = 0; i < DATA_COUNT; i++) {
+              const buf = await fetchChunkValidated(i); // throws with chunk identity
+              downloaded += buf.byteLength;
+              setProgress(downloaded);
+              controller.enqueue(new Uint8Array(buf));
+            }
+            controller.close();
+          }
+        });
+        const decompressedStream = compressedStream.pipeThrough(new DecompressionStream('gzip'));
+        const blob = await new Response(decompressedStream).blob();
+        if (blob.size !== EXPECTED_DECOMPRESSED) {
+          throw new Error('Decompressed data size mismatch: expected ' + EXPECTED_DECOMPRESSED + ' bytes, got ' + blob.size);
+        }
+        return blob;
+      }
+
+      // Fallback for browsers without DecompressionStream (very old / file://):
+      // download chunks sequentially (validated) and concatenate compressed.
+      // Unity will decompress via its worker; may still OOM on low-memory
+      // devices, but works for small builds / modern desktops.
+      async function fetchDataCompressedLegacy() {
+        const parts = [];
+        let downloaded = loadedBytes;
+        for (let i = 0; i < DATA_COUNT; i++) {
+          const buf = await fetchChunkValidated(i); // throws with chunk identity
+          downloaded += buf.byteLength;
+          setProgress(downloaded);
+          parts.push(buf);
+        }
+        const blob = new Blob(parts, { type: 'application/octet-stream' });
+        if (blob.size !== EXPECTED_COMPRESSED_TOTAL) {
+          throw new Error('Compressed data size mismatch: expected ' + EXPECTED_COMPRESSED_TOTAL + ' bytes, got ' + blob.size);
+        }
+        // Cheap truncation check: gzip trailer ISIZE must equal decompressed size.
+        const tail = new DataView(await blob.slice(-4).arrayBuffer());
+        const isize = tail.getUint32(0, true);
+        if (isize !== EXPECTED_DECOMPRESSED) {
+          throw new Error('Gzip trailer ISIZE mismatch: expected ' + EXPECTED_DECOMPRESSED + ', got ' + isize + ' (truncated download?)');
+        }
+        return blob;
+      }
+
+      (async function main() {
+        setProgress(0);
+        let jsonContent = await fetchSmall('web.json', 'text');
+        // Disable Unity's IndexedDB cache: our blob URLs change every load
+        // (and we switched data from compressed to decompressed), so a
+        // cached entry keyed by Build/*.unityweb would serve stale bytes
+        // and waste ~1GB+ of IndexedDB quota.
+        try {
+          const cfg = JSON.parse(jsonContent);
+          cfg.cacheControl = { default: 'no-store' };
+          jsonContent = JSON.stringify(cfg);
+        } catch (e) { /* keep original json */ }
+        loadedBytes += 501;
+        setProgress(loadedBytes);
+        const frameworkBlob = await fetchSmall('web.wasm.framework.unityweb', 'blob', EXPECTED_FRAMEWORK);
+        loadedBytes += frameworkBlob.size;
+        setProgress(loadedBytes);
+        const codeBlob = await fetchSmall('web.wasm.code.unityweb', 'blob', EXPECTED_CODE);
+        loadedBytes += codeBlob.size;
+        setProgress(loadedBytes);
+
+        let dataBlob;
+        if (typeof DecompressionStream !== 'undefined') {
+          try {
+            dataBlob = await fetchDataDecompressed();
+          } catch (e) {
+            console.warn('Streaming gzip decompression failed, falling back to compressed concat.', e);
+            dataBlob = await fetchDataCompressedLegacy();
+          }
+        } else {
+          dataBlob = await fetchDataCompressedLegacy();
+        }
+
+        const dataBlobUrl = URL.createObjectURL(dataBlob);
+        const frameworkBlobUrl = URL.createObjectURL(frameworkBlob);
+        const codeBlobUrl = URL.createObjectURL(codeBlob);
+        const jsonBlobUrl = URL.createObjectURL(new Blob([jsonContent], { type: 'application/json' }));
+        console.info('[loader] dataBlob bytes:', dataBlob.size, 'framework bytes:', frameworkBlob.size, 'code bytes:', codeBlob.size);
+        // Fail fast with a clear message instead of handing bad bytes to Unity
+        // (which would die with the cryptic "reading 'buffer'" crash).
+        if (dataBlob.size !== EXPECTED_DECOMPRESSED && dataBlob.size !== EXPECTED_COMPRESSED_TOTAL) {
+          throw new Error('Data blob size ' + dataBlob.size + ' matches neither decompressed (' + EXPECTED_DECOMPRESSED + ') nor compressed (' + EXPECTED_COMPRESSED_TOTAL + ') expectations. Refusing to start Unity.');
+        }
+
+        const originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url, ...args) {
+          if (typeof url === 'string') {
+            if (url.endsWith('web.json')) {
+              url = jsonBlobUrl;
+            } else if (url.endsWith('web.data.unityweb')) {
+              url = dataBlobUrl;
+            } else if (url.endsWith('web.wasm.code.unityweb')) {
+              url = codeBlobUrl;
+            } else if (url.endsWith('web.wasm.framework.unityweb')) {
+              url = frameworkBlobUrl;
+            }
+          }
+          return originalOpen.apply(this, [method, url, ...args]);
+        };
+
+        const originalFetch = window.fetch;
+        window.fetch = function (input, init) {
+          let url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+          if (typeof url === 'string') {
+            let redirected = null;
+            if (url.endsWith('web.json')) {
+              redirected = jsonBlobUrl;
+            } else if (url.endsWith('web.data.unityweb')) {
+              redirected = dataBlobUrl;
+            } else if (url.endsWith('web.wasm.code.unityweb')) {
+              redirected = codeBlobUrl;
+            } else if (url.endsWith('web.wasm.framework.unityweb')) {
+              redirected = frameworkBlobUrl;
+            }
+            if (redirected) {
+              if (input instanceof Request) {
+                input = new Request(redirected, input);
+              } else {
+                input = redirected;
+              }
+            }
+          }
+          return originalFetch.call(this, input, init);
+        };
+
+        // Unity's dispatcher always round-trips through a Worker when a callback
+        // is given — even for `identity` (already-decompressed) payloads. For a
+        // 1.35GB data buffer that means two extra 1.35GB transfers
+        // (main->worker->main), which OOMs and yields `undefined`, crashing
+        // processDataJob with "Cannot read properties of undefined (reading
+        // 'buffer')". Since we serve the data file already decompressed,
+        // bypass the worker for uncompressed payloads and hand the buffer
+        // straight to the job.
+        // NOTE: do NOT wrap gzip/brotli decompress directly: Unity stringifies
+        // those functions into a Worker, so any closure reference breaks inside
+        // the worker with "orig is not defined". Wrapping only the dispatcher
+        // is safe because the dispatcher itself never runs inside the worker.
+        try {
+          const C = UnityLoader.Compression;
+          if (C && typeof C.decompress === 'function') {
+            const origDispatch = C.decompress.bind(C);
+            C.decompress = function (data, cb) {
+              const len = data ? data.length : 0;
+              let isCompressed = false;
+              try {
+                isCompressed = C.gzip.hasUnityMarker(data) || C.brotli.hasUnityMarker(data);
+              } catch (e) { isCompressed = false; }
+              if (!isCompressed) {
+                if (typeof cb !== 'function') return data;
+                if (!data || len === 0) console.error('[UnityLoader] download returned 0 bytes; expected the decompressed data blob.');
+                cb(data);
+                return;
+              }
+              if (typeof cb !== 'function') {
+                const out = origDispatch(data);
+                if (!out) console.error('[UnityLoader] decompress failed for ' + len + ' bytes (likely OOM or truncated download).');
+                return out;
+              }
+              return origDispatch(data, function (dec) {
+                if (!dec) console.error('[UnityLoader] async decompress failed for ' + len + ' bytes (likely OOM or truncated download).');
+                cb(dec);
+              });
+            };
+          }
+        } catch (e) { /* non-fatal */ }
+
+        progressText.textContent = 'Initializing Game...';
+        const unityInstance = UnityLoader.instantiate('unityContainer', 'Build/web.json', {
+          onProgress: function (instance, progress) {
+            if (progress === 1) {
+              loaderOverlay.style.opacity = 0;
+              setTimeout(() => {
+                loaderOverlay.style.display = 'none';
+                fullscreenBtn.style.display = 'flex';
+              }, 500);
+            }
+          }
+        });
+
+        fullscreenBtn.onclick = () => {
+          unityInstance.SetFullscreen(1);
+        };
+      })().catch(fail);
+    })();
+  </script>
+</body>
+
+</html>
