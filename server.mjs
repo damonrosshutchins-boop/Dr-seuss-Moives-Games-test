@@ -1087,6 +1087,126 @@ app.options(gambleRoute+"*",(req,res)=>{
  res.sendStatus(204);
 });
 
+// Buckshot Roulette — Godot 4 web export committed upstream as 17 pck parts and
+// 3 wasm parts (~594 MB). Same fixed-route rules as the other approved games:
+// one pinned commit and an exact filename allowlist. No client-chosen host,
+// URL, subdirectory or redirect is ever accepted.
+const buckshotCommit="f8a263b4da11c181e02e31086e5a5c8bc2dd1457";
+const buckshotCdn="https://cdn.jsdelivr.net/gh/Random-Red-Dude-809-4456/buckshot@"+buckshotCommit+"/";
+const buckshotRaw="https://raw.githubusercontent.com/Random-Red-Dude-809-4456/buckshot/"+buckshotCommit+"/";
+const buckshotRoute="/approved-games/buckshot/";
+const buckshotLocalRoot=path.resolve(process.env.BUCKSHOT_LOCAL_DIR||path.join(process.cwd(),"local-games","buckshot"));
+const buckshotFiles=new Set([
+  "index.html","main.js","style.css","buckshot-roulette.js",
+  "buckshot-roulette.icon.png","buckshot-roulette.apple-touch-icon.png",
+  "buckshot-roulette.png","buckshot-roulette.audio.worklet.js",
+  "buckshot-roulette.audio.position.worklet.js"
+]);
+function approvedBuckshotFile(req){
+ let file;
+ try{file=decodeURIComponent(req.params[0]||"");}catch{return null;}
+ if(!file)file="index.html";
+ // The upstream export is flat: no subdirectories, no separators, no traversal.
+ if(file.length>120||file.includes("/")||file.includes("\\")||
+    !/^[A-Za-z0-9._-]+$/.test(file))return null;
+ if(buckshotFiles.has(file))return file;
+ const part=file.match(/^buckshot-roulette\.(pck|wasm)\.part(\d{1,2})$/);
+ if(part){
+   const lastPart=part[1]==="pck"?17:3;
+   if(Number(part[2])>=1&&Number(part[2])<=lastPart)return file;
+ }
+ return null;
+}
+function buckshotMime(file){
+ const lower=file.toLowerCase();
+ if(lower.endsWith(".html"))return "text/html; charset=utf-8";
+ if(lower.endsWith(".js"))return "application/javascript; charset=utf-8";
+ if(lower.endsWith(".css"))return "text/css; charset=utf-8";
+ if(lower.endsWith(".png"))return "image/png";
+ return "application/octet-stream";
+}
+function buckshotLocalPath(file){
+ const resolved=path.resolve(buckshotLocalRoot,file);
+ if(!resolved.startsWith(buckshotLocalRoot+path.sep))return null;
+ return resolved;
+}
+async function serveBuckshotFile(req,res){
+ if(!approvedGameCors(req,res))return;
+ const file=approvedBuckshotFile(req);
+ if(!file)return res.status(404).type("text/plain").send("Not an approved Buckshot Roulette file");
+ const cacheControl=file==="index.html"?"public, max-age=300":"public, max-age=86400, immutable";
+ const local=buckshotLocalPath(file);
+ if(local&&existsSync(local)){
+   res.setHeader("Content-Type",buckshotMime(file));
+   res.setHeader("Cache-Control",cacheControl);
+   res.setHeader("X-Game-Source","local");
+   return res.sendFile(local);
+ }
+ // jsDelivr answers a byte-range request with an empty 206 body, so ranged reads
+ // go straight to GitHub raw, which honours ranges correctly.
+ const sources=req.get("Range")
+   ?[[buckshotRaw,"github-raw"]]
+   :[[buckshotCdn,"jsdelivr"],[buckshotRaw,"github-raw"]];
+ for(const [index,[root,source]] of sources.entries()){
+   try{
+     const headers={"Accept-Encoding":"identity"};
+     if(req.get("Range"))headers.Range=req.get("Range");
+     const upstream=await fetch(root+file,{
+       method:req.method==="HEAD"?"HEAD":"GET",
+       redirect:"error",headers,signal:AbortSignal.timeout(180000)
+     });
+     if(!upstream.ok){
+       await upstream.body?.cancel();
+       if(index<sources.length-1)continue;
+       return res.status(502).type("text/plain")
+         .send("Pinned Buckshot Roulette asset unavailable: HTTP "+upstream.status);
+     }
+     res.status(upstream.status);
+     res.setHeader("Content-Type",buckshotMime(file));
+     res.setHeader("Cache-Control",cacheControl);
+     res.setHeader("X-Game-Source",source);
+     if(upstream.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",upstream.headers.get("accept-ranges"));
+     if(upstream.headers.get("content-range"))res.setHeader("Content-Range",upstream.headers.get("content-range"));
+     if(req.method==="HEAD"||!upstream.body){res.end();return;}
+     await pipeline(Readable.fromWeb(upstream.body),res);
+     return;
+   }catch(error){
+     console.warn("Buckshot Roulette asset failed:",source,file,String(error));
+     if(res.headersSent){res.destroy();return;}
+     if(index===sources.length-1)return res.status(502).type("text/plain")
+       .send("The approved Buckshot Roulette game sources are unreachable.");
+   }
+ }
+}
+app.get(buckshotRoute+"status",async(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ res.setHeader("Cache-Control","no-store");
+ const local=buckshotLocalPath("index.html");
+ if(local&&existsSync(local))
+   return res.json({ok:true,source:"local game folder",note:"Serving the local upstream copy"});
+ try{
+   const probe=await fetch(buckshotCdn+"index.html",{
+     method:"HEAD",redirect:"error",signal:AbortSignal.timeout(15000)
+   });
+   await probe.body?.cancel();
+   if(!probe.ok)
+     return res.status(502).json({ok:false,note:"Pinned game entry unavailable (HTTP "+probe.status+")"});
+   res.json({ok:true,source:"pinned GitHub upstream",commit:buckshotCommit,parts:20});
+ }catch(error){
+   console.error("Buckshot Roulette probe failed",String(error));
+   res.status(502).json({ok:false,note:"The approved game source could not be reached"});
+ }
+});
+app.get(buckshotRoute+"*",serveBuckshotFile);
+app.head(buckshotRoute+"*",serveBuckshotFile);
+app.options(buckshotRoute+"*",(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ if(!approvedBuckshotFile(req))return res.sendStatus(404);
+ res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+ res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
+ res.sendStatus(204);
+});
+
 app.use("/scram/",express.static(scramjetPath));
 app.use("/utils/",express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controller")));

@@ -510,5 +510,28 @@ try{
 } finally {
   await fs.rm(webDashersTemp,{recursive:true,force:true});
 }
+// Buckshot Roulette stays on the Pages origin too: its Godot entry page is
+// published here and every game file is fetched from the fixed Render route via
+// a document base, so the browser never leaves this site.
+{
+  const buckshotCommit="f8a263b4da11c181e02e31086e5a5c8bc2dd1457";
+  const buckshotRoute="https://seuss-cinema-arcade.onrender.com/approved-games/buckshot/";
+  const buckshotSource="https://raw.githubusercontent.com/Random-Red-Dude-809-4456/buckshot/"+
+    buckshotCommit+"/index.html";
+  const buckshotResponse=await fetch(buckshotSource);
+  if(!buckshotResponse.ok)
+    throw new Error("Buckshot Roulette entry fetch failed: "+buckshotResponse.status);
+  let buckshotHTML=await buckshotResponse.text();
+  for(const marker of ['<script src="main.js"></script>',
+    "GODOT_THREADS_ENABLED = false",'"buckshot-roulette.pck"',"<head>"])
+    if(!buckshotHTML.includes(marker))
+      throw new Error("Buckshot Roulette entry changed: "+marker);
+  buckshotHTML=buckshotHTML.replace("<head>",
+    '<head>\n    <base href="'+buckshotRoute+'">');
+  const buckshotOut=path.join(out,"games","buckshot");
+  await fs.mkdir(buckshotOut,{recursive:true});
+  await fs.writeFile(path.join(buckshotOut,"index.html"),buckshotHTML);
+  console.log("Published Buckshot Roulette entry page; game files stream from Render.");
+}
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");

@@ -139,3 +139,24 @@ network access; otherwise they stream from the pinned commit. Open
 
 A successful build and deploy verify that the routes respond, not that the
 Unity build plays on a given device.
+
+## Buckshot Roulette (Godot 4 web export)
+
+The Arcade card opens `games/buckshot/index.html` in the in-site player. The
+Pages build publishes the upstream Godot entry page with a document `<base>`
+pointing at the fixed Render game route, so the page stays on the Pages origin
+while all 20 game files come from Render: 17 `buckshot-roulette.pck.partN` parts,
+3 `buckshot-roulette.wasm.partN` parts, the engine script, the two audio
+worklets, `main.js`, `style.css` and the icons.
+
+`server.mjs` serves only those exact filenames from the single pinned commit
+`f8a263b4da11c181e02e31086e5a5c8bc2dd1457` of
+`Random-Red-Dude-809-4456/buckshot` (jsDelivr primary, GitHub raw fallback for
+ranged reads). The upstream export is flat, so the route rejects any path
+separator, subdirectory or redirect. The build is single-threaded
+(`GODOT_THREADS_ENABLED = false`), so it needs no cross-origin isolation, and a
+live audit of the source found no external hosts. ~594 MB is downloaded on
+first play.
+
+Local hosting: `local-games/buckshot/` (or `BUCKSHOT_LOCAL_DIR`) serves the same
+files from disk at `http://localhost:10000/approved-games/buckshot/index.html`.
