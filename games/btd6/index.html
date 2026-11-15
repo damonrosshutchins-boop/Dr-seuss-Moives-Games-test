@@ -2,7 +2,7 @@
 <html lang="en-us">
   <head>
     <base href="https://seuss-cinema-arcade.onrender.com/approved-assets/btd6/" />
-<script src="split-loader.js?v=tutorial-all19mb-20261111"></script>
+
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Unity Web Player | BloonsTD6</title>
@@ -173,13 +173,39 @@ html, body { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden 
       };
       document.querySelector("#unity-loading-bar").style.display = "flex";
 
-      function launchBloonsTD6() {
+      async function launchBloonsTD6() {
         document.getElementById("seuss-btd6-button").disabled=true;
         document.getElementById("seuss-btd6-message").textContent="Starting the pinned Unity loader…";
-        document.getElementById("seuss-btd6-start").hidden=true;
-        document.querySelector("#unity-loading-bar").style.display="flex";
+        try {
+          const assetRoot=new URL(document.baseURI);
+          const scripts=["split-loader.js","Build/02cb7006f5636c95ded66b8dd5612e06.loader.js"];
+          for(const filename of scripts){
+            const url=new URL(filename,assetRoot).href;
+            const response=await fetch(url,{method:"HEAD",cache:"no-store",signal:AbortSignal.timeout(45000)});
+            if(!response.ok)throw Error(filename+" unavailable (HTTP "+response.status+"). Update the Seuss Arcade Render service.");
+          }
+          await new Promise((resolve,reject)=>{
+            const helper=document.createElement("script");
+            helper.src=new URL("split-loader.js?v=pinned-9546494",assetRoot).href;
+            helper.onload=resolve;
+            helper.onerror=()=>reject(Error("Pinned BTD6 split-file helper could not load through Render"));
+            document.head.appendChild(helper);
+          });
+          document.getElementById("seuss-btd6-start").hidden=true;
+          document.querySelector("#unity-loading-bar").style.display="flex";
+        } catch(failure) {
+          document.getElementById("seuss-btd6-message").textContent="Could not start: "+(failure?.message||String(failure));
+          document.getElementById("seuss-btd6-button").disabled=false;
+          console.error("Bloons TD 6 approved asset check failed:",failure);
+          return;
+        }
       var script = document.createElement("script");
       script.src = loaderUrl;
+      script.onerror = () => {
+        document.getElementById("seuss-btd6-message").textContent="Unity loader failed to execute through Render.";
+        document.getElementById("seuss-btd6-start").hidden=false;
+        document.getElementById("seuss-btd6-button").disabled=false;
+      };
       script.onload = () => {
         createUnityInstance(canvas, config, (progress) => {
           document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
