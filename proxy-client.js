@@ -6,9 +6,9 @@ let currentStage = "Not started";
 const progressListeners = new Set();
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-const allowed = new Set(["cdn.jsdelivr.net","seuss-cinema-arcade.onrender.com", "game.azgame.io", "nostaligafun.pages.dev", "toby.booksforschool.online", "mclegacy.pages.dev", "wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "c00lkiddtech.github.io", "mollomm1.github.io", "sagaofowlz.github.io"]);
+const allowed = new Set(["cdn.jsdelivr.net", "game.azgame.io", "nostaligafun.pages.dev", "toby.booksforschool.online", "mclegacy.pages.dev", "wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "c00lkiddtech.github.io", "mollomm1.github.io", "sagaofowlz.github.io"]);
 // Exact entry points on shared hosting domains prevent arbitrary navigation.
-const gameEntries = new Set(["https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@7255b72aaae4b572d171a8ff24ace071aa02f3f7/balatro.html","https://mclegacy.pages.dev/", "https://game.azgame.io/wacky-flip/", "https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html", "https://toby.booksforschool.online/index.html","https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://c00lkiddtech.github.io/md-/","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://raw.githack.com/web-ports/fish/main/index.html","https://seuss-cinema-arcade.onrender.com/slime-rancher/"]);
+const gameEntries = new Set(["https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@7255b72aaae4b572d171a8ff24ace071aa02f3f7/balatro.html","https://mclegacy.pages.dev/", "https://game.azgame.io/wacky-flip/", "https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html", "https://toby.booksforschool.online/index.html","https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://c00lkiddtech.github.io/md-/","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://raw.githack.com/web-ports/fish/main/index.html"]);
 const endpoint = "wss://seuss-cinema-arcade.onrender.com/wisp/";
 const MAX_STARTUP_MS = 15000;
 
