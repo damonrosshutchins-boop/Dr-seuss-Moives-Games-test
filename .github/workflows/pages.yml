@@ -22,6 +22,11 @@ jobs:
         with:
           node-version: '22'
       - run: npm install
+      - name: Check server, proxy, and build script syntax
+        run: |
+          node --check server.mjs
+          node --check proxy-client.js
+          node --check scripts/build-pages.mjs
       - run: npm run build:pages
       - name: Verify in-site games and restricted proxy routing
         run: node scripts/check-arcade-routing.mjs
