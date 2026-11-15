@@ -155,9 +155,9 @@ async function serveCheeseIndex(req,res){
      return res.status(200).type("html").end();
    }
    const html=await upstream.text();
-   if(!/<base\\b[^>]*>/i.test(html))throw Error("Pinned Cheese Rolling HTML has no expected base element");
+   if(!/<base\b[^>]*>/i.test(html))throw Error("Pinned Cheese Rolling HTML has no expected base element");
    res.status(200).type("html").send(
-     html.replace(/<base\\b[^>]*>/i,'<base href="/approved-games/cheese/">')
+     html.replace(/<base\b[^>]*>/i,'<base href="/approved-games/cheese/">')
    );
  }catch(error){
    console.error("Cheese Rolling entry fetch failed:",String(error));
