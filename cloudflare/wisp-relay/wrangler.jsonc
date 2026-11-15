@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "seuss-wisp-relay",
+  "main": "worker.mjs",
+  "compatibility_date": "2025-03-10",
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "WISP_RELAY", "class_name": "WispRelay" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WispRelay"] }],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://damonrosshutchins-boop.github.io,http://localhost:10003,http://localhost:10004",
+    "ALLOW_PRIVATE_IPS": "0",
+    "ALLOW_DIRECT_IP": "1"
+  }
+}

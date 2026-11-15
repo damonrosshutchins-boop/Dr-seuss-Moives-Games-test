@@ -8,28 +8,19 @@
 <style>
   :root{
     color-scheme:dark;
-    --bg:#000;
-    --ink:#fff;
-    --soft:#e9e9e9;
-    --muted:#8f8f8f;
-    --line:rgba(255,255,255,.14);
-    --line-soft:rgba(255,255,255,.08);
-    --fill:rgba(255,255,255,.05);
-    --fill-hover:rgba(255,255,255,.1);
-    --radius:20px;
+    --bg:#000;--ink:#fff;--soft:#e9e9e9;--muted:#8f8f8f;
+    --line:rgba(255,255,255,.14);--line-soft:rgba(255,255,255,.08);
+    --fill:rgba(255,255,255,.05);--fill-hover:rgba(255,255,255,.1);
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{
-    margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
-    font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;
-  }
+  body{margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;-webkit-font-smoothing:antialiased}
   button,input{font:inherit;color:inherit}
   button{cursor:pointer;border:0;background:none}
   :focus-visible{outline:2px solid #fff;outline-offset:3px}
 
-  /* ---------- interactive dot matrix background ---------- */
+  /* ---------- backgrounds ---------- */
   #field{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
   .haze{position:fixed;inset:0;z-index:0;pointer-events:none;
     background:radial-gradient(70% 50% at 50% -10%,rgba(255,255,255,.09),transparent 70%)}
@@ -38,7 +29,7 @@
 
   /* ---------- chrome ---------- */
   .app{position:relative;z-index:2;display:flex;flex-direction:column;height:100dvh}
-  .bar{display:flex;align-items:center;gap:14px;padding:14px clamp(14px,2.4vw,26px);
+  .bar{display:flex;align-items:center;gap:12px;padding:14px clamp(12px,2.2vw,24px);
     border-bottom:1px solid var(--line-soft);background:rgba(0,0,0,.62);backdrop-filter:blur(18px) saturate(120%)}
   .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);flex:0 0 auto}
   .mark{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;font-size:16px;color:#000;
@@ -52,13 +43,14 @@
   .addr:focus-within{border-color:rgba(255,255,255,.45);box-shadow:0 0 0 4px rgba(255,255,255,.08)}
   .addr .lock{font-size:12px;opacity:.45;filter:grayscale(1)}
   .addr input{flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px;padding:0}
-  .addr button{padding:7px 14px;border-radius:10px;font-size:13px;font-weight:800;
-    background:#fff;color:#000;transition:opacity .18s}
+  .addr button{padding:7px 14px;border-radius:10px;font-size:13px;font-weight:800;background:#fff;color:#000;transition:opacity .18s}
   .addr button:hover{opacity:.85}
-  .actions{display:flex;gap:6px;flex:0 0 auto}
-  .actions button{width:38px;height:38px;border-radius:11px;border:1px solid var(--line-soft);background:var(--fill);
-    font-size:15px;color:var(--soft);transition:background .18s,transform .18s,border-color .18s}
-  .actions button:hover{background:var(--fill-hover);border-color:var(--line);transform:translateY(-1px)}
+  .actions{display:flex;gap:6px;flex:0 0 auto;align-items:center}
+  .actions button,.actions a{height:38px;min-width:38px;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    padding:0 11px;border-radius:11px;border:1px solid var(--line-soft);background:var(--fill);
+    font-size:14px;color:var(--soft);text-decoration:none;transition:background .18s,transform .18s,border-color .18s}
+  .actions button:hover,.actions a:hover{background:var(--fill-hover);border-color:var(--line);transform:translateY(-1px)}
+  .actions a{font-weight:700;font-size:13px}
 
   /* ---------- hero ---------- */
   .stage{flex:1;min-height:0;overflow:auto;display:flex}
@@ -70,7 +62,6 @@
   h1 span{background:linear-gradient(100deg,#fff 0%,#bdbdbd 55%,#6e6e6e 100%);
     -webkit-background-clip:text;background-clip:text;color:transparent}
   .tag{margin:0 auto;max-width:520px;color:var(--muted);font-size:15px;line-height:1.65}
-
   .finder{position:relative;display:flex;align-items:center;gap:10px;margin:30px auto 0;width:min(680px,100%);
     padding:8px 8px 8px 20px;border-radius:22px;border:1px solid rgba(255,255,255,.16);
     background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
@@ -82,18 +73,14 @@
   .finder input{flex:1;min-width:0;height:46px;border:0;background:none;outline:none;font-size:16px}
   .finder input::placeholder{color:#6f6f6f}
   .finder button{display:flex;align-items:center;gap:8px;height:46px;padding:0 20px;border-radius:16px;
-    font-weight:800;font-size:14px;color:#000;background:#fff;box-shadow:0 10px 26px rgba(255,255,255,.14);
-    transition:transform .18s,opacity .18s}
+    font-weight:800;font-size:14px;color:#000;background:#fff;box-shadow:0 10px 26px rgba(255,255,255,.14);transition:transform .18s,opacity .18s}
   .finder button:hover{transform:translateY(-1px);opacity:.88}
   kbd{font:inherit;font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(0,0,0,.1);color:#000}
-
   .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin:22px auto 0;max-width:660px}
   .chips button{padding:9px 15px;border-radius:999px;border:1px solid var(--line-soft);background:rgba(255,255,255,.03);
     color:#c9c9c9;font-size:13px;font-weight:600;transition:background .18s,color .18s,transform .18s,border-color .18s}
   .chips button:hover{background:#fff;color:#000;transform:translateY(-2px);border-color:#fff}
-
-  .meta{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 18px;margin-top:26px;
-    font-size:12px;color:#7d7d7d}
+  .meta{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 18px;margin-top:26px;font-size:12px;color:#7d7d7d}
   .meta code{font-size:11.5px;padding:3px 8px;border-radius:8px;border:1px solid var(--line-soft);background:rgba(255,255,255,.03);color:#b4b4b4}
   .dot{display:inline-flex;align-items:center;gap:7px}
   .dot::before{content:"";width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 9px rgba(255,255,255,.8)}
@@ -103,24 +90,48 @@
   .view.on{display:flex}
   .viewbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 6px;font-size:12px;color:var(--muted)}
   .viewbar b{color:#e4e4e4;font-weight:700;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #frame{flex:1;width:100%;border:1px solid var(--line-soft);border-radius:16px;background:#0a0a0a;
-    box-shadow:0 30px 90px rgba(0,0,0,.9)}
+  #frame{flex:1;width:100%;border:1px solid var(--line-soft);border-radius:16px;background:#0a0a0a;box-shadow:0 30px 90px rgba(0,0,0,.9)}
   .err{margin:10px 6px 0;padding:12px 15px;border-radius:13px;font-size:13px;line-height:1.55;
     color:#fff;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);display:none}
   .err.on{display:block}
-  .foot{display:flex;flex-wrap:wrap;gap:8px 18px;padding:9px clamp(14px,2.4vw,26px);font-size:11.5px;color:#777;
+  .foot{display:flex;flex-wrap:wrap;gap:8px 18px;padding:9px clamp(12px,2.2vw,24px);font-size:11.5px;color:#777;
     border-top:1px solid var(--line-soft);background:rgba(0,0,0,.6);backdrop-filter:blur(12px)}
   .foot a{color:#b9b9b9;text-decoration:none}
   .foot a:hover{color:#fff}
 
-  @media (max-width:760px){
+  /* ---------- settings sheet ---------- */
+  .sheet{position:fixed;inset:0;z-index:9;display:grid;place-items:center;padding:20px;
+    background:rgba(0,0,0,.62);backdrop-filter:blur(10px)}
+  .sheet[hidden]{display:none}
+  .panel{width:min(540px,100%);max-height:86dvh;overflow:auto;border-radius:22px;padding:22px 22px 18px;
+    border:1px solid var(--line);background:#0b0b0b;box-shadow:0 40px 120px rgba(0,0,0,.9)}
+  .panel header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+  .panel h2{margin:0;font-size:18px;letter-spacing:-.2px}
+  .panel header button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line-soft);background:var(--fill);color:#ddd}
+  .panel h3{margin:18px 0 9px;font-size:11px;letter-spacing:1.8px;color:#8d8d8d;font-weight:800}
+  .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+  .opts button{padding:11px 10px;border-radius:12px;border:1px solid var(--line-soft);background:var(--fill);
+    color:#cfcfcf;font-size:13px;font-weight:650;transition:background .18s,color .18s,border-color .18s}
+  .opts button:hover{background:var(--fill-hover)}
+  .opts button[aria-pressed="true"]{background:#fff;color:#000;border-color:#fff}
+  .panel label{display:block;margin-top:12px;font-size:12px;color:#9a9a9a}
+  .panel input[type=url],.panel input[type=text]{width:100%;margin-top:6px;height:40px;padding:0 12px;border-radius:11px;
+    border:1px solid var(--line-soft);background:rgba(255,255,255,.03);color:#fff;font-size:13px}
+  .panel input:focus{outline:none;border-color:rgba(255,255,255,.45)}
+  .hint{margin:12px 0 0;font-size:11.5px;color:#7f7f7f;line-height:1.6}
+  .hint code{font-size:11px;color:#bdbdbd;word-break:break-all}
+  .panel footer{display:flex;justify-content:space-between;gap:10px;margin-top:20px;padding-top:14px;border-top:1px solid var(--line-soft)}
+  .panel footer button{padding:10px 16px;border-radius:11px;border:1px solid var(--line-soft);background:var(--fill);font-weight:700;font-size:13px}
+  .panel footer button.primary{background:#fff;color:#000;border-color:#fff}
+  .panel footer button:hover{opacity:.86}
+
+  @media (max-width:860px){
     .brand b,.pill{display:none}
+    .actions a span{display:none}
+    .actions button:nth-child(3),.actions button:nth-child(4){display:none}
     h1{letter-spacing:-1.4px}
-    .actions button:nth-child(-n+2){display:none}
   }
-  @media (prefers-reduced-motion:reduce){
-    *{transition:none!important}
-  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
@@ -130,7 +141,7 @@
 
 <div class="app">
   <header class="bar">
-    <a class="brand" href="./index.html" title="Back to the library">
+    <a class="brand" href="./" title="Back to the library">
       <span class="mark">✦</span>
       <b>Seuss<span>Search</span></b>
       <span class="pill">V2</span>
@@ -141,16 +152,18 @@
       <button type="submit">Go</button>
     </form>
     <div class="actions">
+      <a href="./" id="toLibrary" title="Back to the games library">🎮 <span>Library</span></a>
       <button type="button" id="back" title="Back" aria-label="Back">←</button>
       <button type="button" id="forward" title="Forward" aria-label="Forward">→</button>
       <button type="button" id="reload" title="Reload page" aria-label="Reload">↻</button>
       <button type="button" id="home" title="New search" aria-label="New search">⌂</button>
+      <button type="button" id="settingsOpen" title="Settings" aria-label="Settings">⚙</button>
     </div>
   </header>
 
   <div class="stage">
     <section class="hero" id="hero">
-      <div class="eyebrow"><i></i>RENDER RELAY · UNRESTRICTED WEB</div>
+      <div class="eyebrow"><i></i>RELAY · UNRESTRICTED WEB</div>
       <h1>Seuss <span>Search</span></h1>
       <p class="tag">Search anywhere and browse the open web through your own relay. Pages render in this window — the tab stays on your site.</p>
       <form class="finder" id="searchForm" autocomplete="off">
@@ -185,37 +198,70 @@
   </div>
 
   <footer class="foot">
-    <span>Private relay · pages load through your own relay, not a direct link.</span>
-    <a href="./index.html">← Library</a>
+    <span>Pages load through your relay, not a direct link.</span>
+    <a href="./">← Games library</a>
     <span>No DRM, logins or paid content is bypassed.</span>
   </footer>
 </div>
 
+<div class="sheet" id="settings" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <header>
+      <h2 id="settingsTitle">Settings</h2>
+      <button type="button" id="settingsClose" aria-label="Close settings">✕</button>
+    </header>
+
+    <section>
+      <h3>BACKGROUND</h3>
+      <div class="opts" id="bgOpts">
+        <button type="button" data-bg="matrix">Dot matrix</button>
+        <button type="button" data-bg="grid">Grid</button>
+        <button type="button" data-bg="rings">Rings</button>
+        <button type="button" data-bg="off">Plain</button>
+      </div>
+    </section>
+
+    <section>
+      <h3>RELAY</h3>
+      <div class="opts" id="relayOpts">
+        <button type="button" data-relay="render">Render</button>
+        <button type="button" data-relay="cloudflare">Cloudflare</button>
+        <button type="button" data-relay="custom">Custom</button>
+      </div>
+      <label>Cloudflare relay URL
+        <input type="url" id="cfUrl" placeholder="wss://seuss-wisp-relay.you.workers.dev/wisp/" spellcheck="false">
+      </label>
+      <label>Custom relay URL
+        <input type="url" id="customUrl" placeholder="wss://your-relay.example.com/wisp/" spellcheck="false">
+      </label>
+      <p class="hint">Currently in use: <code id="currentRelay">—</code><br>
+        Deploy the Cloudflare relay from <code>cloudflare/wisp-relay</code>, paste its
+        <code>wss://…workers.dev/wisp/</code> URL above, then pick Cloudflare.</p>
+    </section>
+
+    <footer>
+      <button type="button" id="settingsReset">Reset</button>
+      <button type="button" id="settingsApply" class="primary">Apply &amp; reload</button>
+    </footer>
+  </div>
+</div>
+
 <script type="module">
-import { browse, resolveTarget, relayEndpoint } from "./search-client.js";
+import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay } from "./search-client.js";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");
 const addr = $("addr"), q = $("q"), viewTitle = $("viewTitle"), viewStage = $("viewStage");
 $("endpoint").textContent = relayEndpoint;
+$("currentRelay").textContent = relayEndpoint;
 
-function showError(message) {
-  err.textContent = message;
-  err.classList.add("on");
-}
-function clearError() {
-  err.textContent = "";
-  err.classList.remove("on");
-}
+function showError(message) { err.textContent = message; err.classList.add("on"); }
+function clearError() { err.textContent = ""; err.classList.remove("on"); }
 
 async function open(raw) {
   let target;
-  try {
-    target = resolveTarget(raw);
-  } catch (error) {
-    showError(error.message);
-    return;
-  }
+  try { target = resolveTarget(raw); }
+  catch (error) { showError(error.message); return; }
   clearError();
   hero.style.display = "none";
   view.classList.add("on");
@@ -230,32 +276,22 @@ async function open(raw) {
     console.error(error);
     viewStage.textContent = "Failed";
     showError("Could not open " + target.hostname + ": " + (error?.message || error) +
-      " — the relay may still be waking up. Try again in a moment.");
+      " — check Settings → Relay if this keeps happening.");
   }
 }
 
-$("searchForm").addEventListener("submit", event => {
-  event.preventDefault();
-  if (q.value.trim()) open(q.value);
-});
-$("addrForm").addEventListener("submit", event => {
-  event.preventDefault();
-  if (addr.value.trim()) open(addr.value);
-});
+$("searchForm").addEventListener("submit", event => { event.preventDefault(); if (q.value.trim()) open(q.value); });
+$("addrForm").addEventListener("submit", event => { event.preventDefault(); if (addr.value.trim()) open(addr.value); });
 $("chips").addEventListener("click", event => {
   const button = event.target.closest("button[data-go]");
   if (button) open(button.dataset.go);
 });
 $("home").addEventListener("click", () => {
-  hero.style.display = "";
-  view.classList.remove("on");
-  clearError();
-  q.focus();
+  hero.style.display = ""; view.classList.remove("on"); clearError(); q.focus();
 });
 $("reload").addEventListener("click", () => {
   if (!view.classList.contains("on")) return;
-  try { frame.contentWindow.location.reload(); }
-  catch { if (addr.value) open(addr.value); }
+  try { frame.contentWindow.location.reload(); } catch { if (addr.value) open(addr.value); }
 });
 $("back").addEventListener("click", () => { try { frame.contentWindow.history.back(); } catch {} });
 $("forward").addEventListener("click", () => { try { frame.contentWindow.history.forward(); } catch {} });
@@ -266,6 +302,7 @@ addEventListener("keydown", event => {
     (view.classList.contains("on") ? addr : q).focus();
   }
   if (event.key === "Escape") {
+    if (!$("settings").hidden) { closeSettings(); return; }
     if (view.classList.contains("on")) $("home").click();
     else document.activeElement?.blur();
   }
@@ -275,111 +312,207 @@ const params = new URLSearchParams(location.search);
 const initial = params.get("q") || params.get("url");
 if (initial) open(initial);
 
-/* ---------------- interactive dot matrix field ---------------- */
-(() => {
-  const canvas = document.getElementById("field");
-  const ctx = canvas.getContext("2d", { alpha: true });
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const SPACING = 26;       // grid pitch
-  const REACH = 150;        // pointer influence radius
-  const neutral = "#8a8a8a"; // resting dot colour
-  const active = "#ffffff";  // lit dot colour
-  let width = 0, height = 0, dpr = 1, dots = [], bursts = [], raf = 0;
-  const pointer = { x: -9999, y: -9999, on: false };
+/* ---------------- settings ---------------- */
+const BG_KEY = "seuss-bg";
+const BG_MODES = ["matrix", "grid", "rings", "off"];
+let bgMode = BG_MODES.includes(localStorage.getItem(BG_KEY)) ? localStorage.getItem(BG_KEY) : "matrix";
+let pendingRelay = readRelay();
 
-  function seed() {
-    dots = [];
-    const cols = Math.ceil(width / SPACING) + 1;
-    const rows = Math.ceil(height / SPACING) + 1;
-    const offsetX = (width - (cols - 1) * SPACING) / 2;
-    const offsetY = (height - (rows - 1) * SPACING) / 2;
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        dots.push({
-          ox: offsetX + col * SPACING,
-          oy: offsetY + row * SPACING,
-          dx: 0, dy: 0,      // displacement from the grid
-          e: 0               // energy: 0 = resting grey, 1 = white
-        });
-      }
+function markActive(containerId, attribute, value) {
+  for (const button of $(containerId).querySelectorAll("button")) {
+    button.setAttribute("aria-pressed", String(button.dataset[attribute] === value));
+  }
+}
+function syncSettings() {
+  markActive("bgOpts", "bg", bgMode);
+  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "render"));
+  $("cfUrl").value = pendingRelay.cloudflare || "";
+  $("customUrl").value = pendingRelay.custom || "";
+}
+function openSettings() { syncSettings(); $("settings").hidden = false; }
+function closeSettings() { $("settings").hidden = true; }
+
+$("settingsOpen").addEventListener("click", openSettings);
+$("settingsClose").addEventListener("click", closeSettings);
+$("settings").addEventListener("click", event => { if (event.target === $("settings")) closeSettings(); });
+$("bgOpts").addEventListener("click", event => {
+  const button = event.target.closest("button[data-bg]");
+  if (!button) return;
+  bgMode = button.dataset.bg;
+  try { localStorage.setItem(BG_KEY, bgMode); } catch {}
+  markActive("bgOpts", "bg", bgMode);
+  restartBackground();
+});
+$("relayOpts").addEventListener("click", event => {
+  const button = event.target.closest("button[data-relay]");
+  if (!button) return;
+  pendingRelay.mode = button.dataset.relay;
+  markActive("relayOpts", "relay", pendingRelay.mode);
+});
+$("settingsApply").addEventListener("click", () => {
+  pendingRelay.cloudflare = $("cfUrl").value.trim();
+  pendingRelay.custom = $("customUrl").value.trim();
+  writeRelay(pendingRelay);
+  location.reload();
+});
+$("settingsReset").addEventListener("click", () => {
+  pendingRelay = { mode: null, cloudflare: "", custom: "" };
+  writeRelay(pendingRelay);
+  try { localStorage.removeItem(BG_KEY); } catch {}
+  location.reload();
+});
+
+/* ---------------- interactive backgrounds ---------------- */
+const canvas = document.getElementById("field");
+const ctx = canvas.getContext("2d", { alpha: true });
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const REACH = 150;
+const NEUTRAL = "#8a8a8a";
+let width = 0, height = 0, dpr = 1, dots = [], rings = [], raf = 0, lastRing = 0;
+const pointer = { x: -9999, y: -9999, on: false };
+
+function sizeCanvas() {
+  dpr = Math.min(devicePixelRatio || 1, 2);
+  width = innerWidth; height = innerHeight;
+  canvas.width = Math.round(width * dpr);
+  canvas.height = Math.round(height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  seedMatrix();
+}
+function seedMatrix() {
+  dots = [];
+  const spacing = 26;
+  const cols = Math.ceil(width / spacing) + 1;
+  const rows = Math.ceil(height / spacing) + 1;
+  const ox = (width - (cols - 1) * spacing) / 2;
+  const oy = (height - (rows - 1) * spacing) / 2;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      dots.push({ ox: ox + col * spacing, oy: oy + row * spacing, dx: 0, dy: 0, e: 0 });
     }
   }
-  function size() {
-    dpr = Math.min(devicePixelRatio || 1, 2);
-    width = innerWidth; height = innerHeight;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    seed();
-  }
+}
 
-  function paint() {
-    ctx.clearRect(0, 0, width, height);
-    for (const dot of dots) {
-      let tx = 0, ty = 0, energy = 0;
-      if (pointer.on) {
-        const px = dot.ox + dot.dx, py = dot.oy + dot.dy;
-        const dx = px - pointer.x, dy = py - pointer.y;
-        const distance = Math.hypot(dx, dy) || 0.001;
-        if (distance < REACH) {
-          const force = 1 - distance / REACH;
-          // Grid dots slide away from the cursor and light up as it nears them.
-          tx = (dx / distance) * force * 14;
-          ty = (dy / distance) * force * 14;
-          energy = force;
-        }
+// Dot matrix: dots slide away from the pointer and brighten as it nears them.
+function drawMatrix() {
+  for (const dot of dots) {
+    let tx = 0, ty = 0, energy = 0;
+    if (pointer.on) {
+      const px = dot.ox + dot.dx, py = dot.oy + dot.dy;
+      const dx = px - pointer.x, dy = py - pointer.y;
+      const distance = Math.hypot(dx, dy) || 0.001;
+      if (distance < REACH) {
+        const force = 1 - distance / REACH;
+        tx = (dx / distance) * force * 14;
+        ty = (dy / distance) * force * 14;
+        energy = force;
       }
-      for (const burst of bursts) {
-        const distance = Math.hypot(dot.ox - burst.x, dot.oy - burst.y);
-        const ring = (1 - burst.life) * 300;
-        const closeness = Math.abs(distance - ring);
-        if (closeness < 34) energy = Math.max(energy, (1 - closeness / 34) * burst.life);
-      }
-      dot.dx += (tx - dot.dx) * 0.16;
-      dot.dy += (ty - dot.dy) * 0.16;
-      dot.e += (energy - dot.e) * 0.16;
-
-      const x = dot.ox + dot.dx, y = dot.oy + dot.dy;
-      const radius = 1.05 + dot.e * 2.1;
-      ctx.fillStyle = dot.e > 0.02 ? active : neutral;
-      ctx.globalAlpha = 0.2 + dot.e * 0.8;
-      ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.globalAlpha = 1;
-    bursts = bursts.filter(burst => {
-      burst.life -= 0.016;
-      return burst.life > 0;
-    });
-    raf = requestAnimationFrame(paint);
+    for (const ring of rings) {
+      const distance = Math.hypot(dot.ox - ring.x, dot.oy - ring.y);
+      const closeness = Math.abs(distance - ring.r);
+      if (closeness < 34) energy = Math.max(energy, (1 - closeness / 34) * ring.life);
+    }
+    dot.dx += (tx - dot.dx) * 0.16;
+    dot.dy += (ty - dot.dy) * 0.16;
+    dot.e += (energy - dot.e) * 0.16;
+    const radius = 1.05 + dot.e * 2.1;
+    ctx.fillStyle = dot.e > 0.02 ? "#fff" : NEUTRAL;
+    ctx.globalAlpha = 0.2 + dot.e * 0.8;
+    ctx.beginPath(); ctx.arc(dot.ox + dot.dx, dot.oy + dot.dy, radius, 0, Math.PI * 2); ctx.fill();
   }
+  ctx.globalAlpha = 1;
+}
 
-  addEventListener("resize", size);
-  addEventListener("pointermove", event => {
-    pointer.x = event.clientX; pointer.y = event.clientY; pointer.on = true;
-  }, { passive: true });
-  addEventListener("pointerleave", () => { pointer.on = false; });
-  addEventListener("pointerdown", event => {
-    bursts.push({ x: event.clientX, y: event.clientY, life: 1 });
-  }, { passive: true });
-  document.addEventListener("visibilitychange", () => {
-    if (reduce) return;
-    if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
-    else if (!raf) raf = requestAnimationFrame(paint);
-  });
+// Grid: engineering grid, with the lines and nodes near the pointer lit up.
+function drawGrid() {
+  const step = 34;
+  ctx.lineWidth = 1;
+  for (let x = -step; x <= width + step; x += step) {
+    const near = pointer.on ? Math.max(0, 1 - Math.abs(x - pointer.x) / 220) : 0;
+    ctx.strokeStyle = `rgba(255,255,255,${0.05 + near * 0.16})`;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+  }
+  for (let y = -step; y <= height + step; y += step) {
+    const near = pointer.on ? Math.max(0, 1 - Math.abs(y - pointer.y) / 220) : 0;
+    ctx.strokeStyle = `rgba(255,255,255,${0.05 + near * 0.16})`;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+  }
+  if (!pointer.on) return;
+  for (let x = 0; x <= width; x += step) {
+    for (let y = 0; y <= height; y += step) {
+      const distance = Math.hypot(x - pointer.x, y - pointer.y);
+      if (distance > REACH) continue;
+      const energy = 1 - distance / REACH;
+      ctx.fillStyle = "#fff";
+      ctx.globalAlpha = 0.15 + energy * 0.85;
+      ctx.beginPath(); ctx.arc(x, y, 1 + energy * 2.4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
 
-  size();
+// Rings: slow concentric pulses that ripple out from the pointer.
+function drawRings() {
+  const cx = pointer.on ? pointer.x : width / 2;
+  const cy = pointer.on ? pointer.y : height / 2;
+  const now = performance.now();
+  if (now - lastRing > 760) {
+    lastRing = now;
+    rings.push({ x: cx, y: cy, r: 0, life: 1, growth: 2.6 });
+  }
+  for (const ring of rings) {
+    ring.r += ring.growth;
+    ctx.strokeStyle = `rgba(255,255,255,${ring.life * 0.5})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.fillStyle = "#fff";
+  ctx.globalAlpha = 0.75;
+  ctx.beginPath(); ctx.arc(cx, cy, 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function paint() {
+  ctx.clearRect(0, 0, width, height);
+  if (bgMode === "matrix") drawMatrix();
+  else if (bgMode === "grid") drawGrid();
+  else if (bgMode === "rings") drawRings();
+  for (const ring of rings) { ring.r += 2; ring.life -= 0.012; }
+  rings = rings.filter(ring => ring.life > 0);
   raf = requestAnimationFrame(paint);
+}
+
+function restartBackground() {
+  cancelAnimationFrame(raf);
+  raf = 0;
+  rings = [];
+  ctx.clearRect(0, 0, width, height);
+  if (bgMode === "off") return;
   if (reduce) {
-    cancelAnimationFrame(raf); raf = 0;
-    // One static frame of the matrix when motion is not wanted.
-    for (const dot of dots) {
-      ctx.fillStyle = neutral;
-      ctx.globalAlpha = 0.2;
-      ctx.beginPath(); ctx.arc(dot.ox, dot.oy, 1.05, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+    // One static frame when motion is not wanted.
+    if (bgMode === "matrix") drawMatrix();
+    else if (bgMode === "grid") drawGrid();
+    return;
   }
-})();
+  raf = requestAnimationFrame(paint);
+}
+
+addEventListener("resize", () => { sizeCanvas(); restartBackground(); });
+addEventListener("pointermove", event => {
+  pointer.x = event.clientX; pointer.y = event.clientY; pointer.on = true;
+}, { passive: true });
+addEventListener("pointerleave", () => { pointer.on = false; });
+addEventListener("pointerdown", event => {
+  rings.push({ x: event.clientX, y: event.clientY, r: 0, life: 1, growth: bgMode === "rings" ? 2.6 : 6 });
+}, { passive: true });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+  else if (!raf && bgMode !== "off" && !reduce) raf = requestAnimationFrame(paint);
+});
+
+sizeCanvas();
+restartBackground();
 </script>
 </body>
 </html>

@@ -4,12 +4,13 @@ import path from "node:path";
 // Build-time routing audit. Checks that catalogue links cannot accidentally
 // bypass the restricted proxy, and that local launchers were actually built.
 // This is not a browser gameplay test or a remote-server availability test.
-const [html, client, server, searchPage, searchClient] = await Promise.all([
+const [html, client, server, searchPage, searchClient, relayWorker] = await Promise.all([
   fs.readFile("index.html","utf8"),
   fs.readFile("proxy-client.js","utf8"),
   fs.readFile("server.mjs","utf8"),
   fs.readFile("seuss-search.html","utf8"),
-  fs.readFile("search-client.js","utf8")
+  fs.readFile("search-client.js","utf8"),
+  fs.readFile("cloudflare/wisp-relay/worker.mjs","utf8")
 ]);
 const site="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/";
 const base="/Dr-seuss-Moives-Games-test/";
@@ -63,7 +64,9 @@ for(const [label,source,required] of [
   ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-cinema-arcade.onrender.com/wisp/","Only approved games and movie destinations"]],
   ["Render Wisp policy",server,["wisp.options.hostname_whitelist=null","wisp.options.port_whitelist=null","wisp.options.allow_private_ips=","wisp.options.allow_loopback_ips=","const allowedOrigin=new Set","function approvedGameCors"]],
   ["Seuss Search v2 client",searchClient,["wss://seuss-cinema-arcade.onrender.com/wisp/","frame.go(target.href)","www.bing.com/search?q=","Only http and https pages"]],
-  ["Seuss Search v2 page",searchPage,["id=\"field\"","id=\"searchForm\"","search-client.js","interactive dot matrix field"]],
+  ["Seuss Search v2 page",searchPage,["id=\"field\"","id=\"searchForm\"","id=\"bgOpts\"","id=\"relayOpts\"","id=\"toLibrary\"","search-client.js"]],
+  ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-cinema-arcade.onrender.com/wisp/"]],
+  ["Cloudflare relay worker",relayWorker,["cloudflare:sockets","class WispRelay","wisp-1","ALLOW_PRIVATE_IPS"]],
   ["Pinned game routes",server,["zelda-oot/rom.n64.part1","centipede/rom.zip","run2/Run2.swf","run2/ruffle.js","run2/4d882486fa9bfce731b9.wasm","run2/f7f28eb60b84863611ca.wasm","uwuclient/cluwuclient.html.part1","uwuclient/cluwuclient.html.part2","/approved-games/uwu-client/index.html","tomb-mask/UnityLoader.js","tomb-mask/totm.json","tomb-mask/totm.data.unityweb","tomb-mask/totm.wasm.code.unityweb","tomb-mask/totm.wasm.framework.unityweb","snow-rider/Build/UnityLoader.js","snow-rider/Build/SnowRider3D-gd-1.json","snow-rider/Build/SnowRider3D-gd-1.data.unityweb","snow-rider/Build/SnowRider3D-gd-1.wasm.code.unityweb","snow-rider/Build/SnowRider3D-gd-1.wasm.framework.unityweb.js","btd6Commit","gartenCommit","gartenFiles","approvedGartenAsset","/approved-assets/garten/*","a82c94ea3e9a2f2cbc2e1d925007947134b4f156","repoHalloweenCommit","approvedRepoHalloweenFile","/approved-assets/repo-halloween/*","edd5e11fae76bfe8966633f19a6e43935874a8b4","btd6ApprovedAsset","/approved-assets/btd6/*","9546494b3052e8e078fb28df7430ac35f42a8787","repoHalloweenCommit","approvedRepoHalloweenFile","/approved-assets/repo-halloween/*","edd5e11fae76bfe8966633f19a6e43935874a8b4"]],
   ["Gamble With Your Friends pinned Render route",server,["gambleCommit","d7b3ac61ce6d2cb98e212dfa01ba0df413539a53","Camzzz-vrgt/gamble-with-your-friends-web","approvedGambleFile","gambleRoute","gambleLocalRoot"]],
   ["Buckshot pinned Render route",server,["buckshotCommit","f8a263b4da11c181e02e31086e5a5c8bc2dd1457","Random-Red-Dude-809-4456/buckshot","approvedBuckshotFile","buckshotRoute","buckshotLocalRoot"]]

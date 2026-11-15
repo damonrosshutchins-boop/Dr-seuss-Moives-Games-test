@@ -205,3 +205,30 @@ Relay policy in `server.mjs`:
 
 An open relay spends the service's bandwidth for whoever knows the URL; the Render
 plan limits are the practical ceiling.
+
+### Settings, backgrounds and relay choice
+
+The ⚙ button opens Settings on `seuss-search.html`:
+
+- **Background**: dot matrix (default), grid, rings, or plain. Stored in
+  `localStorage` as `seuss-bg` and swapped live, without a reload.
+- **Relay**: Render (default), Cloudflare, or a custom `wss://…/wisp/` URL.
+  Stored as `seuss-relay`; applying reloads the page because the transport is
+  bound to one endpoint at startup. On `localhost` the page defaults to the relay
+  `server.mjs` serves on the same origin.
+- **🎮 Library** in the top bar (and the brand mark, and the footer link) returns
+  to the arcade catalogue.
+
+### Cloudflare relay
+
+`cloudflare/wisp-relay` is a Wisp v1 relay that runs on Cloudflare Workers: one
+Durable Object per client websocket, TCP through `cloudflare:sockets`, same
+policy as the Node relay (any public host, private ranges blocked). Deploy with
+`npm install && npx wrangler deploy` inside that folder, then paste the printed
+`wss://…workers.dev/wisp/` URL into Settings → Relay → Cloudflare. See
+`cloudflare/wisp-relay/README.md` for the binding and origin details.
+
+Note the platform trade-off: a websocket is one long-lived connection per tab,
+and Workers bill per request and CPU millisecond, so this suits personal use
+rather than a public proxy service.
+

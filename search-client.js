@@ -3,12 +3,37 @@
 // The curated player (proxy-client.js) keeps its own allowlist for games.
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-// Local hosting uses the relay started by server.mjs on the same origin;
-// the published site always talks to the Render relay.
+// Relay choice lives in localStorage so Settings can switch between the Render
+// relay, a Cloudflare Worker relay and any custom endpoint.
+const RENDER_ENDPOINT = "wss://seuss-cinema-arcade.onrender.com/wisp/";
+const RELAY_KEY = "seuss-relay";
 const onLoopback = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
-const endpoint = onLoopback
-  ? (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/wisp/"
-  : "wss://seuss-cinema-arcade.onrender.com/wisp/";
+const loopbackEndpoint = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/wisp/";
+
+export function readRelay() {
+  let stored = {};
+  try { stored = JSON.parse(localStorage.getItem(RELAY_KEY) || "{}") || {}; } catch { stored = {}; }
+  return {
+    mode: ["render", "cloudflare", "custom"].includes(stored.mode) ? stored.mode : null,
+    cloudflare: typeof stored.cloudflare === "string" ? stored.cloudflare.trim() : "",
+    custom: typeof stored.custom === "string" ? stored.custom.trim() : ""
+  };
+}
+
+export function writeRelay(next) {
+  try { localStorage.setItem(RELAY_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+}
+
+function pickEndpoint() {
+  const relay = readRelay();
+  if (relay.mode === "cloudflare" && relay.cloudflare) return relay.cloudflare;
+  if (relay.mode === "custom" && relay.custom) return relay.custom;
+  if (relay.mode === "render") return RENDER_ENDPOINT;
+  return onLoopback ? loopbackEndpoint : RENDER_ENDPOINT;
+}
+
+const endpoint = pickEndpoint();
+export const relaySource = onLoopback && endpoint === loopbackEndpoint ? "local" : "remote";
 const SEARCH_ENDPOINT = "https://www.bing.com/search?q=";
 const MAX_STARTUP_MS = 20000;
 let controller;
@@ -28,6 +53,7 @@ function keepWorkerWarm(worker) {
 }
 
 export const relayEndpoint = endpoint;
+export { RENDER_ENDPOINT, loopbackEndpoint, RELAY_KEY };
 
 export function searchUrl(query) {
   return SEARCH_ENDPOINT + encodeURIComponent(String(query || "").trim());
