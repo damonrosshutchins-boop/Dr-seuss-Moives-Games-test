@@ -83,3 +83,33 @@ jobs:
             fi
           done
           echo "Published assets are reachable."
+  render-deploy:
+    # Render does not auto-deploy this service, so every server.mjs or game-route
+    # change needs this trigger. Runs only after the Pages build and its published
+    # asset checks succeed, so the site and the proxy route ship together.
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the deploy hook secret
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL is not set. Add it in Settings -> Secrets and variables -> Actions -> New repository secret, using the Deploy Hook URL from the Render service settings."
+            exit 1
+          fi
+          echo "Render deploy hook secret is configured."
+      - name: Trigger the Render deploy
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --max-time 60 -o /tmp/render-hook.txt -w '%{http_code}' -X POST "$RENDER_DEPLOY_HOOK_URL")
+          echo "Render deploy hook returned HTTP $code"
+          head -c 400 /tmp/render-hook.txt || true
+          echo
+          case "$code" in
+            200|201|202) echo "Render deploy triggered for ${GITHUB_SHA}." ;;
+            *) echo "::error::Render deploy hook failed with HTTP $code"; exit 1 ;;
+          esac

@@ -160,3 +160,25 @@ first play.
 
 Local hosting: `local-games/buckshot/` (or `BUCKSHOT_LOCAL_DIR`) serves the same
 files from disk at `http://localhost:10000/approved-games/buckshot/index.html`.
+
+## Render deploys
+
+GitHub Pages deploys on push, but the Render service does not, so
+`.github/workflows/pages.yml` ends with a `render-deploy` job that POSTs the
+service's deploy hook once the Pages build and its published-asset checks pass.
+Every push to `main` therefore ships the site and the proxy routes together, and
+the job is skipped on other branches.
+
+It needs one repository secret:
+
+1. Render dashboard -> the `seuss-cinema-arcade` service -> **Settings** ->
+   **Deploy Hook** -> copy the URL.
+2. GitHub repository -> **Settings** -> **Secrets and variables** -> **Actions**
+   -> **New repository secret**.
+3. Name `RENDER_DEPLOY_HOOK_URL`, value = the copied hook URL, then save.
+
+Until that secret exists the job fails with an explicit
+`RENDER_DEPLOY_HOOK_URL is not set` error, on purpose: a green Pages deploy with
+an undeployed proxy route is the failure this job prevents. The hook only starts
+a Render build; `/approved-games/.../status` on the live service remains the way
+to confirm the new routes are actually serving.
