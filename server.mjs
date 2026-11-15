@@ -1,6 +1,7 @@
 import http from "node:http";
 import path from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import express from "express";
 import { Readable } from "node:stream";
@@ -40,6 +41,17 @@ app.use((req,res,next)=>{
 });
 // Downloadable payload for the browser-side relay speed meter. CORS is open so
 // the Pages frontend can time a transfer without proxying through the tunnel.
+// Slime Rancher launcher. jsDelivr serves that repository's index.html as
+// text/plain, so the arcade proxies this copy from our own relay instead: it has
+// a real HTML content type while its <base> keeps the 555 MB of chunks on the CDN.
+const launcherFile=path.join(path.dirname(fileURLToPath(import.meta.url)),"games","slimeranch","index.html");
+app.get(["/slime-rancher","/slime-rancher/","/slime-rancher/index.html"],(req,res)=>{
+ if(!existsSync(launcherFile))return res.status(503).type("text/plain").send("Slime Rancher launcher is not deployed");
+ res.setHeader("Content-Type","text/html; charset=utf-8");
+ res.setHeader("Cache-Control","no-store");
+ res.setHeader("Cross-Origin-Resource-Policy","cross-origin");
+ res.send(readFileSync(launcherFile,"utf8"));
+});
 app.get("/speedtest",(req,res)=>{
  const bytes=Math.min(Math.max(Number(req.query.bytes)||1500000,1000),8000000);
  res.setHeader("Access-Control-Allow-Origin","*");

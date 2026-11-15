@@ -141,12 +141,28 @@
             document.getElementById('progressFill').style.width = pct + '%';
         }
 
-        async function fetchChunk(url) {
-            let response = await fetch(url);
-            let data = await response.arrayBuffer();
-            loadedChunks++;
-            updateProgress();
-            return data;
+        // One dropped request used to abort the whole load, which is fatal for a
+        // 69-file fetch. Retry a few times with a short backoff before giving up.
+        const CHUNK_ATTEMPTS = 4;
+        let retriedChunks = 0;
+
+        async function fetchChunk(url, attempt = 1) {
+            try {
+                let response = await fetch(url, { cache: 'default' });
+                if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + url);
+                let data = await response.arrayBuffer();
+                if (!data.byteLength) throw new Error('empty response for ' + url);
+                loadedChunks++;
+                updateProgress();
+                return data;
+            } catch (error) {
+                if (attempt >= CHUNK_ATTEMPTS) throw error;
+                retriedChunks++;
+                document.getElementById('loadingText').innerText =
+                    'Retrying a chunk (' + attempt + '/' + (CHUNK_ATTEMPTS - 1) + ')… ' + retriedChunks + ' retried';
+                await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+                return fetchChunk(url, attempt + 1);
+            }
         }
 
         async function fetchAndReconstruct() {
