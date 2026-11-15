@@ -61,6 +61,9 @@ const library=[
 {id:'zelda-oot',kind:'game',name:'The Legend of Zelda: Ocarina of Time',desc:'Nintendo 64 emulator with approved, pinned game parts delivered from Render.',icon:'🗡️',bg:'linear-gradient(130deg,#274c3c,#b6a26b)',url:'./games/zelda-oot/index.html',local:true},
 {id:'tomb-of-the-mask',kind:'game',name:'Tomb of the Mask',desc:'Unity WebGL arcade maze game in the built-in player with fixed, approved Render game assets.',icon:'🗿',bg:'linear-gradient(130deg,#513254,#d5a64d)',url:'./games/tomb-of-the-mask/index.html',local:true},
 {id:'paper-mario-ttyd',kind:'game',name:'Paper Mario: The Thousand-Year Door',desc:'GameCube browser game loaded from its exact approved Nostalgia.fun page through Scramjet and restricted Render Wisp. Source availability and gameplay remain unverified.',icon:'📖',bg:'linear-gradient(130deg,#70523e,#e0b66a)',url:'https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html'},
+{id:'garten-of-banban',kind:'game',name:'Garten of Banban',desc:'Full WebAssembly browser port loaded inside the arcade; game assets pinned and streamed through approved Render routes. Large download.',icon:'🌈',bg:'linear-gradient(130deg,#285b46,#a6c867)',url:'./games/garten-of-banban/index.html',local:true},
+{id:'webcompiled',kind:'game',name:'WebCompiled (Mario Kart Wii)',desc:'Browser recompiler project added; needs an authorized compiled game build before it can be played. WebGPU and JSPI required.',icon:'🏎️',bg:'linear-gradient(130deg,#2a4263,#6f9acc)',url:'./games/webcompiled/index.html',local:true},
+{id:'eaglercraft-26-2',kind:'game',name:'Eaglercraft 26.2',desc:'Your self-contained 26.2 HTML client, launched locally inside the arcade; build-time public Drive publishing or local-file fallback.',icon:'🟩',bg:'linear-gradient(130deg,#1a5035,#67a97c)',url:'./games/eaglercraft-26-2/index.html',local:true},
 {id:'repo-halloween',kind:'game',name:'R.E.P.O. Halloween WebGL',desc:'Large Unity Halloween game, played in-site with 764 MB of pinned game chunks streamed through approved Render routes.',icon:'🎃',bg:'linear-gradient(130deg,#342037,#bb7341)',url:'./games/repo-halloween/index.html',local:true},
 {id:'btd6',kind:'game',name:'Bloons TD 6',desc:'Licensed, recovered Unity WebGL build with approved pinned game assets through Render. Large download (883 MB initial assets).',icon:'🎈',bg:'linear-gradient(130deg,#1b664f,#f5bb38)',url:'./games/btd6/index.html',local:true},
 {id:'wacky-flip',kind:'game',name:'Wacky Flip',desc:'Game-only publisher embed through the restricted Seuss player. Surrounding website articles and banner areas are not loaded; ads inside the game are controlled by its publisher.',icon:'🤸',bg:'linear-gradient(130deg,#4d326c,#e19c5f)',url:'https://game.azgame.io/wacky-flip/'},
@@ -124,7 +127,7 @@ function updatePlayerProgress(label,percent=null){
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==$('frame').contentWindow)return;
   if(!$('viewer')||$('viewer').classList.contains('hidden'))return;
-  if(!selected?.local||!['zelda-oot','centipede-arcade','run-2','uwu-client','tomb-of-the-mask','snow-rider-3d','btd6','repo-halloween'].includes(selected.id))return;
+  if(!selected?.local||!['zelda-oot','centipede-arcade','run-2','uwu-client','tomb-of-the-mask','snow-rider-3d','btd6','repo-halloween','garten-of-banban','eaglercraft-26-2'].includes(selected.id))return;
   const data=event.data;
   if(!data||data.type!=='seuss-arcade-progress'||typeof data.stage!=='string')return;
   $('frame').dataset.progressReceived='yes';
