@@ -5,8 +5,16 @@
 <style>
 :root{color-scheme:dark}*{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;color:#f4faff;font:15px system-ui,sans-serif}
-#gameContainer{position:fixed;inset:0;width:100vw;height:100dvh;min-width:240px;min-height:180px;background:#06090e}
-#gameContainer canvas{display:block;width:100%!important;height:100%!important;object-fit:contain}
+/* The supplied Unity build targets 960 x 600 (8:5). Its in-game camera
+   and UI should not be distorted to the arcade viewer's arbitrary aspect. */
+#gameContainer{
+ position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+ width:min(100vw,calc(100dvh * 1.6),960px);
+ aspect-ratio:8 / 5;height:auto;
+ min-width:0;min-height:0;background:#06090e;overflow:hidden
+}
+/* UnityLoader owns canvas dimensions; avoid overriding its framebuffer. */
+#gameContainer canvas{display:block;max-width:100%;max-height:100%}
 #hud{position:fixed;z-index:20;top:0;left:0;right:0;background:#111c2fe8;padding:10px 16px;pointer-events:none}
 #hudText{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#dfebfa}
 #track{height:5px;background:#394761;margin-top:6px;border-radius:8px;overflow:hidden}
@@ -25,6 +33,7 @@ button:disabled{opacity:.55;cursor:wait}
 <div id="setup"><div id="card">
 <h1>🏂 Snow Rider 3D</h1>
 <p>3D snowboarding game running inside Seuss Arcade. The original Unity WebGL files are fetched only through this game's approved Render routes.</p>
+<p>Normal jump handling: the original game proportions are preserved and repeating jump-key events are filtered.</p>
 <button type="button" id="start">Play Snow Rider 3D</button>
 <p id="error" role="alert"></p>
 </div></div>
@@ -39,6 +48,17 @@ const error=document.getElementById("error");
 const hud=document.getElementById("hud");
 const message=document.getElementById("message");
 let started=false;
+// Some browser/keyboard combinations emit repeated keydown events while a
+// jump key is held. Let Unity see the initial press and the genuine release,
+// but not repeated presses that might retrigger a jump in older WebGL builds.
+// Steering keys are unaffected.
+const jumpKeys=new Set(["ArrowUp","Space","KeyW"]);
+window.addEventListener("keydown",event=>{
+ if(jumpKeys.has(event.code)&&event.repeat){
+  event.preventDefault();
+  event.stopImmediatePropagation();
+ }
+},true);
 function progress(stage,percent=null){
  message.textContent=stage;
  if(typeof percent==="number"&&Number.isFinite(percent)){
