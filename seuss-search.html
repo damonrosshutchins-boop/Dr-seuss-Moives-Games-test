@@ -84,6 +84,14 @@
   .meta code{font-size:11.5px;padding:3px 8px;border-radius:8px;border:1px solid var(--line-soft);background:rgba(255,255,255,.03);color:#b4b4b4}
   .dot{display:inline-flex;align-items:center;gap:7px}
   .dot::before{content:"";width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 9px rgba(255,255,255,.8)}
+  .speed{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;
+    border:1px solid var(--line-soft);background:rgba(255,255,255,.03);color:#c9c9c9;font:inherit;
+    font-size:11.5px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+  .speed:hover{background:#fff;color:#000;border-color:#fff}
+  .speed:disabled{opacity:.65;cursor:progress}
+  .speed::before{content:"";width:7px;height:7px;border-radius:50%;background:#fff}
+  .speed[data-quality="slow"]::before{background:#8a8a8a;box-shadow:none}
+  .speed[data-quality="down"]::before{background:transparent;border:1px solid #8a8a8a}
 
   /* ---------- viewport ---------- */
   .view{flex:1;min-height:0;display:none;flex-direction:column;padding:0 clamp(8px,1.6vw,16px) 10px}
@@ -182,6 +190,7 @@
       </div>
       <div class="meta">
         <span class="dot">Relay ready</span>
+        <button type="button" class="speed" id="relaySpeed" title="Test this relay's connection speed">Testing relay…</button>
         <span>Searches run on Bing</span>
         <code id="endpoint">wss://seuss-cinema-arcade.onrender.com/wisp/</code>
       </div>
@@ -239,6 +248,12 @@
         <code>wss://…workers.dev/wisp/</code> URL above, then pick Cloudflare.</p>
     </section>
 
+    <section>
+      <h3>CONNECTION SPEED</h3>
+      <p class="hint" id="speedDetail">Measuring the relay in use…</p>
+      <div class="opts"><button type="button" id="speedTest">Test again</button></div>
+    </section>
+
     <footer>
       <button type="button" id="settingsReset">Reset</button>
       <button type="button" id="settingsApply" class="primary">Apply &amp; reload</button>
@@ -247,13 +262,51 @@
 </div>
 
 <script type="module">
-import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay } from "./search-client.js";
+import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay, relayLabel, measureRelaySpeed } from "./search-client.js";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");
 const addr = $("addr"), q = $("q"), viewTitle = $("viewTitle"), viewStage = $("viewStage");
 $("endpoint").textContent = relayEndpoint;
 $("currentRelay").textContent = relayEndpoint;
+
+// Relay connection speed: ping on every check, throughput on load and on click.
+const speedBtn = $("relaySpeed"), speedDetail = $("speedDetail");
+let lastSpeed;
+function speedText(result) {
+  if (!result || result.ping === null) {
+    return {
+      quality: "down",
+      pill: relayLabel() + " · unreachable",
+      detail: relayLabel() + " relay did not answer from this browser. Check the relay URL and try again."
+    };
+  }
+  const mbps = result.mbps ? result.mbps.toFixed(1) + " Mbps" : null;
+  const quality = result.ping < 100 ? "fast" : result.ping < 250 ? "ok" : "slow";
+  const verdict = quality === "fast" ? "Snappy." : quality === "ok" ? "Usable." : "Sluggish — try the other relay.";
+  return {
+    quality,
+    pill: relayLabel() + " · " + result.ping + " ms" + (mbps ? " · " + mbps : ""),
+    detail: relayLabel() + " relay — " + result.ping + " ms ping, " + (mbps || "throughput unavailable") +
+      ". " + verdict + " Reply measured on the tunnel WebSocket; throughput from /speedtest."
+  };
+}
+async function testSpeed(full) {
+  speedBtn.disabled = true;
+  speedBtn.textContent = relayLabel() + " · testing…";
+  const result = await measureRelaySpeed({ bytes: full ? 1200000 : 0 });
+  if (!full && lastSpeed) result.mbps = lastSpeed.mbps;
+  lastSpeed = result;
+  const text = speedText(result);
+  speedBtn.dataset.quality = text.quality;
+  speedBtn.textContent = text.pill;
+  speedDetail.textContent = text.detail;
+  speedBtn.disabled = false;
+}
+speedBtn.addEventListener("click", () => testSpeed(true));
+if ($("speedTest")) $("speedTest").addEventListener("click", () => testSpeed(true));
+testSpeed(true);
+setInterval(() => testSpeed(false), 60000);
 
 function showError(message) { err.textContent = message; err.classList.add("on"); }
 function clearError() { err.textContent = ""; err.classList.remove("on"); }

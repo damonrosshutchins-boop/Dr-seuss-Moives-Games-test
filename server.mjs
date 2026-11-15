@@ -38,6 +38,16 @@ app.use((req,res,next)=>{
  }
  next();
 });
+// Downloadable payload for the browser-side relay speed meter. CORS is open so
+// the Pages frontend can time a transfer without proxying through the tunnel.
+app.get("/speedtest",(req,res)=>{
+ const bytes=Math.min(Math.max(Number(req.query.bytes)||1500000,1000),8000000);
+ res.setHeader("Access-Control-Allow-Origin","*");
+ res.setHeader("Cache-Control","no-store");
+ res.setHeader("Content-Type","application/octet-stream");
+ res.setHeader("Content-Length",String(bytes));
+ res.end(Buffer.alloc(bytes));
+});
 app.get("/health",(req,res)=>res.json({ok:true,service:"seuss-cinema-scramjet-wisp",restricted:false,coep:"credentialless",relayOriginPolicy:"any-public-host",privateRanges:"blocked",search:true}));
 
 // Two pinned, path-restricted approved game resource routes. This is NOT a

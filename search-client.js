@@ -55,6 +55,70 @@ function keepWorkerWarm(worker) {
 export const relayEndpoint = endpoint;
 export { RENDER_ENDPOINT, loopbackEndpoint, RELAY_KEY };
 
+// Link quality for the relay actually in use. Ping runs on the same WebSocket
+// path the tunnel uses; throughput downloads the relay's /speedtest payload, so
+// both numbers describe this browser's path to that particular relay.
+export function relayHost() {
+  try { return new URL(endpoint.replace(/^ws/, "http")).hostname; } catch { return location.hostname; }
+}
+
+export function relayHttpOrigin() {
+  try { return new URL(endpoint.replace(/^ws/, "http")).origin; } catch { return location.origin; }
+}
+
+export function relayLabel() {
+  const host = relayHost();
+  if (host.endsWith("onrender.com")) return "Render";
+  if (host.endsWith("workers.dev")) return "Cloudflare";
+  if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(host)) return "Local";
+  return host;
+}
+
+function pingRelay(url, limit) {
+  return new Promise(resolve => {
+    const started = performance.now();
+    let settled = false;
+    let socket;
+    let timer;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { if (socket) socket.close(); } catch { /* already closing */ }
+      resolve(value);
+    };
+    timer = setTimeout(() => finish(null), limit);
+    try { socket = new WebSocket(url); } catch { finish(null); return; }
+    socket.onopen = () => finish(Math.round(performance.now() - started));
+    socket.onerror = () => finish(null);
+    socket.onclose = () => finish(null);
+  });
+}
+
+// ping=null means the relay never answered; ping=0 samples are dropped. mbps is
+// null when the payload could not be fetched (no /speedtest, blocked CORS).
+export async function measureRelaySpeed({ pings = 3, bytes = 1200000 } = {}) {
+  const samples = [];
+  for (let i = 0; i < pings; i++) {
+    const sample = await pingRelay(endpoint, 6000);
+    if (sample !== null) samples.push(sample);
+    if (i + 1 < pings) await new Promise(resolve => setTimeout(resolve, 120));
+  }
+  samples.sort((a, b) => a - b);
+  const ping = samples.length ? samples[Math.floor(samples.length / 2)] : null;
+  let mbps = null;
+  if (bytes > 0) {
+    try {
+      const started = performance.now();
+      const response = await fetch(relayHttpOrigin() + "/speedtest?bytes=" + bytes, { cache: "no-store" });
+      const payload = await response.arrayBuffer();
+      const seconds = (performance.now() - started) / 1000;
+      if (payload.byteLength > 0 && seconds > 0) mbps = (payload.byteLength * 8) / 1e6 / seconds;
+    } catch { mbps = null; }
+  }
+  return { ping, mbps, label: relayLabel(), endpoint };
+}
+
 export function searchUrl(query) {
   return SEARCH_ENDPOINT + encodeURIComponent(String(query || "").trim());
 }

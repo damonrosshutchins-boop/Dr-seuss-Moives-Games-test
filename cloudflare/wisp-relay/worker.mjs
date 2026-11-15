@@ -181,6 +181,16 @@ export default {
         privateRanges: env.ALLOW_PRIVATE_IPS === "1" ? "allowed" : "blocked"
       }), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
     }
+    if (url.pathname === "/speedtest") {
+      const bytes = Math.min(Math.max(Number(url.searchParams.get("bytes")) || 1500000, 1000), 8000000);
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          "content-type": "application/octet-stream",
+          "cache-control": "no-store",
+          "access-control-allow-origin": "*"
+        }
+      });
+    }
     if (url.pathname !== "/wisp/") {
       return new Response("Seuss Wisp relay: connect to /wisp/\n", {
         status: url.pathname === "/" ? 200 : 404,
