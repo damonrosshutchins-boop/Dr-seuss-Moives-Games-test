@@ -1,5 +1,6 @@
 import http from "node:http";
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import express from "express";
 import { Readable } from "node:stream";
@@ -906,6 +907,130 @@ app.options("/approved-assets/imported/*",(req,res)=>{
   res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
   res.sendStatus(204);
+});
+
+// Gamble With Your Friends — camzzz's ~1.2 GB solo Unity web port.
+// The upstream build is committed as 69 fixed 18 MB parts under `game/`.
+// Only those exact file shapes are served, and only from one pinned commit:
+// no user-supplied host, URL, port or redirect is ever accepted. When a local
+// copy of the upstream `game/` folder exists (GAMBLE_LOCAL_DIR or
+// local-games/gamble-with-your-friends), it is served instead of the network
+// so the game can run fully offline from this host.
+const gambleCommit="d7b3ac61ce6d2cb98e212dfa01ba0df413539a53";
+const gambleCdn="https://cdn.jsdelivr.net/gh/Camzzz-vrgt/gamble-with-your-friends-web@"+gambleCommit+"/game/";
+const gambleRaw="https://raw.githubusercontent.com/Camzzz-vrgt/gamble-with-your-friends-web/"+gambleCommit+"/game/";
+const gambleRoute="/approved-games/gamble-with-your-friends/";
+const gambleLocalRoot=path.resolve(process.env.GAMBLE_LOCAL_DIR||path.join(process.cwd(),"local-games","gamble-with-your-friends"));
+function approvedGambleFile(req){
+ let file;
+ try{file=decodeURIComponent(req.params[0]||"");}catch{return null;}
+ if(!file)file="index.html";
+ if(file.length>400||file.startsWith("/")||file.includes("//")||file.includes("\\")||
+    file.endsWith("/")||! /^[A-Za-z0-9._/()# -]+$/.test(file))return null;
+ if(file.split("/").some(segment=>!segment||segment==="."||segment===".."))return null;
+ if(["index.html","Build/build.loader.js","Build/build.framework.js",
+     "assets/port-by-camzzz.png","StreamingAssets/aa/catalog.bin",
+     "StreamingAssets/aa/catalog.hash","StreamingAssets/aa/settings.json"].includes(file))return file;
+ const chunk=file.match(/^chunks\/build\.(data|wasm)\.part(\d{3})$/);
+ if(chunk){
+   const lastPart=chunk[1]==="data"?50:19;
+   if(Number(chunk[2])>=1&&Number(chunk[2])<=lastPart)return file;
+ }
+ if(/^StreamingAssets\/aa\/StandaloneWindows64\/[A-Za-z0-9._() -]+\.bundle$/.test(file))return file;
+ return null;
+}
+function gambleMime(file){
+ const lower=file.toLowerCase();
+ if(lower.endsWith(".html"))return "text/html; charset=utf-8";
+ if(lower.endsWith(".js"))return "application/javascript; charset=utf-8";
+ if(lower.endsWith(".json"))return "application/json; charset=utf-8";
+ if(lower.endsWith(".png"))return "image/png";
+ return "application/octet-stream";
+}
+function gambleLocalPath(file){
+ const resolved=path.resolve(gambleLocalRoot,file);
+ if(!resolved.startsWith(gambleLocalRoot+path.sep))return null;
+ return resolved;
+}
+async function serveGambleFile(req,res){
+ if(!approvedGameCors(req,res))return;
+ const file=approvedGambleFile(req);
+ if(!file)return res.status(404).type("text/plain").send("Not an approved Gamble With Your Friends file");
+ const cacheControl=file==="index.html"?"public, max-age=300":"public, max-age=86400, immutable";
+ const local=gambleLocalPath(file);
+ if(local&&existsSync(local)){
+   res.setHeader("Content-Type",gambleMime(file));
+   res.setHeader("Cache-Control",cacheControl);
+   res.setHeader("X-Game-Source","local");
+   return res.sendFile(local);
+ }
+ const encoded=file.split("/").map(encodeURIComponent).join("/");
+ // jsDelivr answers a byte-range request with an empty 206 body, so ranged
+ // reads go straight to GitHub raw, which honours ranges correctly.
+ const sources=req.get("Range")
+   ?[[gambleRaw,"github-raw"]]
+   :[[gambleCdn,"jsdelivr"],[gambleRaw,"github-raw"]];
+ for(const [index,[root,source]] of sources.entries()){
+   try{
+     const headers={"Accept-Encoding":"identity"};
+     if(req.get("Range"))headers.Range=req.get("Range");
+     const upstream=await fetch(root+encoded,{
+       method:req.method==="HEAD"?"HEAD":"GET",
+       redirect:"error",headers,signal:AbortSignal.timeout(120000)
+     });
+     if(!upstream.ok){
+       await upstream.body?.cancel();
+       if(index<sources.length-1)continue;
+       return res.status(502).type("text/plain")
+         .send("Pinned Gamble With Your Friends asset unavailable: HTTP "+upstream.status);
+     }
+     res.status(upstream.status);
+     res.setHeader("Content-Type",gambleMime(file));
+     res.setHeader("Cache-Control",cacheControl);
+     res.setHeader("X-Game-Source",source);
+     if(upstream.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",upstream.headers.get("accept-ranges"));
+     if(upstream.headers.get("content-range"))res.setHeader("Content-Range",upstream.headers.get("content-range"));
+     // Node fetch may decompress the upstream body, so never forward its
+     // Content-Encoding or Content-Length.
+     if(req.method==="HEAD"||!upstream.body){res.end();return;}
+     await pipeline(Readable.fromWeb(upstream.body),res);
+     return;
+   }catch(error){
+     console.warn("Gamble With Your Friends asset failed:",source,file,String(error));
+     if(res.headersSent){res.destroy();return;}
+     if(index===sources.length-1)return res.status(502).type("text/plain")
+       .send("The approved Gamble With Your Friends game sources are unreachable.");
+   }
+ }
+}
+// Fixed-route availability probe used by the published arcade launcher.
+app.get(gambleRoute+"status",async(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ res.setHeader("Cache-Control","no-store");
+ const local=gambleLocalPath("index.html");
+ if(local&&existsSync(local))
+   return res.json({ok:true,source:"local game folder",note:"Serving the local upstream game/ copy"});
+ try{
+   const probe=await fetch(gambleCdn+"index.html",{
+     method:"HEAD",redirect:"error",signal:AbortSignal.timeout(15000)
+   });
+   await probe.body?.cancel();
+   if(!probe.ok)
+     return res.status(502).json({ok:false,note:"Pinned game entry unavailable (HTTP "+probe.status+")"});
+   res.json({ok:true,source:"pinned GitHub upstream",commit:gambleCommit,parts:69});
+ }catch(error){
+   console.error("Gamble With Your Friends probe failed",String(error));
+   res.status(502).json({ok:false,note:"The approved game source could not be reached"});
+ }
+});
+app.get(gambleRoute+"*",serveGambleFile);
+app.head(gambleRoute+"*",serveGambleFile);
+app.options(gambleRoute+"*",(req,res)=>{
+ if(!approvedGameCors(req,res))return;
+ if(!approvedGambleFile(req))return res.sendStatus(404);
+ res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+ res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
+ res.sendStatus(204);
 });
 
 app.use("/scram/",express.static(scramjetPath));

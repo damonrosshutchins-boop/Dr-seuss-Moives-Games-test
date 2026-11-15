@@ -94,3 +94,37 @@ EaglercraftX client also contains external multiplayer relay addresses and
 links; these are **not** implicitly proxied or whitelisted. External network
 multiplayer may use direct game server connections or may be unavailable.
 Successful deployment verifies the routes, not gameplay or compatibility.
+
+
+## Gamble With Your Friends (camzzz solo web port)
+
+The Arcade card opens `games/gamble-with-your-friends/index.html`, which probes the
+fixed Render route and then navigates in the same browser tab to
+`/approved-games/gamble-with-your-friends/index.html` on Render. The game is a
+Unity WebGL build of about 1.2 GB, committed upstream as 69 fixed parts
+(50 `chunks/build.data.partNNN` and 19 `chunks/build.wasm.partNNN`) plus its
+loader, framework, addressables catalog and localization bundles.
+
+`server.mjs` serves only those exact file shapes, only from the single pinned
+commit `d7b3ac61ce6d2cb98e212dfa01ba0df413539a53` of
+`Camzzz-vrgt/gamble-with-your-friends-web` (jsDelivr primary, GitHub raw
+fallback). Visitors cannot supply a host, URL, path or redirect. Byte ranges are
+passed through because the parts are large, and
+`/approved-games/gamble-with-your-friends/status` reports whether the source is
+reachable.
+
+None of the game itself is copied into the GitHub Pages artifact: the split
+parts exceed GitHub's per-file and repository limits, so only the launcher page
+is published. Render must be redeployed for the new route to exist on
+`seuss-cinema-arcade.onrender.com`.
+
+### Local hosting
+
+`npm start` serves the same route on this computer. If the upstream `game/`
+folder is present at `local-games/gamble-with-your-friends/` (or
+`GAMBLE_LOCAL_DIR` points at it), those files are served from disk with no
+network access; otherwise they stream from the pinned commit. Open
+`http://localhost:10000/approved-games/gamble-with-your-friends/index.html`.
+
+A successful build and deploy verify that the routes respond, not that the
+Unity build plays on a given device.
