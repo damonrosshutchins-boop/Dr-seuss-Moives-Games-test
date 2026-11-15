@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seuss Search v2</title>
+<meta name="theme-color" content="#05060f">
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#05060f;
+    --ink:#eef1ff;
+    --muted:#98a3c4;
+    --line:rgba(255,255,255,.09);
+    --glass:rgba(16,20,38,.66);
+    --a1:#8b7bff;
+    --a2:#46d9ff;
+    --a3:#ff70b8;
+    --radius:20px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input{font:inherit;color:inherit}
+  button{cursor:pointer;border:0;background:none}
+  :focus-visible{outline:2px solid var(--a2);outline-offset:3px}
+
+  /* ---------- interactive background ---------- */
+  #field{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
+  .glow{position:fixed;border-radius:50%;filter:blur(90px);opacity:.5;pointer-events:none;z-index:0;mix-blend-mode:screen}
+  .g1{width:52vw;height:52vw;left:-12vw;top:-16vw;background:radial-gradient(circle,#6d4bff,transparent 68%);animation:drift1 26s ease-in-out infinite alternate}
+  .g2{width:46vw;height:46vw;right:-10vw;top:-8vw;background:radial-gradient(circle,#0fb6ff,transparent 68%);animation:drift2 31s ease-in-out infinite alternate}
+  .g3{width:40vw;height:40vw;left:24vw;bottom:-22vw;background:radial-gradient(circle,#ff4f9a,transparent 70%);opacity:.32;animation:drift3 37s ease-in-out infinite alternate}
+  @keyframes drift1{to{transform:translate3d(9vw,7vh,0) scale(1.15)}}
+  @keyframes drift2{to{transform:translate3d(-8vw,10vh,0) scale(1.1)}}
+  @keyframes drift3{to{transform:translate3d(6vw,-9vh,0) scale(1.2)}}
+  .vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 0%,transparent 40%,rgba(3,4,10,.85) 100%);}
+
+  /* ---------- chrome ---------- */
+  .app{position:relative;z-index:2;display:flex;flex-direction:column;height:100dvh}
+  .bar{display:flex;align-items:center;gap:14px;padding:14px clamp(14px,2.4vw,26px);
+    border-bottom:1px solid var(--line);background:rgba(8,10,22,.55);backdrop-filter:blur(18px) saturate(140%)}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);flex:0 0 auto}
+  .mark{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;font-size:17px;color:#0d0a20;
+    background:linear-gradient(135deg,var(--a1),var(--a2));box-shadow:0 8px 26px rgba(110,90,255,.45)}
+  .brand b{font-size:15px;letter-spacing:.3px;font-weight:800}
+  .brand b span{font-weight:500;color:var(--muted)}
+  .pill{font-size:10px;font-weight:800;letter-spacing:1.4px;padding:3px 7px;border-radius:999px;
+    color:#0b0a18;background:linear-gradient(135deg,var(--a2),#7ef7c8)}
+  .addr{flex:1 1 auto;display:flex;align-items:center;gap:8px;min-width:120px;height:42px;padding:0 8px 0 14px;
+    border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.045);transition:border-color .2s,box-shadow .2s}
+  .addr:focus-within{border-color:rgba(70,217,255,.55);box-shadow:0 0 0 4px rgba(70,217,255,.12)}
+  .addr .lock{font-size:12px;opacity:.55}
+  .addr input{flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px;padding:0}
+  .addr button{padding:7px 13px;border-radius:10px;font-size:13px;font-weight:700;
+    background:linear-gradient(135deg,var(--a1),var(--a2));color:#0b0a20}
+  .actions{display:flex;gap:6px;flex:0 0 auto}
+  .actions button{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+    font-size:15px;transition:background .18s,transform .18s}
+  .actions button:hover{background:rgba(255,255,255,.1);transform:translateY(-1px)}
+
+  /* ---------- hero ---------- */
+  .stage{flex:1;min-height:0;overflow:auto;display:flex}
+  .hero{margin:auto;padding:clamp(20px,6vh,70px) clamp(18px,5vw,40px) 40px;width:min(880px,100%);text-align:center}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:2.6px;font-weight:800;
+    color:#cfd7ef;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.04)}
+  .eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--a2);box-shadow:0 0 10px var(--a2);font-style:normal}
+  h1{margin:20px 0 10px;font-size:clamp(38px,7vw,74px);line-height:.98;letter-spacing:-2.4px;font-weight:800}
+  h1 span{background:linear-gradient(100deg,var(--a1) 8%,var(--a2) 52%,var(--a3) 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .tag{margin:0 auto;max-width:520px;color:var(--muted);font-size:15px;line-height:1.65}
+
+  .finder{position:relative;display:flex;align-items:center;gap:10px;margin:30px auto 0;width:min(680px,100%);
+    padding:8px 8px 8px 20px;border-radius:22px;border:1px solid rgba(255,255,255,.12);
+    background:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.035));
+    backdrop-filter:blur(20px);box-shadow:0 24px 70px rgba(6,8,20,.6),inset 0 1px rgba(255,255,255,.14);
+    transition:border-color .25s,box-shadow .25s,transform .25s}
+  .finder:focus-within{border-color:rgba(139,123,255,.6);transform:translateY(-2px);
+    box-shadow:0 26px 80px rgba(96,80,255,.34),0 0 0 4px rgba(139,123,255,.13),inset 0 1px rgba(255,255,255,.18)}
+  .finder .magnifier{font-size:18px;opacity:.6}
+  .finder input{flex:1;min-width:0;height:46px;border:0;background:none;outline:none;font-size:16px}
+  .finder input::placeholder{color:#7c86a6}
+  .finder button{display:flex;align-items:center;gap:8px;height:46px;padding:0 20px;border-radius:16px;
+    font-weight:800;font-size:14px;color:#0a0918;background:linear-gradient(135deg,var(--a1),var(--a2));
+    box-shadow:0 12px 30px rgba(96,120,255,.4);transition:transform .18s,filter .18s}
+  .finder button:hover{transform:translateY(-1px);filter:brightness(1.07)}
+  kbd{font:inherit;font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(8,8,20,.28);color:#0a0918}
+
+  .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin:22px auto 0;max-width:660px}
+  .chips button{padding:9px 15px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.035);
+    color:#c9d2ea;font-size:13px;font-weight:600;transition:background .18s,color .18s,transform .18s,border-color .18s}
+  .chips button:hover{background:rgba(255,255,255,.1);color:#fff;transform:translateY(-2px);border-color:rgba(139,123,255,.45)}
+
+  .meta{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 18px;margin-top:26px;
+    font-size:12px;color:#8d98b8}
+  .meta code{font-size:11.5px;padding:3px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:#b9c4e0}
+  .dot{display:inline-flex;align-items:center;gap:7px}
+  .dot::before{content:"";width:7px;height:7px;border-radius:50%;background:#54e6a2;box-shadow:0 0 9px #54e6a2}
+
+  /* ---------- viewport ---------- */
+  .view{flex:1;min-height:0;display:none;flex-direction:column;padding:0 clamp(8px,1.6vw,16px) 10px}
+  .view.on{display:flex}
+  .viewbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 6px;font-size:12px;color:var(--muted)}
+  .viewbar b{color:#dfe5f8;font-weight:700;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #frame{flex:1;width:100%;border:1px solid var(--line);border-radius:16px;background:#0a0d18;
+    box-shadow:0 30px 90px rgba(4,6,16,.75)}
+  .err{margin:10px 6px 0;padding:12px 15px;border-radius:13px;font-size:13px;line-height:1.55;
+    color:#ffd7e6;border:1px solid rgba(255,112,184,.4);background:rgba(255,112,184,.12);display:none}
+  .err.on{display:block}
+  .foot{display:flex;flex-wrap:wrap;gap:8px 18px;padding:9px clamp(14px,2.4vw,26px);font-size:11.5px;color:#77829f;
+    border-top:1px solid var(--line);background:rgba(8,10,22,.5);backdrop-filter:blur(12px)}
+  .foot a{color:#9fb0d6;text-decoration:none}
+  .foot a:hover{color:#fff}
+
+  @media (max-width:760px){
+    .brand b,.pill{display:none}
+    h1{letter-spacing:-1.4px}
+    .actions button:nth-child(-n+2){display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .glow{animation:none}
+    *{transition:none!important}
+  }
+</style>
+</head>
+<body>
+<canvas id="field" aria-hidden="true"></canvas>
+<div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+<div class="vignette"></div>
+
+<div class="app">
+  <header class="bar">
+    <a class="brand" href="./index.html" title="Back to the library">
+      <span class="mark">✦</span>
+      <b>Seuss<span>Search</span></b>
+      <span class="pill">V2</span>
+    </a>
+    <form class="addr" id="addrForm" autocomplete="off">
+      <span class="lock" aria-hidden="true">🔒</span>
+      <input id="addr" name="addr" aria-label="Address" placeholder="Search the web or paste a URL…" spellcheck="false">
+      <button type="submit">Go</button>
+    </form>
+    <div class="actions">
+      <button type="button" id="back" title="Back" aria-label="Back">←</button>
+      <button type="button" id="forward" title="Forward" aria-label="Forward">→</button>
+      <button type="button" id="reload" title="Reload page" aria-label="Reload">↻</button>
+      <button type="button" id="home" title="New search" aria-label="New search">⌂</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <section class="hero" id="hero">
+      <div class="eyebrow"><i></i>RENDER RELAY · UNRESTRICTED WEB</div>
+      <h1>Seuss <span>Search</span></h1>
+      <p class="tag">Search anywhere and browse the open web through your own relay. Pages render in this window — the tab stays on your site.</p>
+      <form class="finder" id="searchForm" autocomplete="off">
+        <span class="magnifier" aria-hidden="true">⌕</span>
+        <input id="q" name="q" aria-label="Search the web or enter a URL" placeholder="Search the web, or type a URL…" spellcheck="false" autofocus>
+        <button type="submit">Search <kbd>↵</kbd></button>
+      </form>
+      <div class="chips" id="chips">
+        <button type="button" data-go="wikipedia.org">Wikipedia</button>
+        <button type="button" data-go="github.com">GitHub</button>
+        <button type="button" data-go="news.ycombinator.com">Hacker News</button>
+        <button type="button" data-go="reddit.com">Reddit</button>
+        <button type="button" data-go="youtube.com">YouTube</button>
+        <button type="button" data-go="archive.org">Internet Archive</button>
+        <button type="button" data-go="weather.gov">Weather</button>
+      </div>
+      <div class="meta">
+        <span class="dot">Relay ready</span>
+        <span>Searches run on Bing</span>
+        <code id="endpoint">wss://seuss-cinema-arcade.onrender.com/wisp/</code>
+      </div>
+    </section>
+
+    <section class="view" id="view">
+      <div class="viewbar"><b id="viewTitle">Page</b><span id="viewStage">Connecting…</span></div>
+      <div class="err" id="err" role="alert"></div>
+      <iframe id="frame" title="Seuss Search viewport"
+        allow="clipboard-write; autoplay; fullscreen; gamepad; encrypted-media"
+        allowfullscreen referrerpolicy="no-referrer"
+        sandbox="allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-modals allow-downloads"></iframe>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <span>Private relay · pages load through your own relay, not a direct link.</span>
+    <a href="./index.html">← Library</a>
+    <span>No DRM, logins or paid content is bypassed.</span>
+  </footer>
+</div>
+
+<script type="module">
+import { browse, resolveTarget, relayEndpoint } from "./search-client.js";
+
+const $ = id => document.getElementById(id);
+const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");
+const addr = $("addr"), q = $("q"), viewTitle = $("viewTitle"), viewStage = $("viewStage");
+$("endpoint").textContent = relayEndpoint;
+
+function showError(message) {
+  err.textContent = message;
+  err.classList.add("on");
+}
+function clearError() {
+  err.textContent = "";
+  err.classList.remove("on");
+}
+
+async function open(raw) {
+  let target;
+  try {
+    target = resolveTarget(raw);
+  } catch (error) {
+    showError(error.message);
+    return;
+  }
+  clearError();
+  hero.style.display = "none";
+  view.classList.add("on");
+  addr.value = target.href;
+  q.value = raw;
+  viewTitle.textContent = target.hostname + (target.pathname === "/" ? "" : target.pathname);
+  viewStage.textContent = "Connecting to the relay…";
+  try {
+    await browse(frame, target.href, stage => { viewStage.textContent = stage; });
+    viewStage.textContent = "Loaded";
+  } catch (error) {
+    console.error(error);
+    viewStage.textContent = "Failed";
+    showError("Could not open " + target.hostname + ": " + (error?.message || error) +
+      " — the relay may still be waking up. Try again in a moment.");
+  }
+}
+
+$("searchForm").addEventListener("submit", event => {
+  event.preventDefault();
+  if (q.value.trim()) open(q.value);
+});
+$("addrForm").addEventListener("submit", event => {
+  event.preventDefault();
+  if (addr.value.trim()) open(addr.value);
+});
+$("chips").addEventListener("click", event => {
+  const button = event.target.closest("button[data-go]");
+  if (button) open(button.dataset.go);
+});
+$("home").addEventListener("click", () => {
+  hero.style.display = "";
+  view.classList.remove("on");
+  clearError();
+  q.focus();
+});
+$("reload").addEventListener("click", () => {
+  if (!view.classList.contains("on")) return;
+  try { frame.contentWindow.location.reload(); }
+  catch { if (addr.value) open(addr.value); }
+});
+$("back").addEventListener("click", () => { try { frame.contentWindow.history.back(); } catch {} });
+$("forward").addEventListener("click", () => { try { frame.contentWindow.history.forward(); } catch {} });
+
+addEventListener("keydown", event => {
+  if (event.key === "/" && document.activeElement !== q && document.activeElement !== addr) {
+    event.preventDefault();
+    (view.classList.contains("on") ? addr : q).focus();
+  }
+  if (event.key === "Escape") {
+    if (view.classList.contains("on")) $("home").click();
+    else document.activeElement?.blur();
+  }
+});
+
+const params = new URLSearchParams(location.search);
+const initial = params.get("q") || params.get("url");
+if (initial) open(initial);
+
+/* ---------------- interactive particle field ---------------- */
+(() => {
+  const canvas = document.getElementById("field");
+  const ctx = canvas.getContext("2d", { alpha: true });
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let width = 0, height = 0, dpr = 1, dots = [], pointer = { x: -9999, y: -9999, on: false }, bursts = [], raf = 0;
+
+  function size() {
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    width = innerWidth; height = innerHeight;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    seed();
+  }
+  function seed() {
+    const count = Math.max(40, Math.min(120, Math.round((width * height) / 16000)));
+    dots = Array.from({ length: count }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.26,
+      vy: (Math.random() - 0.5) * 0.26,
+      r: Math.random() * 1.6 + 0.6,
+      tint: Math.random()
+    }));
+  }
+  function paint() {
+    ctx.clearRect(0, 0, width, height);
+    for (const dot of dots) {
+      // Pointer pushes nearby dots away, giving the field a magnetic feel.
+      if (pointer.on) {
+        const dx = dot.x - pointer.x, dy = dot.y - pointer.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < 170 && distance > 0.01) {
+          const force = (1 - distance / 170) * 0.85;
+          dot.vx += (dx / distance) * force * 0.5;
+          dot.vy += (dy / distance) * force * 0.5;
+        }
+      }
+      dot.vx *= 0.986; dot.vy *= 0.986;
+      dot.x += dot.vx; dot.y += dot.vy;
+      if (dot.x < -20) dot.x = width + 20; else if (dot.x > width + 20) dot.x = -20;
+      if (dot.y < -20) dot.y = height + 20; else if (dot.y > height + 20) dot.y = -20;
+    }
+    // Constellation lines between close dots.
+    for (let i = 0; i < dots.length; i++) {
+      const a = dots[i];
+      for (let j = i + 1; j < dots.length; j++) {
+        const b = dots[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance > 132) continue;
+        const alpha = (1 - distance / 132) * 0.28;
+        ctx.strokeStyle = `hsla(${200 + a.tint * 90}, 90%, 74%, ${alpha})`;
+        ctx.lineWidth = 0.7;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      ctx.fillStyle = `hsla(${198 + a.tint * 96}, 95%, 78%, ${0.35 + a.tint * 0.4})`;
+      ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2); ctx.fill();
+    }
+    // Click ripples.
+    bursts = bursts.filter(burst => {
+      burst.life -= 0.016;
+      if (burst.life <= 0) return false;
+      const radius = (1 - burst.life) * 260;
+      ctx.strokeStyle = `hsla(${210 + burst.tint * 80}, 95%, 76%, ${burst.life * 0.55})`;
+      ctx.lineWidth = 1.6 * burst.life;
+      ctx.beginPath(); ctx.arc(burst.x, burst.y, radius, 0, Math.PI * 2); ctx.stroke();
+      return true;
+    });
+    raf = requestAnimationFrame(paint);
+  }
+
+  addEventListener("resize", size);
+  addEventListener("pointermove", event => {
+    pointer.x = event.clientX; pointer.y = event.clientY; pointer.on = true;
+  }, { passive: true });
+  addEventListener("pointerleave", () => { pointer.on = false; });
+  addEventListener("pointerdown", event => {
+    bursts.push({ x: event.clientX, y: event.clientY, life: 1, tint: Math.random() });
+  }, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (reduce) return;
+    if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+    else if (!raf) raf = requestAnimationFrame(paint);
+  });
+
+  size();
+  if (reduce) { paint(); cancelAnimationFrame(raf); raf = 0; }
+  else raf = requestAnimationFrame(paint);
+})();
+</script>
+</body>
+</html>

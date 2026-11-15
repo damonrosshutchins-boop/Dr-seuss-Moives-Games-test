@@ -11,16 +11,21 @@ const require=createRequire(import.meta.url);
 const dirOf=(pkg)=>path.dirname(require.resolve(pkg));
 const app=express();
 const allowedOrigin=new Set(["https://damonrosshutchins-boop.github.io",...(process.env.ALLOWED_ORIGINS||"").split(",").map(x=>x.trim()).filter(Boolean)]);
-// Exact ShuttleTV dependency observed in Wisp logs; no wildcard third-party host access.
-wisp.options.hostname_whitelist=[/^mclegacy\.pages\.dev$/i,/^game\.azgame\.io$/i,/^nostaligafun\.pages\.dev$/i,/^toby\.booksforschool\.online$/i,/^wasm\.rip$/i,/^([a-z0-9-]+\.)+wasm\.rip$/i,/^shuttletv\.pk$/i,/^api\.themoviedb\.org$/i,/^image\.tmdb\.org$/i,/^cinesrc\.st$/i,/^a\.cineflix\.st$/i,/^a2\.cineflix\.st$/i,/^([a-z0-9-]+\.)+shuttletv\.pk$/i,/^raw\.githack\.com$/i,/^cdn\.jsdelivr\.net$/i,/^ripjaw1219\.github\.io$/i,/^monoxide\.dev$/i,/^c00lkiddtech\.github\.io$/i,/^linkawaken1979-alt\.github\.io$/i,/^mollomm1\.github\.io$/i,/^sagaofowlz\.github\.io$/i];
-wisp.options.port_whitelist=[80,443];
-wisp.options.allow_udp_streams=false;
+// Seuss Search v2 runs over an unrestricted public-web relay: any hostname,
+// any port, TCP and UDP. wisp-js checks the whitelist with a truthiness test,
+// so `null` is the only value that disables it - an empty array blocks all.
+wisp.options.hostname_whitelist=null;
+wisp.options.port_whitelist=null;
+wisp.options.allow_udp_streams=true;
 wisp.options.allow_tcp_streams=true;
-wisp.options.allow_direct_ip=false;
-wisp.options.allow_private_ips=false;
-wisp.options.allow_loopback_ips=false;
+wisp.options.allow_direct_ip=true;
+// Private, loopback and reserved ranges stay blocked so this open relay cannot
+// be used to probe Render's own network or a self-hoster's LAN. Opt in with
+// WISP_ALLOW_PRIVATE_IPS=1 / WISP_ALLOW_LOOPBACK_IPS=1 if that is really wanted.
+wisp.options.allow_private_ips=process.env.WISP_ALLOW_PRIVATE_IPS==="1";
+wisp.options.allow_loopback_ips=process.env.WISP_ALLOW_LOOPBACK_IPS==="1";
 // Avoid wisp-js 0.4.1 stream-limit bug (connection.streams not iterable).
-// Keep the destination allowlist, network restrictions, and origin checks.
+// Browser Origins are still verified before the relay accepts a socket.
 app.use((req,res,next)=>{
  res.setHeader("Cross-Origin-Opener-Policy","same-origin");
  // Credentialless allows public cross-origin assets while keeping Wisp Origin checks separate.
@@ -33,7 +38,7 @@ app.use((req,res,next)=>{
  }
  next();
 });
-app.get("/health",(req,res)=>res.json({ok:true,service:"seuss-cinema-scramjet-wisp",restricted:true,coep:"credentialless",relayOriginPolicy:"allowlist"}));
+app.get("/health",(req,res)=>res.json({ok:true,service:"seuss-cinema-scramjet-wisp",restricted:false,coep:"credentialless",relayOriginPolicy:"any-public-host",privateRanges:"blocked",search:true}));
 
 // Two pinned, path-restricted approved game resource routes. This is NOT a
 // general-purpose HTTP proxy: client-supplied hostnames, URLs and redirects
@@ -1213,7 +1218,7 @@ app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controlle
 app.use("/libcurl/",express.static(dirOf("@mercuryworkshop/libcurl-transport")));
 app.use("/epoxy/",express.static(dirOf("@mercuryworkshop/epoxy-transport")));
 // Publish only the frontend entrypoints, not server source or configuration files.
-for (const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css"]) {
+for (const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","seuss-search.html","search-client.js"]) {
  const route=file==="index.html"?"/":"/"+file;
  app.get(route,(req,res)=>res.sendFile(path.join(process.cwd(),file),{
   headers:{"Cache-Control":file==="index.html"?"no-cache":"no-store"}

@@ -182,3 +182,26 @@ Until that secret exists the job fails with an explicit
 an undeployed proxy route is the failure this job prevents. The hook only starts
 a Render build; `/approved-games/.../status` on the live service remains the way
 to confirm the new routes are actually serving.
+
+## Seuss Search v2
+
+`seuss-search.html` and `search-client.js` are a search-driven browser on the same
+Scramjet runtime as the player, but with no destination allowlist: they open any
+http(s) page the relay can reach. Queries go to Bing (`https://www.bing.com/search?q=`), which renders through the
+relay; DuckDuckGo and Mojeek both answer proxied traffic with a block page. Anything
+that looks like a host opens directly. The page is published by the Pages build, served by `server.mjs` at
+`/seuss-search.html`, and linked from the library sidebar.
+
+Relay policy in `server.mjs`:
+
+- `hostname_whitelist=null` and `port_whitelist=null`: any public host, any port.
+  wisp-js tests these for truthiness, so an empty array blocks everything.
+- TCP and UDP streams and direct-IP destinations are allowed.
+- Private, loopback and reserved ranges stay blocked, so an open relay cannot be
+  used to reach Render's internal network or a self-hoster's LAN. Opt in with
+  `WISP_ALLOW_PRIVATE_IPS=1` (and/or `WISP_ALLOW_LOOPBACK_IPS=1`).
+- Browsers are still Origin-checked before the `/wisp/` socket is accepted.
+- `/health` reports `restricted:false` and `relayOriginPolicy:"any-public-host"`.
+
+An open relay spends the service's bandwidth for whoever knows the URL; the Render
+plan limits are the practical ceiling.
