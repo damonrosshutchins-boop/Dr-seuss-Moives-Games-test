@@ -66,12 +66,49 @@ export function relayHttpOrigin() {
   try { return new URL(endpoint.replace(/^ws/, "http")).origin; } catch { return location.origin; }
 }
 
-export function relayLabel() {
-  const host = relayHost();
+export function relayLabelOf(url) {
+  let host;
+  try { host = new URL(url.replace(/^ws/, "http")).hostname; } catch { host = location.hostname; }
   if (host.endsWith("onrender.com")) return "Render";
   if (host.endsWith("workers.dev")) return "Cloudflare";
   if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(host)) return "Local";
   return host;
+}
+
+export function relayLabel() { return relayLabelOf(endpoint); }
+
+// Every relay this browser has configured, so Render and Cloudflare can be
+// compared side by side instead of only seeing the one currently selected.
+export function relayCandidates() {
+  const relay = readRelay();
+  const list = [{ key: "render", name: "Render", endpoint: RENDER_ENDPOINT }];
+  if (relay.cloudflare) list.push({ key: "cloudflare", name: "Cloudflare", endpoint: relay.cloudflare });
+  if (relay.custom) list.push({ key: "custom", name: relayLabelOf(relay.custom), endpoint: relay.custom });
+  if (onLoopback) list.push({ key: "local", name: "Local", endpoint: loopbackEndpoint });
+  const seen = new Set();
+  return list
+    .filter(item => (seen.has(item.endpoint) ? false : seen.add(item.endpoint)))
+    .map(item => ({ ...item, active: item.endpoint === endpoint }));
+}
+
+async function medianPing(url, pings) {
+  const samples = [];
+  for (let i = 0; i < pings; i++) {
+    const sample = await pingRelay(url, 6000);
+    if (sample !== null) samples.push(sample);
+    if (i + 1 < pings) await new Promise(resolve => setTimeout(resolve, 120));
+  }
+  samples.sort((a, b) => a - b);
+  return samples.length ? samples[Math.floor(samples.length / 2)] : null;
+}
+
+// Latency for every configured relay at once, so the Cloudflare figure is
+// available even when Render is the relay in use.
+export async function measureRelayPings(pings = 2) {
+  return Promise.all(relayCandidates().map(async target => ({
+    ...target,
+    ping: await medianPing(target.endpoint, pings)
+  })));
 }
 
 function pingRelay(url, limit) {
@@ -98,14 +135,7 @@ function pingRelay(url, limit) {
 // ping=null means the relay never answered; ping=0 samples are dropped. mbps is
 // null when the payload could not be fetched (no /speedtest, blocked CORS).
 export async function measureRelaySpeed({ pings = 3, bytes = 1200000 } = {}) {
-  const samples = [];
-  for (let i = 0; i < pings; i++) {
-    const sample = await pingRelay(endpoint, 6000);
-    if (sample !== null) samples.push(sample);
-    if (i + 1 < pings) await new Promise(resolve => setTimeout(resolve, 120));
-  }
-  samples.sort((a, b) => a - b);
-  const ping = samples.length ? samples[Math.floor(samples.length / 2)] : null;
+  const ping = await medianPing(endpoint, pings);
   let mbps = null;
   if (bytes > 0) {
     try {

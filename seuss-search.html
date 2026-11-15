@@ -92,6 +92,12 @@
   .speed::before{content:"";width:7px;height:7px;border-radius:50%;background:#fff}
   .speed[data-quality="slow"]::before{background:#8a8a8a;box-shadow:none}
   .speed[data-quality="down"]::before{background:transparent;border:1px solid #8a8a8a}
+  .rows{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
+  .rows .row{display:flex;justify-content:space-between;gap:12px;font-size:11.5px;color:#b8b8b8;
+    padding:7px 10px;border:1px solid var(--line-soft);border-radius:9px;background:rgba(255,255,255,.02)}
+  .rows .row b{font-weight:600;color:#fff}
+  .rows .row[data-state="down"]{color:#7c7c7c;border-style:dashed}
+  .rows .row[data-state="down"] b{color:#9a9a9a}
 
   /* ---------- viewport ---------- */
   .view{flex:1;min-height:0;display:none;flex-direction:column;padding:0 clamp(8px,1.6vw,16px) 10px}
@@ -191,6 +197,7 @@
       <div class="meta">
         <span class="dot">Relay ready</span>
         <button type="button" class="speed" id="relaySpeed" title="Test this relay's connection speed">Testing relay…</button>
+        <button type="button" class="speed" id="cfSpeed" title="Cloudflare relay latency">Cloudflare · checking…</button>
         <span>Searches run on Bing</span>
         <code id="endpoint">wss://seuss-cinema-arcade.onrender.com/wisp/</code>
       </div>
@@ -250,6 +257,7 @@
 
     <section>
       <h3>CONNECTION SPEED</h3>
+      <div class="rows" id="speedRows"><span class="row"><span>Relays</span><b>measuring…</b></span></div>
       <p class="hint" id="speedDetail">Measuring the relay in use…</p>
       <div class="opts"><button type="button" id="speedTest">Test again</button></div>
     </section>
@@ -262,7 +270,7 @@
 </div>
 
 <script type="module">
-import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay, relayLabel, measureRelaySpeed } from "./search-client.js";
+import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings } from "./search-client.js";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");
@@ -271,7 +279,7 @@ $("endpoint").textContent = relayEndpoint;
 $("currentRelay").textContent = relayEndpoint;
 
 // Relay connection speed: ping on every check, throughput on load and on click.
-const speedBtn = $("relaySpeed"), speedDetail = $("speedDetail");
+const speedBtn = $("relaySpeed"), cfBtn = $("cfSpeed"), speedDetail = $("speedDetail"), speedRows = $("speedRows");
 let lastSpeed;
 function speedText(result) {
   if (!result || result.ping === null) {
@@ -291,19 +299,65 @@ function speedText(result) {
       ". " + verdict + " Reply measured on the tunnel WebSocket; throughput from /speedtest."
   };
 }
-async function testSpeed(full) {
-  speedBtn.disabled = true;
-  speedBtn.textContent = relayLabel() + " · testing…";
-  const result = await measureRelaySpeed({ bytes: full ? 1200000 : 0 });
-  if (!full && lastSpeed) result.mbps = lastSpeed.mbps;
-  lastSpeed = result;
-  const text = speedText(result);
+function qualityOf(ping) {
+  if (ping === null) return "down";
+  return ping < 120 ? "fast" : ping < 300 ? "ok" : "slow";
+}
+
+// Draws both pills and the side-by-side relay table: the active relay keeps the
+// throughput figure, every other configured relay still reports its ping.
+function renderSpeed(active, rows) {
+  const text = speedText(active);
   speedBtn.dataset.quality = text.quality;
   speedBtn.textContent = text.pill;
   speedDetail.textContent = text.detail;
+
+  const cloudflare = rows.find(row => row.key === "cloudflare");
+  cfBtn.dataset.quality = qualityOf(cloudflare ? cloudflare.ping : null);
+  cfBtn.textContent = !cloudflare
+    ? "Cloudflare · no URL"
+    : "Cloudflare · " + (cloudflare.ping === null ? "unreachable" : cloudflare.ping + " ms") + (cloudflare.active ? " · in use" : "");
+  cfBtn.title = cloudflare
+    ? (cloudflare.active ? "Cloudflare is the relay in use" : "Cloudflare relay — click to test again")
+    : "Paste your Cloudflare relay URL in Settings to measure it";
+
+  speedRows.textContent = "";
+  const listed = cloudflare ? rows : rows.concat([{ key: "cloudflare", name: "Cloudflare", ping: null, active: false }]);
+  for (const row of listed) {
+    const unset = !cloudflare && row.key === "cloudflare";
+    const line = document.createElement("span");
+    line.className = "row";
+    line.dataset.state = unset || row.ping === null ? "down" : "up";
+    const name = document.createElement("span");
+    name.textContent = unset ? "Cloudflare · no URL" : row.name + (row.active ? " · in use" : "");
+    const value = document.createElement("b");
+    const ping = row.active && active && active.ping !== null ? active.ping : row.ping;
+    if (unset) value.textContent = "not configured";
+    else value.textContent = ping === null
+      ? "unreachable"
+      : ping + " ms" + (row.active && active && active.mbps ? " · " + active.mbps.toFixed(1) + " Mbps" : "");
+    line.append(name, value);
+    speedRows.append(line);
+  }
+}
+
+async function testSpeed(full) {
+  speedBtn.disabled = true;
+  cfBtn.disabled = true;
+  speedBtn.textContent = relayLabel() + " · testing…";
+  cfBtn.textContent = "Cloudflare · testing…";
+  const [result, rows] = await Promise.all([
+    measureRelaySpeed({ bytes: full ? 1200000 : 0 }),
+    measureRelayPings()
+  ]);
+  if (!full && lastSpeed) result.mbps = lastSpeed.mbps;
+  lastSpeed = result;
+  renderSpeed(result, rows);
   speedBtn.disabled = false;
+  cfBtn.disabled = false;
 }
 speedBtn.addEventListener("click", () => testSpeed(true));
+cfBtn.addEventListener("click", () => testSpeed(true));
 if ($("speedTest")) $("speedTest").addEventListener("click", () => testSpeed(true));
 testSpeed(true);
 setInterval(() => testSpeed(false), 60000);
