@@ -98,9 +98,11 @@ Successful deployment verifies the routes, not gameplay or compatibility.
 
 ## Gamble With Your Friends (camzzz solo web port)
 
-The Arcade card opens `games/gamble-with-your-friends/index.html`, which probes the
-fixed Render route and then navigates in the same browser tab to
-`/approved-games/gamble-with-your-friends/index.html` on Render. The game is a
+The Arcade card opens `games/gamble-with-your-friends/index.html` in the in-site
+player, so the browser stays on this website. The Pages build publishes an ~8 KB
+entry page whose loader, framework, addressables and all 69 split parts are
+absolute URLs on the fixed Render route; the bytes come from Render while the
+page itself stays on the Pages origin. The game is a
 Unity WebGL build of about 1.2 GB, committed upstream as 69 fixed parts
 (50 `chunks/build.data.partNNN` and 19 `chunks/build.wasm.partNNN`) plus its
 loader, framework, addressables catalog and localization bundles.
@@ -113,10 +115,11 @@ passed through because the parts are large, and
 `/approved-games/gamble-with-your-friends/status` reports whether the source is
 reachable.
 
-None of the game itself is copied into the GitHub Pages artifact: the split
-parts exceed GitHub's per-file and repository limits, so only the launcher page
-is published. Render must be redeployed for the new route to exist on
-`seuss-cinema-arcade.onrender.com`.
+None of the game's own files are copied into the GitHub Pages artifact: the split
+parts exceed GitHub's per-file and repository limits, so only the entry page is
+published. Render must be redeployed for the new route to exist on
+`seuss-cinema-arcade.onrender.com`; the build fails loudly if the upstream entry
+page no longer matches the expected 69-part layout.
 
 ### Local hosting
 

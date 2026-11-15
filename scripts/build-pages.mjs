@@ -100,7 +100,7 @@ for(const slug of ["balatro","cheese"]){
 // Publish the four imported game launchers on GitHub Pages. The browser
 // stays inside the arcade; large game binaries are fetched from pinned
 // approved Render routes rather than copied into the Pages artifact.
-const importedGames=["plants-vs-zombies-ds","mario-kart-64","1v1-lol","fnae","zelda-oot","centipede-arcade","run-2","uwu-client","tomb-of-the-mask","snow-rider-3d","btd6","repo-halloween","garten-of-banban","webcompiled","eaglercraft-26-2","gamble-with-your-friends"];
+const importedGames=["plants-vs-zombies-ds","mario-kart-64","1v1-lol","fnae","zelda-oot","centipede-arcade","run-2","uwu-client","tomb-of-the-mask","snow-rider-3d","btd6","repo-halloween","garten-of-banban","webcompiled","eaglercraft-26-2"];
 for(const slug of importedGames){
   const source=path.join("games",slug,"index.html");
   const destination=path.join(out,"games",slug,"index.html");
@@ -259,6 +259,43 @@ async function addRemoteAssetLauncher(name, ownerRepo, revision, transforms) {
 await addRemoteAssetLauncher("granny3","AlexBoops/granny3rip","a8e59b3d10ff96d54881903a83a4fc9fcc02bf28",[
   ['<base href="./">','<base href="https://cdn.jsdelivr.net/gh/AlexBoops/granny3rip@a8e59b3d10ff96d54881903a83a4fc9fcc02bf28/">']
 ]);
+// Gamble With Your Friends stays on the Pages origin. Only its ~8 KB entry page
+// is published here; the ~1.2 GB of split Unity parts are fetched from the
+// fixed, pinned Render game route, which allows this site's origin by CORS.
+{
+  const gambleCommit="d7b3ac61ce6d2cb98e212dfa01ba0df413539a53";
+  const gambleRoute="https://seuss-cinema-arcade.onrender.com/approved-games/gamble-with-your-friends/";
+  const gambleSource="https://raw.githubusercontent.com/Camzzz-vrgt/gamble-with-your-friends-web/"+
+    gambleCommit+"/game/index.html";
+  const gambleResponse=await fetch(gambleSource);
+  if(!gambleResponse.ok)
+    throw new Error("Gamble With Your Friends entry fetch failed: "+gambleResponse.status);
+  let gambleHTML=await gambleResponse.text();
+  // Unity resolves these against the page URL, not a <base> tag, so every game
+  // URL is made absolute: the page stays on Pages, the bytes come from Render.
+  for(const [find,replacement] of [
+    ['"loaderUrl": "Build/build.loader.js"',
+     '"loaderUrl": "'+gambleRoute+'Build/build.loader.js"'],
+    ['"frameworkUrl": "Build/build.framework.js"',
+     '"frameworkUrl": "'+gambleRoute+'Build/build.framework.js"'],
+    ["streamingAssetsUrl:'StreamingAssets'",
+     "streamingAssetsUrl:'"+gambleRoute+"StreamingAssets/'"],
+    ['src="assets/port-by-camzzz.png"',
+     'src="'+gambleRoute+'assets/port-by-camzzz.png"']
+  ]){
+    if(!gambleHTML.includes(find))
+      throw new Error("Gamble With Your Friends entry changed: "+find.slice(0,60));
+    gambleHTML=gambleHTML.replace(find,replacement);
+  }
+  const gambleParts=(gambleHTML.match(/"chunks\//g)||[]).length;
+  if(gambleParts!==69)
+    throw new Error("Gamble With Your Friends expects 69 split parts, found "+gambleParts);
+  gambleHTML=gambleHTML.split('"chunks/').join('"'+gambleRoute+'chunks/');
+  const gambleOut=path.join(out,"games","gamble-with-your-friends");
+  await fs.mkdir(gambleOut,{recursive:true});
+  await fs.writeFile(path.join(gambleOut,"index.html"),gambleHTML);
+  console.log("Published Gamble With Your Friends entry page; game parts stream from Render.");
+}
 // Half-Life 2 remains source-hosted in an iframe, with no local game asset copy.
 for(const [slug,title,source] of [
   ["half-life-2","Half-Life 2 Web Port","https://alexboops.github.io/half-life-2-port/"]
