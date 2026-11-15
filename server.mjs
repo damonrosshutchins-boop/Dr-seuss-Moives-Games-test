@@ -689,6 +689,78 @@ app.options("/approved-games/uwu-client/index.html",(req,res)=>{
   res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
   res.sendStatus(204);
 });
+// Bloons TD 6: explicitly scoped to this licensed, pinned Unity web build.
+// The upstream's large WebGL files are split into 19 MB pieces; the upstream
+// split-loader verifies sizes and SHA-256 checksums. No user-supplied host,
+// external redirects or paths outside the btd6 source folder are accepted.
+const btd6Commit="9546494b3052e8e078fb28df7430ac35f42a8787";
+const btd6Primary="https://cdn.jsdelivr.net/gh/SomeRandomFella/portsandrips@"+btd6Commit+"/btd6/";
+const btd6Fallback="https://raw.githubusercontent.com/SomeRandomFella/portsandrips/"+btd6Commit+"/btd6/";
+function btd6ApprovedAsset(req){
+  let file;
+  try{file=decodeURIComponent(req.params[0]||"");}catch{return null;}
+  if(!file||file.startsWith("/")||file.includes("//")||!(/^[A-Za-z0-9._/#-]+$/.test(file))||
+     file.split("/").includes("..")||file.split("/").includes("."))return null;
+  if(!(file.startsWith("Build/")||file.startsWith("StreamingAssets/")||
+       file.startsWith("TemplateData/")||file==="split-loader.js"||file==="manifest.json"))
+    return null;
+  // Encode # in the one pinned WebGL asset filename; never turn it into a URL fragment.
+  return file.split("/").map(encodeURIComponent).join("/");
+}
+async function serveBtd6Asset(req,res){
+  if(!approvedGameCors(req,res))return;
+  const file=btd6ApprovedAsset(req);
+  if(!file)return res.status(404).type("text/plain").send("Unapproved Bloons TD 6 file");
+  res.setHeader("Cache-Control","public, max-age=86400, immutable");
+  for(const [index,base] of [btd6Primary,btd6Fallback].entries()){
+    const url=base+file;
+    try{
+      const headers={};
+      if(req.get("Range"))headers.Range=req.get("Range");
+      const source=await fetch(url,{redirect:"error",headers,
+        method:req.method==="HEAD"?"HEAD":"GET",
+        signal:AbortSignal.timeout(120000)});
+      if(!source.ok){
+        await source.body?.cancel();
+        if(index===0)continue;
+        return res.status(502).type("text/plain").send("Pinned Bloons TD 6 asset unavailable ("+source.status+")");
+      }
+      const p=file.toLowerCase();
+      const mime=p.endsWith(".js")?"application/javascript; charset=utf-8":
+        p.endsWith(".json")?"application/json; charset=utf-8":
+        p.endsWith(".wasm")?"application/wasm":
+        p.endsWith(".css")?"text/css; charset=utf-8":
+        p.endsWith(".png")?"image/png":
+        p.endsWith(".jpg")||p.endsWith(".jpeg")?"image/jpeg":
+        p.endsWith(".gif")?"image/gif":
+        p.endsWith(".ico")?"image/x-icon":
+        p.endsWith(".xml")?"application/xml; charset=utf-8":
+        "application/octet-stream";
+      res.status(source.status);
+      res.setHeader("Content-Type",mime);
+      if(source.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",source.headers.get("accept-ranges"));
+      if(source.headers.get("content-range"))res.setHeader("Content-Range",source.headers.get("content-range"));
+      // Node fetch may transparently decompress responses. Do not forward
+      // Content-Encoding or Content-Length from the upstream transfer.
+      if(req.method==="HEAD"||!source.body){res.end();return;}
+      await pipeline(Readable.fromWeb(source.body),res);
+      return;
+    }catch(error){
+      console.warn("Bloons TD 6 pinned asset error:",index?"GitHub raw":"jsDelivr",String(error));
+      if(res.headersSent){res.destroy();return;}
+      if(index===1)return res.status(502).type("text/plain").send("Approved Bloons TD 6 asset hosts unavailable");
+    }
+  }
+}
+app.get("/approved-assets/btd6/*",serveBtd6Asset);
+app.head("/approved-assets/btd6/*",serveBtd6Asset);
+app.options("/approved-assets/btd6/*",(req,res)=>{
+  if(!approvedGameCors(req,res))return;
+  if(!btd6ApprovedAsset(req))return res.sendStatus(404);
+  res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
+  res.sendStatus(204);
+});
 app.get("/approved-assets/imported/*",importedHandler);
 app.head("/approved-assets/imported/*",importedHandler);
 app.options("/approved-assets/imported/*",(req,res)=>{
