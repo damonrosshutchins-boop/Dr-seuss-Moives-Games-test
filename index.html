@@ -110,6 +110,13 @@ document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{document.qu
 // A fresh iframe per session ensures Unity/Godot/WebAssembly apps are unloaded
 // when the player closes. Session IDs invalidate pending async navigation.
 let playerSession=0;
+function finishPlayerLoading(session,status='Game opened'){
+  if(session!==playerSession||$('viewer').classList.contains('hidden'))return;
+  // Loading UI belongs to the page shell; don't leave a completed loading
+  // message or indeterminate progress bar above a playable game.
+  $('playerProgress').classList.add('hidden');
+  $('viewerStatus').textContent=status;
+}
 function updatePlayerProgress(label,percent=null){
   const msg=String(label||'Loading…').slice(0,150);
   $('progressLabel').textContent=msg;
@@ -134,7 +141,16 @@ window.addEventListener('message',event=>{
   const data=event.data;
   if(!data||data.type!=='seuss-arcade-progress'||typeof data.stage!=='string')return;
   $('frame').dataset.progressReceived='yes';
-  updatePlayerProgress(data.stage,data.percent);
+  // Game launchers that report real Unity/emulator progress close the shell's
+  // loading indicator when they signal 100% or a ready/running state.
+  const completed=(typeof data.percent==='number'&&Number.isFinite(data.percent)&&data.percent>=100)||
+    (/\b(?:ready|initialized|running|loaded|complete|completed)\b/i.test(data.stage) &&
+     !/\b(?:loading|downloading|initializing|starting)\b/i.test(data.stage));
+  if(completed){
+    finishPlayerLoading(playerSession,'Game ready');
+    return;
+  }
+  if(!$('playerProgress').classList.contains('hidden'))updatePlayerProgress(data.stage,data.percent);
   $('viewerStatus').textContent=data.stage;
 });
 // A local game may request a same-site top-level launch as a graphics
@@ -197,6 +213,7 @@ function closePlayer(){
   $('viewer').classList.add('hidden');
   $('viewerStatus').textContent='Ready';
   updatePlayerProgress('Ready',0);
+  $('playerProgress').classList.add('hidden');
   $('viewerAlert').classList.add('hidden');
   $('explore').focus();
 }
@@ -216,6 +233,7 @@ async function openItem(x){
   const frame=resetPlayerFrame();
   $('viewerTitle').textContent=x.name;
   $('viewerStatus').textContent=x.local?'Preparing local game…':'Starting Scramjet over Wisp…';
+  $('playerProgress').classList.remove('hidden');
   updatePlayerProgress(x.local?'Opening game page…':'Connecting through Render…');
   $('viewerAlert').classList.add('hidden');
   $('viewer').classList.remove('hidden');
@@ -228,14 +246,32 @@ async function openItem(x){
       if(session!==playerSession)return;
       if(!response.ok)throw Error('Local game assets missing ('+response.status+')');
       $('viewerStatus').textContent='Loading local game assets…';
+      frame.addEventListener('load',()=>{
+        if(session!==playerSession)return;
+        // Most imported games handle Unity/WASM startup in their own page.
+        // If they don't send progress reports, the iframe load event is the
+        // only universal signal: remove the shell banner and let the game's
+        // built-in loading UI continue inside the iframe.
+        if(!frame.dataset.progressReceived||
+          ['uwu-client','eaglercraft-26-2'].includes(x.id)){
+          finishPlayerLoading(session,'Game opened');
+        }
+      },{once:true});
       frame.src=path.href;
-      frame.addEventListener('load',()=>{if(session===playerSession&&!frame.dataset.progressReceived){updatePlayerProgress('Game page loaded; waiting for game…');$('viewerStatus').textContent='Game page loaded';}},{once:true});
       return;
     }
     const {openProxied}=await import('./proxy-client.js');
     if(session!==playerSession)return;
+    frame.addEventListener('load',()=>{
+      if(session!==playerSession)return;
+      // Ignore the initial empty iframe, if the proxy worker fires a load
+      // before navigation. A real loaded page can dismiss the shell banner.
+      if(!frame.getAttribute('src')||frame.getAttribute('src')==='about:blank')return;
+      finishPlayerLoading(session,'Game opened');
+    });
     await openProxied(frame,x.url,stage=>{if(session===playerSession)$('viewerStatus').textContent=stage});
-    if(session===playerSession)$('viewerStatus').textContent='Player started · loading content';
+    if(session===playerSession && !$('playerProgress').classList.contains('hidden'))
+      $('viewerStatus').textContent='Player started · loading content';
   }catch(err){
     if(session!==playerSession)return;
     $('viewerStatus').textContent='Unable to load game';
