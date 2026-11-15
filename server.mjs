@@ -839,6 +839,66 @@ app.options("/approved-assets/btd6/*",(req,res)=>{
   res.sendStatus(204);
 });
 
+// Garten of Banban browser port. Every allowed file is present in this
+// immutable GitHub tree. No arbitrary URL, host, or upstream path is accepted.
+const gartenCommit="a82c94ea3e9a2f2cbc2e1d925007947134b4f156";
+const gartenFiles=new Set(["game/clay/content/paks/clay-windows.pak.0","game/clay/content/paks/clay-windows.pak.1","game/clay/content/paks/clay-windows.ucas.0","game/clay/content/paks/clay-windows.ucas.1","game/clay/content/paks/clay-windows.ucas.10","game/clay/content/paks/clay-windows.ucas.11","game/clay/content/paks/clay-windows.ucas.12","game/clay/content/paks/clay-windows.ucas.13","game/clay/content/paks/clay-windows.ucas.2","game/clay/content/paks/clay-windows.ucas.3","game/clay/content/paks/clay-windows.ucas.4","game/clay/content/paks/clay-windows.ucas.5","game/clay/content/paks/clay-windows.ucas.6","game/clay/content/paks/clay-windows.ucas.7","game/clay/content/paks/clay-windows.ucas.8","game/clay/content/paks/clay-windows.ucas.9","game/clay/content/paks/clay-windows.utoc.0","game/clay/content/paks/global.ucas.0","game/clay/content/paks/global.utoc.0","game/clay/content/paks/zzz_breadbb_p.pak.0","game/clay/content/paks/zzz_breadbb_p.ucas.0","game/clay/content/paks/zzz_breadbb_p.utoc.0","game/engine/content/slate/cursor/invisible.cur.0","gbb.js","gbb.wasm.part1","gbb.wasm.part10","gbb.wasm.part11","gbb.wasm.part12","gbb.wasm.part13","gbb.wasm.part14","gbb.wasm.part15","gbb.wasm.part16","gbb.wasm.part17","gbb.wasm.part18","gbb.wasm.part19","gbb.wasm.part2","gbb.wasm.part20","gbb.wasm.part21","gbb.wasm.part3","gbb.wasm.part4","gbb.wasm.part5","gbb.wasm.part6","gbb.wasm.part7","gbb.wasm.part8","gbb.wasm.part9","gbb_fflean.1.wasm.part1","gbb_fflean.1.wasm.part2","gbb_fflean.1.wasm.part3","gbb_fflean.1.wasm.part4","gbb_fflean.2.wasm.part1","gbb_fflean.2.wasm.part2","gbb_fflean.2.wasm.part3","gbb_fflean.2.wasm.part4","gbb_fflean.3.wasm.part1","gbb_fflean.3.wasm.part2","gbb_fflean.3.wasm.part3","gbb_fflean.3.wasm.part4","gbb_fflean.4.wasm.part1","gbb_fflean.4.wasm.part2","gbb_fflean.4.wasm.part3","gbb_fflean.4.wasm.part4","gbb_fflean.5.wasm.part1","gbb_fflean.5.wasm.part2","gbb_fflean.5.wasm.part3","gbb_fflean.5.wasm.part4","gbb_fflean.js","gbb_fflean.wasm.part1","gbb_fflean.wasm.part2","gbb_fflean.wasm.part3","gbb_fflean.wasm.part4","gbb_gfx.js","gbb_gfx.wasm","gfx_worker.js","image.bin.part1","image.bin.part2","image.bin.part3","image.bin.part4","image.bin.part5","image.bin.part6","image.bin.part7","image.bin.part8","image.bin.part9","manifest.json","preload.json","programs.json","range_cache.js","seed.json","shadow_store.js","split-assets.json","split-loader.js"]);
+const gartenCdn="https://cdn.jsdelivr.net/gh/web-ports/garten-of-banban@"+gartenCommit+"/";
+const gartenRaw="https://raw.githubusercontent.com/web-ports/garten-of-banban/"+gartenCommit+"/";
+function approvedGartenAsset(req){
+  let name;
+  try{name=decodeURIComponent(req.params[0]||"");}catch{return null;}
+  return gartenFiles.has(name)?name:null;
+}
+async function serveGartenAsset(req,res){
+  if(!approvedGameCors(req,res))return;
+  const asset=approvedGartenAsset(req);
+  if(!asset)return res.status(404).type("text/plain").send("Not an approved Garten of Banban asset");
+  res.setHeader("Cache-Control","public, max-age=86400, immutable");
+  for(const [index,root] of [gartenCdn,gartenRaw].entries()){
+    try{
+      const headers={};
+      if(req.get("Range"))headers.Range=req.get("Range");
+      const upstream=await fetch(root+asset.split("/").map(encodeURIComponent).join("/"),{
+        method:req.method==="HEAD"?"HEAD":"GET",headers,
+        redirect:"error",signal:AbortSignal.timeout(120000)
+      });
+      if(!upstream.ok){
+        await upstream.body?.cancel();
+        if(index===0)continue;
+        return res.status(502).type("text/plain").send("Pinned Garten of Banban asset unavailable ("+upstream.status+")");
+      }
+      const lower=asset.toLowerCase();
+      const mime=lower.endsWith(".js")?"application/javascript; charset=utf-8":
+        lower.endsWith(".json")?"application/json; charset=utf-8":
+        lower.endsWith(".wasm")?"application/wasm":
+        lower.endsWith(".css")?"text/css; charset=utf-8":
+        lower.endsWith(".png")?"image/png":
+        "application/octet-stream";
+      res.status(upstream.status);
+      res.setHeader("Content-Type",mime);
+      if(upstream.headers.get("accept-ranges"))res.setHeader("Accept-Ranges",upstream.headers.get("accept-ranges"));
+      if(upstream.headers.get("content-range"))res.setHeader("Content-Range",upstream.headers.get("content-range"));
+      // Streaming decompression in fetch can change byte counts.
+      if(req.method==="HEAD"||!upstream.body){res.end();return;}
+      await pipeline(Readable.fromWeb(upstream.body),res);
+      return;
+    }catch(error){
+      console.warn("Garten pinned asset fetch failed:",index?"GitHub":"CDN",String(error));
+      if(res.headersSent){res.destroy();return;}
+      if(index===1)return res.status(502).type("text/plain").send("Garten approved asset hosts unavailable");
+    }
+  }
+}
+app.get("/approved-assets/garten/*",serveGartenAsset);
+app.head("/approved-assets/garten/*",serveGartenAsset);
+app.options("/approved-assets/garten/*",(req,res)=>{
+  if(!approvedGameCors(req,res))return;
+  if(!approvedGartenAsset(req))return res.sendStatus(404);
+  res.setHeader("Access-Control-Allow-Methods","GET, HEAD, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers","Range, Content-Type");
+  res.sendStatus(204);
+});
 app.get("/approved-assets/imported/*",importedHandler);
 app.head("/approved-assets/imported/*",importedHandler);
 app.options("/approved-assets/imported/*",(req,res)=>{
