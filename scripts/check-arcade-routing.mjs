@@ -16,6 +16,13 @@ const site="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/
 const base="/Dr-seuss-Moives-Games-test/";
 const rows=html.split(/\r?\n/).filter(row=>row.startsWith("{id:'"));
 const errors=[];
+// The whole catalogue lives in one inline script. A stray comma there leaves the
+// live page with no cards while every row-parsing check above still passes.
+for(const script of html.matchAll(/<script(?![^>]*src=)([^>]*)>([\s\S]*?)<\/script>/g)){
+  if(/type\s*=\s*"module"/.test(script[1])||!script[2].trim())continue;
+  try{new Function(script[2]);}
+  catch(error){errors.push("Arcade inline script does not parse: "+error.message);}
+}
 if(rows.length<9)errors.push("Arcade catalogue entries could not be parsed");
 const allowedMatch=client.match(/const allowed = new Set\(\[([^\]]+)\]\)/);
 if(!allowedMatch)errors.push("Restricted proxy host allowlist not found");
