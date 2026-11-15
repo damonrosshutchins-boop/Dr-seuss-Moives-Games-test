@@ -24,6 +24,12 @@ wisp.options.allow_direct_ip=true;
 // WISP_ALLOW_PRIVATE_IPS=1 / WISP_ALLOW_LOOPBACK_IPS=1 if that is really wanted.
 wisp.options.allow_private_ips=process.env.WISP_ALLOW_PRIVATE_IPS==="1";
 wisp.options.allow_loopback_ips=process.env.WISP_ALLOW_LOOPBACK_IPS==="1";
+// Throughput and repeat-visit latency. wisp-js defaults to a 128-packet send
+// buffer per stream and a 120s DNS cache, which throttles big responses on a
+// high-latency link and re-resolves popular hosts every two minutes.
+wisp.options.send_buffer_size=Number(process.env.WISP_SEND_BUFFER||512);
+wisp.options.dns_ttl=Number(process.env.WISP_DNS_TTL||600);
+wisp.options.dns_cache_size=Number(process.env.WISP_DNS_CACHE||8192);
 // Avoid wisp-js 0.4.1 stream-limit bug (connection.streams not iterable).
 // Browser Origins are still verified before the relay accepts a socket.
 app.use((req,res,next)=>{

@@ -9,7 +9,9 @@
 // Endpoint: wss://<worker-name>.<subdomain>.workers.dev/wisp/
 import { connect } from "cloudflare:sockets";
 
-const BUFFER_PACKETS = 64;
+// Advertised stream buffer depth. 64 packets stalled large responses behind the
+// tunnel handshake; 512 matches the Node relay and keeps downloads flowing.
+const BUFFER_PACKETS = 512;
 const decoder = new TextDecoder();
 const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
 

@@ -232,3 +232,22 @@ Note the platform trade-off: a websocket is one long-lived connection per tab,
 and Workers bill per request and CPU millisecond, so this suits personal use
 rather than a public proxy service.
 
+### Relay speed tuning
+
+Both relays advertise a deeper per-stream send buffer than the wisp-js default
+(512 packets instead of 128; the Worker uses the same depth), so large responses
+stop stalling behind the tunnel handshake. The Node relay also keeps DNS results
+for 10 minutes instead of 2, since search traffic hits the same handful of hosts.
+Override with `WISP_SEND_BUFFER`, `WISP_DNS_TTL` and `WISP_DNS_CACHE`.
+
+`.github/workflows/relay-keepalive.yml` pings `/health` every five minutes so the
+Render instance never cold-starts; point it at another relay with the repository
+variable `RELAY_HEALTH_URL`. Cold starts, not bandwidth, are the largest single
+cost in a first search.
+
+Where else this relay runs unchanged: any host that keeps a process alive and
+allows outbound TCP — Fly.io, Railway, Koyeb, or a small VPS (Hetzner, DigitalOcean,
+Vultr). Serverless functions are a poor fit because Wisp is one long-lived
+websocket per tab; the Workers build is the serverless exception and is priced
+per request.
+
