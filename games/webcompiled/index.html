@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WebCompiled · Seuss Arcade</title>
+<style>:root{color-scheme:dark}*{box-sizing:border-box}html,body{min-height:100%;margin:0;background:#0c1220;color:#eef4ff;font:15px system-ui,sans-serif}main{max-width:660px;margin:clamp(15px,7vh,70px) auto;padding:26px;background:#19263b;border:1px solid #51698b;border-radius:15px}h1{font-size:30px;margin:0 0 12px}p{line-height:1.55;color:#d6e2ef}li{margin:8px 0}a{color:#9be5ff}#checks{background:#091a2e;padding:14px;border-radius:8px}strong{color:#fff}small{color:#bed0e0}</style></head>
+<body><main>
+<h1>🏎️ WebCompiled</h1>
+<p>Mario Kart Wii browser port based on WebAssembly and WebGPU. The project's open-source files are linked to Seuss Arcade, but <strong>the GitHub repository contains no playable game build or game data.</strong></p>
+<div id="checks" role="status">Checking browser support…</div>
+<p>To make this playable inside the arcade, its developer requires a host to build WebCompiled from their own unmodified PAL <code>RMCP01</code> game copy. That build creates a <code>web/dist/</code> folder with the compiled engine and required game data. Once that authorized build is hosted, it can be connected to a fixed approved game route.</p>
+<p><strong>Current status:</strong> project added, build needed. This entry does not download copyrighted game data or provide a general-purpose proxy.</p>
+<p><a href="https://github.com/dynamiteswag81/webcompiled" target="_blank" rel="noopener noreferrer">WebCompiled repository and build instructions</a></p>
+<small>The developers recommend recent Chrome or Edge with WebGPU and WebAssembly JSPI. Firefox compatibility varies.</small>
+</main><script>
+"use strict";
+const checks=document.getElementById("checks");
+const gpu=!!navigator.gpu;
+const jspi=!!WebAssembly.Suspending;
+checks.textContent="Browser compatibility: WebGPU "+(gpu?"available":"not available")+", WebAssembly JSPI "+(jspi?"available":"not available")+". A compiled game build is still required.";
+</script></body></html>
