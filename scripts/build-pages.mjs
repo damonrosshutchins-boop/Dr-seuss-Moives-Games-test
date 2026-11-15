@@ -38,9 +38,6 @@ await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
 for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","seuss-search.html","search-client.js"])
  await fs.copyFile(file,path.join(out,file));
-// This local setup screen does not ship Nintendo disc images or emulator binaries.
-await fs.mkdir(path.join(out,"games","smsrip"),{recursive:true});
-await fs.copyFile(path.join("games","smsrip","index.html"),path.join(out,"games","smsrip","index.html"));
 // Ghost of Sparta is proxied only by Render's fixed-origin route.
 // Publish a same-site launcher, never a direct iframe of the Surge source.
 await fs.mkdir(path.join(out,"games","gow-sparta"),{recursive:true});
@@ -327,36 +324,6 @@ for(const [slug,title,source] of [
   await fs.writeFile(path.join(folder,"index.html"),portalLanding);
 }
 
-// MIT-licensed reVCDOS browser client. The repository does not include the
-// commercial game assets; local frontend runs in our player while assets remain
-// optional external downloads. No backend-specific Python/PHP routes on Pages.
-const revCommit="95f14ef3c1d0a872ecd0881544cc7e1f55cb1946";
-const revTemp=await fs.mkdtemp(path.join(os.tmpdir(),"revcdos-"));
-try {
-  execFileSync("git",["clone","--depth=1","--filter=blob:none",
-    "https://github.com/Lolendor/reVCDOS.git",revTemp],
-    {stdio:"inherit",timeout:120000});
-  const src=path.join(revTemp,"dist");
-  const dest=path.join(out,"games","revcdos");
-  await fs.mkdir(dest,{recursive:true});
-  await fs.cp(src,dest,{recursive:true});
-  const htmlFile=path.join(dest,"index.html");
-  let html=await fs.readFile(htmlFile,"utf8");
-  html=html.replaceAll('src="/intro.mp4"','src="intro.mp4"');
-  await fs.writeFile(htmlFile,html);
-  // Resolve game-data endpoints directly against the original publisher's CDN.
-  // This is not an offline copy of GTA Vice City or a guaranteed CDN integration.
-  const gameFile=path.join(dest,"game.js");
-  let game=await fs.readFile(gameFile,"utf8");
-  game=game.replace('str.replace("https://cdn.dos.zone/vcsky/", "/vcsky/")',
-    'str.replace("https://cdn.dos.zone/vcsky/", "https://cdn.dos.zone/vcsky/")');
-  game=game.replace('const replaceBR = "/vcbr/"',
-    'const replaceBR = "https://br.cdn.dos.zone/vcsky/"');
-  await fs.writeFile(gameFile,game);
-  await fs.copyFile(path.join(revTemp,"LICENSE"),path.join(dest,"LICENSE"));
-  if(!await exists(path.join(dest,"modules","runtime.js")))throw Error("reVCDOS web runtime absent");
-  console.log("Bundled reVCDOS MIT web frontend into dist/games/revcdos; game data external.");
-} finally {await fs.rm(revTemp,{recursive:true,force:true});}
 // Bundle Luigi's Mansion browser port from AlexBoops/lmrip locally.
 // Its split RVZ and WebAssembly files are fetched from our Pages path, not
 // from the publisher at game runtime. The browser still needs isolation for threads.
