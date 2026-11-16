@@ -247,6 +247,39 @@
       candidates.find((input) => !input.readOnly) || null;
   }
 
+  // Record what Blooket itself answers when the page joins, so the panel can
+  // report a real result instead of assuming the join worked.
+  function watchNetwork(frame) {
+    try {
+      const view = frame.contentWindow;
+      if (!view || view.__bkNet) return;
+      const hits = [];
+      view.__bkNet = hits;
+      const note = (url, status, text) => {
+        const value = String(url || "");
+        if (!/join|firebase|player|team/i.test(value)) return;
+        hits.push({ url: value.slice(-70), status, text: String(text || "").slice(0, 180) });
+        if (hits.length > 12) hits.shift();
+      };
+      const originalFetch = view.fetch;
+      view.fetch = function (...args) {
+        const request = args[0];
+        const url = request && request.url ? request.url : request;
+        return originalFetch.apply(this, args).then((response) => {
+          try { response.clone().text().then((text) => note(url, response.status, text)).catch(() => {}); } catch (error) { /* ignore */ }
+          return response;
+        });
+      };
+      const open = view.XMLHttpRequest.prototype.open;
+      const send = view.XMLHttpRequest.prototype.send;
+      view.XMLHttpRequest.prototype.open = function (method, url) { this.__bkUrl = url; return open.apply(this, arguments); };
+      view.XMLHttpRequest.prototype.send = function () {
+        this.addEventListener("load", () => { try { note(this.__bkUrl, this.status, this.responseText); } catch (error) { /* ignore */ } });
+        return send.apply(this, arguments);
+      };
+    } catch (error) { /* the frame may not be scriptable yet */ }
+  }
+
   async function joinBot(frame, code, name) {
     const mod = await getProxy();
     if (stopped) throw new Error("stopped");
@@ -258,6 +291,7 @@
     }, 60000, "the Blooket join page");
 
     clickLabel(frame.contentDocument, /^accept( all)?$/i);
+    watchNetwork(frame);
 
     const codeInput = await waitFor(() => findCodeInput(frame.contentDocument), 45000, "the game code box");
     setValue(codeInput, code);
@@ -276,13 +310,60 @@
     if (answer.rejected) throw new Error("Blooket refused the code (" + answer.rejected + ")");
 
     const nameInput = await waitFor(() => findNameInput(frame.contentDocument), 30000, "the nickname box");
+    watchNetwork(frame);
     setValue(nameInput, name);
     submitForm(nameInput);
+    await sleep(2500);
+    if (findNameInput(frame.contentDocument)) {
+      clickLabel(frame.contentDocument, /^(join|join game|next|continue|play|let'?s go)$/i);
+      await sleep(1500);
+    }
 
-    await sleep(5000);
-    const after = textOf(frame.contentDocument);
-    if (/name (is )?(already )?(taken|in use)/i.test(after)) throw new Error("nickname already in use");
-    return "joined";
+    // Blooket usually asks a player to pick a Blook before the lobby accepts
+    // them; leaving that screen open looks joined but is not.
+    for (let attempt = 0; attempt < 14; attempt += 1) {
+      await sleep(500);
+      const doc = frame.contentDocument;
+      if (!doc) continue;
+      const blooks = [...doc.querySelectorAll('[class*="blook" i] button, button[class*="blook" i], [class*="blook" i] img')]
+        .filter((node) => visible(node));
+      if (blooks.length) {
+        const choice = blooks[Math.floor(Math.random() * blooks.length)];
+        const target = choice.closest("button") || choice;
+        try { target.click(); } catch (error) { /* ignore */ }
+        await sleep(1200);
+        clickLabel(frame.contentDocument, /^(continue|play|join|start|let'?s go)$/i);
+        break;
+      }
+      if (findNameInput(doc) === null && /waiting|joining|lobby/i.test(textOf(doc))) break;
+    }
+
+    let outcome;
+    try {
+      outcome = await waitFor(() => {
+        const doc = frame.contentDocument;
+        const text = textOf(doc);
+        const hits = (frame.contentWindow && frame.contentWindow.__bkNet) || [];
+        const failure = text.match(/invalid game id|game not found|game has ended|game is over|game is full|late join|name (is )?(already )?(taken|in use)/i);
+        if (failure) {
+          const last = hits[hits.length - 1];
+          return { fail: failure[0] + (last ? " · " + last.text.slice(0, 70) : "") };
+        }
+        const apiHit = [...hits].reverse().find((hit) => /join|player/i.test(hit.url));
+        if (apiHit && /"?(success|ok)"?\s*:\s*(true|1)/i.test(apiHit.text)) return { ok: "Blooket accepted the join" };
+        if (/waiting for (the )?host|waiting room|you are in|joining the game/i.test(text)) return { ok: "waiting room shown" };
+        const path = String((frame.contentWindow && frame.contentWindow.location && frame.contentWindow.location.pathname) || "");
+        if (/\/play\/[a-z0-9]+/i.test(path) && !findNameInput(doc)) return { ok: "game page opened" };
+        return null;
+      }, 30000, "a join confirmation from Blooket");
+    } catch (error) {
+      const hits = (frame.contentWindow && frame.contentWindow.__bkNet) || [];
+      const last = hits[hits.length - 1];
+      throw new Error("could not confirm the join" + (last ? " (Blooket said: " + last.text.slice(0, 90) + ")" : " — no join request was recorded"));
+    }
+
+    if (outcome.fail) throw new Error("Blooket refused the join (" + outcome.fail + ")");
+    return "joined — " + outcome.ok;
   }
 
   async function start() {
@@ -327,7 +408,10 @@
           joined += 1;
         } catch (error) {
           line.className = "bk-err";
-          line.textContent = "Bot " + name + ": " + (error && error.message ? error.message : String(error));
+          const reason = error && error.message ? error.message : String(error);
+          line.textContent = "Bot " + name + ": " + (/importScripts/i.test(reason)
+            ? "the site's service worker is stale — reload this page (Ctrl+Shift+R) and try again"
+            : reason);
           if (/refused the code|invalid game id|game not found|game has ended|game is over/i.test(line.textContent)) {
             fatal = "Blooket did not accept code " + code + " — check the code on the host screen.";
           }
