@@ -128,6 +128,17 @@ await copyRuntime("scram",scramjetPath,"scramjet.js");
 await copyRuntime("controller",pkgDir("@mercuryworkshop/scramjet-controller"),"controller.api.js");
 await copyRuntime("utils",pkgDir("@mercuryworkshop/scramjet-utils"),"scramjet-utils.js");
 await copyRuntime("libcurl",pkgDir("@mercuryworkshop/libcurl-transport"),"index.mjs");
+// Inline the Scramjet controller into the published worker. importScripts only
+// works during the first installation, so a restarted worker that relied on it
+// lost the router and answered every proxied request with a 404.
+{
+  const controllerSource=await fs.readFile(path.join(pkgDir("@mercuryworkshop/scramjet-controller"),"dist","controller.sw.js"),"utf8");
+  if(!controllerSource.includes("$scramjetController"))throw new Error("Unexpected Scramjet controller bundle");
+  const workerPath=path.join(out,"sw.js");
+  const workerSource=await fs.readFile(workerPath,"utf8");
+  await fs.writeFile(workerPath, "// Scramjet controller, inlined by the Pages build." + String.fromCharCode(10) + controllerSource + String.fromCharCode(10) + workerSource);
+  console.log("Inlined Scramjet controller into sw.js");
+}
 for(const file of ["scram/scramjet.js","scram/scramjet.wasm","controller/controller.sw.js","controller/controller.api.js","controller/controller.inject.js","utils/scramjet-utils.js","libcurl/index.mjs"]){
  const target=path.join(out,file);
  if(!await exists(target))throw new Error("Pages build missing mandatory browser asset: "+file);
