@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "build:pages": "node scripts/build-pages.mjs"
+    "build:pages": "node scripts/build-pages.mjs",
+    "test:blooket": "node scripts/test-blooket-mock.mjs"
   },
   "engines": {
     "node": ">=22"

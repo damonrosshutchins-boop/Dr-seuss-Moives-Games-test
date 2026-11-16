@@ -15,6 +15,12 @@
   let proxy = null;
   let running = false;
   let stopped = false;
+  // Every bot gets a signal so a stalled or abandoned join can be released
+  // instead of holding the queue or answering twice after a new run starts.
+  const botSignals = new Set();
+  function newSignal() { const signal = { aborted: false }; botSignals.add(signal); return signal; }
+  function abortAllSignals() { botSignals.forEach((signal) => { signal.aborted = true; }); botSignals.clear(); }
+  function checkAbort(signal) { if (signal && signal.aborted) throw new Error("gave up on this bot"); }
 
   function logLine(text, kind) {
     const line = document.createElement("li");
@@ -171,10 +177,10 @@
     return $("blooketBots").children[index] || null;
   }
 
-  async function answerLoop(index, name) {
+  async function answerLoop(index, name, signal) {
     let last = "";
     logLine("AI watching bot " + name + " for questions", "ok");
-    while (!stopped) {
+    while (!stopped && !(signal && signal.aborted)) {
       await sleep(1500);
       // The frame is briefly cross-origin while the proxy takes over, so every
       // touch of its document has to be guarded or this loop dies for good.
@@ -301,15 +307,18 @@
     await mod.openProxied(frame, JOIN_PAGE + "?" + marker);
   }
 
-  async function joinBot(frame, code, name, botIndex) {
+  async function joinBot(frame, code, name, botIndex, signal) {
     if (stopped) throw new Error("stopped");
+    checkAbort(signal);
     await loadTarget(frame, botIndex);
+    checkAbort(signal);
 
     await waitFor(() => {
       const doc = frame.contentDocument;
       return doc && doc.body && textOf(doc).replace(/\s+/g, "").length > 0 ? doc : null;
     }, TEST_TARGET ? 30000 : 120000, "the Blooket join page");
 
+    checkAbort(signal);
     clickLabel(frame.contentDocument, /^accept( all)?$/i);
     const netHits = [];
     watchNetwork(frame, netHits);
@@ -344,6 +353,7 @@
       throw new Error("Blooket refused the code (" + answer.rejected + (last ? " · " + last.text.slice(0, 70) : "") + ")");
     }
 
+    checkAbort(signal);
     const nameInput = await waitFor(() => {
       watchNetwork(frame, netHits);
       return findNameInput(frame.contentDocument);
@@ -359,8 +369,10 @@
 
     // Blooket usually asks a player to pick a Blook before the lobby accepts
     // them; leaving that screen open looks joined but is not.
+    checkAbort(signal);
     for (let attempt = 0; attempt < 14; attempt += 1) {
       await sleep(500);
+      checkAbort(signal);
       watchNetwork(frame, netHits);
       const doc = frame.contentDocument;
       if (!doc) continue;
@@ -409,6 +421,20 @@
     return "joined — " + outcome.ok;
   }
 
+  const JOIN_BUDGET = 180000;
+
+  // One unresponsive bot must not hold up the bots behind it in the queue.
+  function withDeadline(promise, ms, signal) {
+    let timer;
+    const guard = new Promise((resolve, reject) => {
+      timer = setTimeout(() => {
+        if (signal) signal.aborted = true;
+        reject(new Error("gave up after " + Math.round(ms / 1000) + "s — moving to the next bot"));
+      }, ms);
+    });
+    return Promise.race([promise, guard]).finally(() => clearTimeout(timer));
+  }
+
   async function start() {
     if (running) return;
     const code = ($("blooketCode").value || "").trim();
@@ -419,6 +445,7 @@
     const count = Math.max(1, Math.min(25, Number($("blooketCount").value) || 1));
     const names = chosenNames(count);
 
+    abortAllSignals();
     running = true;
     stopped = false;
     $("blooketStart").disabled = true;
@@ -443,13 +470,15 @@
         frame.dataset.bot = String(botIndex);
         $("blooketBots").appendChild(frame);
         const line = logLine("Bot " + name + " loading the join page…");
-        if ($("blooketAiOn").checked) answerLoop(botIndex, name);
+        const signal = newSignal();
+        if ($("blooketAiOn").checked) answerLoop(botIndex, name, signal);
         try {
-          const result = await joinBot(frame, code, name, botIndex);
+          const result = await withDeadline(joinBot(frame, code, name, botIndex, signal), JOIN_BUDGET, signal);
           line.className = "bk-ok";
           line.textContent = "Bot " + name + " " + result + ".";
           joined += 1;
         } catch (error) {
+          if (signal) signal.aborted = true;
           line.className = "bk-err";
           const reason = error && error.message ? error.message : String(error);
           line.textContent = "Bot " + name + ": " + (/importScripts/i.test(reason)
@@ -479,6 +508,7 @@
 
   function stop() {
     stopped = true;
+    abortAllSignals();
     setState("Stopping…");
   }
 
