@@ -254,20 +254,24 @@
       const view = frame.contentWindow;
       if (!view || view.__bkNet === hits) return;
       view.__bkNet = hits;
+      const staticFile = /\.(js|mjs|css|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|otf|map)(\?|$)/i;
       const note = (url, status, text) => {
         const value = String(url || "");
-        if (!(value.indexOf("/api/") >= 0 || /join|firebase|player|team/i.test(value))) return;
+        if (!value || staticFile.test(value)) return;
         hits.push({ url: value.slice(-70), status, text: String(text || "").slice(0, 180) });
         if (hits.length > 40) hits.shift();
       };
       const originalFetch = view.fetch;
       view.fetch = function (...args) {
         const request = args[0];
-        const url = request && request.url ? request.url : request;
-        return originalFetch.apply(this, args).then((response) => {
-          try { response.clone().text().then((text) => note(url, response.status, text)).catch(() => {}); } catch (error) { /* ignore */ }
-          return response;
-        });
+        const url = request && request.url ? request.url : String(request);
+        const pending = originalFetch.apply(view, args);
+        try {
+          pending.then((response) => {
+            try { response.clone().text().then((text) => note(url, response.status, text)).catch(() => {}); } catch (error) { /* ignore */ }
+          }).catch(() => {});
+        } catch (error) { /* never let bookkeeping break the page */ }
+        return pending;
       };
       const open = view.XMLHttpRequest.prototype.open;
       const send = view.XMLHttpRequest.prototype.send;
@@ -306,7 +310,7 @@
       }
       if (findNameInput(doc) || /nickname|your name|choose a name/i.test(text)) return { accepted: true };
       return null;
-    }, 30000, "an answer from Blooket");
+    }, 45000, "an answer from Blooket");
 
     if (answer.rejected) {
       const last = netHits[netHits.length - 1];
