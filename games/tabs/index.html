@@ -93,6 +93,9 @@
     D.head.appendChild(style);
     D.body.appendChild(b);
     D.getElementById('af-retry').addEventListener('click', function () { location.reload(); });
+    // Each launcher carries a <base> pointing at its CDN mirror, so an empty
+    // href would send Library to jsDelivr. Resolve it against the page URL.
+    D.getElementById('af-back').href = new URL('../../index.html', location.href).href;
     return b;
   }
   function fatal(msg, detail) {
