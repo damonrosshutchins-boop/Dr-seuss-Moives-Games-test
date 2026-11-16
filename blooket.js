@@ -307,6 +307,14 @@
     await mod.openProxied(frame, JOIN_PAGE + "?" + marker);
   }
 
+  // Cookie banners and ads also answer every page, so only quote replies that
+  // are actually about a game or a player.
+  function joinDetail(hits) {
+    const relevant = hits.filter((hit) => /join|player|firebase|game/i.test(hit.url) || /"?(player|gameId|success)"?\s*:/i.test(hit.text));
+    const last = relevant[relevant.length - 1];
+    return last ? last.url.split("/").pop().slice(0, 26) + ": " + last.text.slice(0, 70) : "";
+  }
+
   async function joinBot(frame, code, name, botIndex, signal) {
     if (stopped) throw new Error("stopped");
     checkAbort(signal);
@@ -349,8 +357,8 @@
     }, 45000, "an answer from Blooket");
 
     if (answer.rejected) {
-      const last = netHits[netHits.length - 1];
-      throw new Error("Blooket refused the code (" + answer.rejected + (last ? " · " + last.text.slice(0, 70) : "") + ")");
+      const detail = joinDetail(netHits);
+      throw new Error("Blooket refused the code (" + answer.rejected + (detail ? " · " + detail : "") + ")");
     }
 
     checkAbort(signal);
@@ -413,8 +421,8 @@
         return null;
       }, 30000, "a join confirmation from Blooket");
     } catch (error) {
-      const last = netHits[netHits.length - 1];
-      throw new Error("could not confirm the join" + (last ? " (Blooket said: " + last.text.slice(0, 90) + ")" : " — no join request was recorded"));
+      const detail = joinDetail(netHits);
+      throw new Error("could not confirm the join" + (detail ? " (Blooket said: " + detail + ")" : " — Blooket never answered a join request"));
     }
 
     if (outcome.fail) throw new Error("Blooket refused the join (" + outcome.fail + ")");
