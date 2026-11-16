@@ -219,11 +219,14 @@
 
   function submitForm(input) {
     const doc = input.ownerDocument;
-    if (input.form && typeof input.form.requestSubmit === "function") {
-      try { input.form.requestSubmit(); return; } catch (error) { /* fall through to a click */ }
-    }
-    const button = [...doc.querySelectorAll("button, [type=submit]")].find((node) => visible(node) && /submit|join|next|enter|play|let'?s go/i.test(node.textContent || ""));
+    // Click the screen's own button first: native form submission reloads the
+    // page on sites whose screens are drawn by script, losing the typed value.
+    const button = [...doc.querySelectorAll("button, [type=submit], [role=button]")]
+      .find((node) => visible(node) && /submit|join|next|enter|play|let'?s go/i.test((node.textContent || "").trim()));
     if (button) { button.click(); return; }
+    if (input.form && typeof input.form.requestSubmit === "function") {
+      try { input.form.requestSubmit(); return; } catch (error) { /* fall through to Enter */ }
+    }
     input.dispatchEvent(new doc.defaultView.KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
   }
 
@@ -283,21 +286,45 @@
     } catch (error) { /* the frame may not be scriptable yet */ }
   }
 
-  async function joinBot(frame, code, name) {
+  // A same-origin page can stand in for Blooket (page?blooketTest=...) so the
+  // whole join flow can be exercised without a live game code.
+  const TEST_TARGET = new URLSearchParams(location.search).get("blooketTest");
+  const JOIN_PAGE = "https://play.blooket.com/play";
+
+  async function loadTarget(frame, botIndex) {
+    const marker = "bkbot=" + botIndex;
+    if (TEST_TARGET) {
+      frame.src = TEST_TARGET + (TEST_TARGET.indexOf("?") >= 0 ? "&" : "?") + marker;
+      return;
+    }
     const mod = await getProxy();
+    await mod.openProxied(frame, JOIN_PAGE + "?" + marker);
+  }
+
+  async function joinBot(frame, code, name, botIndex) {
     if (stopped) throw new Error("stopped");
-    await mod.openProxied(frame, "https://play.blooket.com/play");
+    await loadTarget(frame, botIndex);
 
     await waitFor(() => {
       const doc = frame.contentDocument;
       return doc && doc.body && textOf(doc).replace(/\s+/g, "").length > 0 ? doc : null;
-    }, 60000, "the Blooket join page");
+    }, TEST_TARGET ? 30000 : 120000, "the Blooket join page");
 
     clickLabel(frame.contentDocument, /^accept( all)?$/i);
     const netHits = [];
     watchNetwork(frame, netHits);
 
-    const codeInput = await waitFor(() => findCodeInput(frame.contentDocument), 45000, "the game code box");
+    let codeInput;
+    try {
+      codeInput = await waitFor(() => findCodeInput(frame.contentDocument), TEST_TARGET ? 20000 : 90000, "the game code box");
+    } catch (error) {
+      if (TEST_TARGET) throw error;
+      // Several bots loading at once can starve the tunnel's first paint, so
+      // give the same frame one clean reload before calling it a failure.
+      logLine("Bot " + name + " has not shown the code box yet — loading it again", "warn");
+      await loadTarget(frame, botIndex);
+      codeInput = await waitFor(() => findCodeInput(frame.contentDocument), 90000, "the game code box");
+    }
     setValue(codeInput, code);
     submitForm(codeInput);
 
@@ -344,7 +371,11 @@
         const target = choice.closest("button") || choice;
         try { target.click(); } catch (error) { /* ignore */ }
         await sleep(1200);
-        clickLabel(frame.contentDocument, /^(continue|play|join|start|let'?s go)$/i);
+        // The screen's own button is usually "Join Game" / "Play", so match on
+        // the verb rather than the whole label.
+        clickLabel(frame.contentDocument, /join|continue|play|start|let'?s go/i);
+        await sleep(800);
+        clickLabel(frame.contentDocument, /join|continue|play|start|let'?s go/i);
         break;
       }
       if (findNameInput(doc) === null && /waiting|joining|lobby/i.test(textOf(doc))) break;
@@ -414,7 +445,9 @@
         const line = logLine("Bot " + name + " loading the join page…");
         if ($("blooketAiOn").checked) answerLoop(botIndex, name);
         try {
-          const result = await joinBot(frame, code, name);
+          // Spacing the bots out keeps the proxy from opening every page at once.
+          if (botIndex) await sleep(Math.min(12000, botIndex * 2500));
+          const result = await joinBot(frame, code, name, botIndex);
           line.className = "bk-ok";
           line.textContent = "Bot " + name + " " + result + ".";
           joined += 1;
