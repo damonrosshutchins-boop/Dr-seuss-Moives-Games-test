@@ -104,6 +104,10 @@ for(const slug of ["balatro","cheese"]){
 
 
 
+// PEAK ships as a 3 KB launcher that frames the upstream wasm.rip page, so its
+// 242 MB Unity build downloads from the source rather than the Wisp relay.
+await fs.mkdir(path.join(out,"games","peak"),{recursive:true});
+await fs.copyFile(path.join("games","peak","index.html"),path.join(out,"games","peak","index.html"));
 // Publish the four imported game launchers on GitHub Pages. The browser
 // stays inside the arcade; large game binaries are fetched from pinned
 // approved Render routes rather than copied into the Pages artifact.
