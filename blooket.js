@@ -256,7 +256,7 @@
       view.__bkNet = hits;
       const note = (url, status, text) => {
         const value = String(url || "");
-        if (!/join|firebase|player|team|\/api\//i.test(value)) return;
+        if (!(value.indexOf("/api/") >= 0 || /join|firebase|player|team/i.test(value))) return;
         hits.push({ url: value.slice(-70), status, text: String(text || "").slice(0, 180) });
         if (hits.length > 40) hits.shift();
       };
