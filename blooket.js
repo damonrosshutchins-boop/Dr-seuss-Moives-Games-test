@@ -445,8 +445,6 @@
         const line = logLine("Bot " + name + " loading the join page…");
         if ($("blooketAiOn").checked) answerLoop(botIndex, name);
         try {
-          // Spacing the bots out keeps the proxy from opening every page at once.
-          if (botIndex) await sleep(Math.min(12000, botIndex * 2500));
           const result = await joinBot(frame, code, name, botIndex);
           line.className = "bk-ok";
           line.textContent = "Bot " + name + " " + result + ".";
@@ -467,7 +465,9 @@
       }
     };
 
-    await Promise.all([worker(), worker(), worker()]);
+    // One bot at a time: loading pages concurrently starves the tunnel, which is
+    // what pushed bots into the reload retry.
+    await worker();
 
     running = false;
     $("blooketStart").disabled = false;
