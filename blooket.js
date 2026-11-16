@@ -249,17 +249,16 @@
 
   // Record what Blooket itself answers when the page joins, so the panel can
   // report a real result instead of assuming the join worked.
-  function watchNetwork(frame) {
+  function watchNetwork(frame, hits) {
     try {
       const view = frame.contentWindow;
-      if (!view || view.__bkNet) return;
-      const hits = [];
+      if (!view || view.__bkNet === hits) return;
       view.__bkNet = hits;
       const note = (url, status, text) => {
         const value = String(url || "");
         if (!/join|firebase|player|team/i.test(value)) return;
         hits.push({ url: value.slice(-70), status, text: String(text || "").slice(0, 180) });
-        if (hits.length > 12) hits.shift();
+        if (hits.length > 40) hits.shift();
       };
       const originalFetch = view.fetch;
       view.fetch = function (...args) {
@@ -291,13 +290,15 @@
     }, 60000, "the Blooket join page");
 
     clickLabel(frame.contentDocument, /^accept( all)?$/i);
-    watchNetwork(frame);
+    const netHits = [];
+    watchNetwork(frame, netHits);
 
     const codeInput = await waitFor(() => findCodeInput(frame.contentDocument), 45000, "the game code box");
     setValue(codeInput, code);
     submitForm(codeInput);
 
     const answer = await waitFor(() => {
+      watchNetwork(frame, netHits);
       const doc = frame.contentDocument;
       const text = textOf(doc);
       if (/invalid game id|game not found|game has ended|game is over/i.test(text)) {
@@ -309,8 +310,11 @@
 
     if (answer.rejected) throw new Error("Blooket refused the code (" + answer.rejected + ")");
 
-    const nameInput = await waitFor(() => findNameInput(frame.contentDocument), 30000, "the nickname box");
-    watchNetwork(frame);
+    const nameInput = await waitFor(() => {
+      watchNetwork(frame, netHits);
+      return findNameInput(frame.contentDocument);
+    }, 30000, "the nickname box");
+    watchNetwork(frame, netHits);
     setValue(nameInput, name);
     submitForm(nameInput);
     await sleep(2500);
@@ -323,6 +327,7 @@
     // them; leaving that screen open looks joined but is not.
     for (let attempt = 0; attempt < 14; attempt += 1) {
       await sleep(500);
+      watchNetwork(frame, netHits);
       const doc = frame.contentDocument;
       if (!doc) continue;
       const blooks = [...doc.querySelectorAll('[class*="blook" i] button, button[class*="blook" i], [class*="blook" i] img')]
@@ -341,9 +346,10 @@
     let outcome;
     try {
       outcome = await waitFor(() => {
+        watchNetwork(frame, netHits);
         const doc = frame.contentDocument;
         const text = textOf(doc);
-        const hits = (frame.contentWindow && frame.contentWindow.__bkNet) || [];
+        const hits = netHits;
         const failure = text.match(/invalid game id|game not found|game has ended|game is over|game is full|late join|name (is )?(already )?(taken|in use)/i);
         if (failure) {
           const last = hits[hits.length - 1];
@@ -357,8 +363,7 @@
         return null;
       }, 30000, "a join confirmation from Blooket");
     } catch (error) {
-      const hits = (frame.contentWindow && frame.contentWindow.__bkNet) || [];
-      const last = hits[hits.length - 1];
+      const last = netHits[netHits.length - 1];
       throw new Error("could not confirm the join" + (last ? " (Blooket said: " + last.text.slice(0, 90) + ")" : " — no join request was recorded"));
     }
 
