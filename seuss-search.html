@@ -251,8 +251,9 @@
         <input type="url" id="customUrl" placeholder="wss://your-relay.example.com/wisp/" spellcheck="false">
       </label>
       <p class="hint">Currently in use: <code id="currentRelay">—</code><br>
-        Deploy the Cloudflare relay from <code>cloudflare/wisp-relay</code>, paste its
-        <code>wss://…workers.dev/wisp/</code> URL above, then pick Cloudflare.</p>
+        The relay in <code>cloudflare/wisp-relay</code> is deployed at
+        <code>seuss-wisp-relay.damonrosshutchins.workers.dev</code> and is filled in
+        above; replace it to use your own, then pick Cloudflare.</p>
     </section>
 
     <section>
@@ -270,7 +271,7 @@
 </div>
 
 <script type="module">
-import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=3";
+import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=4";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");

@@ -6,6 +6,9 @@ const asset = path => base + path;
 // Relay choice lives in localStorage so Settings can switch between the Render
 // relay, a Cloudflare Worker relay and any custom endpoint.
 const RENDER_ENDPOINT = "wss://seuss-cinema-arcade.onrender.com/wisp/";
+// Deployed from cloudflare/wisp-relay, so the Cloudflare figure and the
+// Cloudflare relay option work without pasting a URL into Settings first.
+const CLOUDFLARE_ENDPOINT = "wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/";
 const RELAY_KEY = "seuss-relay";
 const onLoopback = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 const loopbackEndpoint = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/wisp/";
@@ -15,7 +18,9 @@ export function readRelay() {
   try { stored = JSON.parse(localStorage.getItem(RELAY_KEY) || "{}") || {}; } catch { stored = {}; }
   return {
     mode: ["render", "cloudflare", "custom"].includes(stored.mode) ? stored.mode : null,
-    cloudflare: typeof stored.cloudflare === "string" ? stored.cloudflare.trim() : "",
+    cloudflare: typeof stored.cloudflare === "string" && stored.cloudflare.trim()
+      ? stored.cloudflare.trim()
+      : CLOUDFLARE_ENDPOINT,
     custom: typeof stored.custom === "string" ? stored.custom.trim() : ""
   };
 }
@@ -53,7 +58,7 @@ function keepWorkerWarm(worker) {
 }
 
 export const relayEndpoint = endpoint;
-export { RENDER_ENDPOINT, loopbackEndpoint, RELAY_KEY };
+export { RENDER_ENDPOINT, CLOUDFLARE_ENDPOINT, loopbackEndpoint, RELAY_KEY };
 
 // Link quality for the relay actually in use. Ping runs on the same WebSocket
 // path the tunnel uses; throughput downloads the relay's /speedtest payload, so
