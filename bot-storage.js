@@ -4,8 +4,21 @@
 // visitor instead of several players. The worker injects this file into the
 // proxied document, and the bot's frame URL carries ?bkbot=<n>.
 (() => {
-  const id = new URLSearchParams(window.location.search || "").get("bkbot");
-  if (!id) return;
+  // The proxy keeps the real destination percent-encoded in its own path and
+  // rewrites location.search, so read the marker from either form.
+  const marker = () => {
+    const direct = new URLSearchParams(window.location.search || "").get("bkbot");
+    if (direct) return direct;
+    try {
+      const decoded = decodeURIComponent(String(window.location.href));
+      const found = decoded.match(/[?&]bkbot=([A-Za-z0-9]+)/);
+      if (found) return found[1];
+    } catch (error) { /* nothing to read */ }
+    return null;
+  };
+  const found = marker();
+  if (!found) return;
+  const id = String(found).slice(0, 12);
   const prefix = "__bk" + id + "__";
 
   const namespace = (real) => {
