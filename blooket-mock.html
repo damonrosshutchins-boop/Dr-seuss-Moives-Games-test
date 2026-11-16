@@ -22,6 +22,13 @@
 </style>
 </head>
 <body>
+<div id="cookieBanner" style="position:fixed;inset:0;background:#000000aa;display:grid;place-items:end center;padding:24px;z-index:9">
+  <div style="background:#16243a;border:1px solid #2f4666;border-radius:12px;padding:16px;max-width:420px">
+    <p style="margin:0 0 10px;font-size:13px">Cookies are small files placed on your device that collect information.</p>
+    <button id="rejectCookies" style="background:#2c4a72">Reject All</button>
+    <button id="acceptCookies">Accept All</button>
+  </div>
+</div>
 <main>
   <div id="screen"></div>
   <p class="muted" id="who"></p>
@@ -40,6 +47,11 @@
 
   const screen = document.getElementById("screen");
   let picked = "";
+
+  // Real Blooket puts a consent banner over the join form until it is answered.
+  const banner = document.getElementById("cookieBanner");
+  document.getElementById("acceptCookies").addEventListener("click", () => { store.setItem("mockCookies", "accepted"); banner.remove(); });
+  document.getElementById("rejectCookies").addEventListener("click", () => { store.setItem("mockCookies", "rejected"); banner.remove(); });
 
   const renderCode = () => {
     screen.innerHTML = '<h1>Enter a Game ID</h1><p class="hint">Ask your teacher for the code.</p>' +

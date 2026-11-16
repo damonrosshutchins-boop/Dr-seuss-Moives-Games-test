@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.mjs",
     "build:pages": "node scripts/build-pages.mjs",
-    "test:blooket": "node scripts/test-blooket-mock.mjs"
+    "test:blooket": "node scripts/test-blooket-mock.mjs",
+    "bots:blooket": "node scripts/blooket-bots.mjs"
   },
   "engines": {
     "node": ">=22"
