@@ -84,6 +84,131 @@
   const visible = (node) => !!node && node.offsetParent !== null;
   const textOf = (doc) => (doc && doc.body && doc.body.innerText) || "";
 
+  const AI_STORE = "seussBlooketAi";
+
+  function aiSettings() {
+    return {
+      on: $("blooketAiOn").checked,
+      url: ($("blooketAiUrl").value || "").trim(),
+      model: ($("blooketAiModel").value || "").trim(),
+      key: ($("blooketAiKey").value || "").trim()
+    };
+  }
+
+  function loadAiSettings() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(AI_STORE) || "{}"); } catch (error) { saved = {}; }
+    $("blooketAiOn").checked = !!saved.on;
+    $("blooketAiUrl").value = saved.url || "";
+    $("blooketAiModel").value = saved.model || "";
+    $("blooketAiKey").value = saved.key || "";
+  }
+
+  function saveAiSettings() {
+    try { localStorage.setItem(AI_STORE, JSON.stringify(aiSettings())); } catch (error) { /* storage may be blocked */ }
+  }
+
+  async function askAI(question, options) {
+    const settings = aiSettings();
+    if (!settings.url || !settings.model || !settings.key) throw new Error("AI settings are incomplete (URL, model, key)");
+    const newline = String.fromCharCode(10);
+    const prompt = "Answer this multiple-choice quiz question. Reply with only the option number." + newline + newline +
+      "Question: " + question + newline +
+      options.map((text, index) => (index + 1) + ") " + text).join(newline);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    let response;
+    try {
+      response = await fetch(settings.url.replace(/\/+$/, "") + "/chat/completions", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "content-type": "application/json", authorization: "Bearer " + settings.key },
+        body: JSON.stringify({
+          model: settings.model,
+          temperature: 0,
+          max_tokens: 8,
+          messages: [
+            { role: "system", content: "You answer quiz questions. Reply with only the number of the correct option." },
+            { role: "user", content: prompt }
+          ]
+        })
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!response.ok) throw new Error("AI endpoint returned " + response.status);
+    const data = await response.json();
+    const text = String((((data.choices || [])[0] || {}).message || {}).content || "").trim();
+    const match = text.match(/\d+/);
+    const number = match ? Number(match[0]) : NaN;
+    if (Number.isFinite(number) && number >= 1 && number <= options.length) return number - 1;
+    const lowered = text.toLowerCase();
+    const byText = options.findIndex((option) => option && lowered.includes(option.toLowerCase().slice(0, 24)));
+    return byText;
+  }
+
+  function visibleQuestion(doc) {
+    const shown = (node) => node && node.offsetParent !== null;
+    const questionNode = [...doc.querySelectorAll('[class*="question" i], h1, h2, h3')]
+      .find((node) => shown(node) && (node.innerText || "").trim().length > 6);
+    if (!questionNode) return null;
+    const candidates = [...doc.querySelectorAll('[class*="answer" i], [class*="option" i], button')]
+      .filter((node) => shown(node) && /answer|option/i.test(String(node.className || "")))
+      .map((node) => ({ node, text: (node.innerText || "").trim().slice(0, 80) }))
+      .filter((option) => option.text && option.text.length < 80);
+    // Clickable leaves only: a wrapper such as .answers matches the same class
+    // filter and would otherwise shift every option index by one.
+    const leaves = candidates.filter((outer) => !candidates.some((inner) => inner !== outer && outer.node.contains(inner.node)));
+    const seen = new Set();
+    const options = leaves.filter((option) => !seen.has(option.text) && seen.add(option.text));
+    if (options.length < 2) return null;
+    return { question: (questionNode.innerText || "").trim().slice(0, 400), options };
+  }
+
+  function botFrame(index) {
+    // The proxy may swap the iframe element, so resolve by position instead of
+    // keeping a reference or relying on attributes we set.
+    return $("blooketBots").children[index] || null;
+  }
+
+  async function answerLoop(index, name) {
+    let last = "";
+    logLine("AI watching bot " + name + " for questions", "ok");
+    while (!stopped) {
+      await sleep(1500);
+      // The frame is briefly cross-origin while the proxy takes over, so every
+      // touch of its document has to be guarded or this loop dies for good.
+      let found = null;
+      try {
+        if (!aiSettings().on) continue;
+        // The proxy can replace the iframe element, so never hold a stale one.
+        const frame = botFrame(index);
+        if (!frame) continue;
+        const doc = frame.contentDocument;
+        if (!doc) continue;
+        found = visibleQuestion(doc);
+      } catch (error) {
+        continue;
+      }
+      if (!found) continue;
+      const signature = found.question + "|" + found.options.map((option) => option.text).join("|");
+      if (signature === last) continue;
+      last = signature;
+      try {
+        const index = await askAI(found.question, found.options.map((option) => option.text));
+        if (index < 0 || !found.options[index]) {
+          logLine("AI had no clear answer for \"" + found.question.slice(0, 42) + "\"", "err");
+          continue;
+        }
+        found.options[index].node.click();
+        logLine("AI answered \"" + found.options[index].text.slice(0, 28) + "\" (" + name + ")", "ok");
+      } catch (error) {
+        logLine("AI error: " + (error && error.message ? error.message : error), "err");
+        await sleep(4000);
+      }
+    }
+  }
+
   function setValue(input, value) {
     const view = input.ownerDocument.defaultView;
     const proto = input.ownerDocument.defaultView.HTMLInputElement.prototype;
@@ -190,8 +315,11 @@
         frame.title = "Blooket bot " + name;
         frame.setAttribute("referrerpolicy", "no-referrer");
         frame.sandbox = "allow-scripts allow-forms allow-same-origin allow-pointer-lock";
+        const botIndex = $("blooketBots").children.length;
+        frame.dataset.bot = String(botIndex);
         $("blooketBots").appendChild(frame);
         const line = logLine("Bot " + name + " loading the join page…");
+        if ($("blooketAiOn").checked) answerLoop(botIndex, name);
         try {
           const result = await joinBot(frame, code, name);
           line.className = "bk-ok";
@@ -231,6 +359,7 @@
 
   function open() {
     overlay.classList.remove("hidden");
+    loadAiSettings();
     setNameMode();
     $("blooketCode").focus();
   }
@@ -250,6 +379,10 @@
     $("blooketBots").classList.toggle("bk-shown");
     $("blooketShowBots").textContent = $("blooketBots").classList.contains("bk-shown") ? "Hide bot windows" : "Show bot windows";
   });
+  for (const id of ["blooketAiOn", "blooketAiUrl", "blooketAiModel", "blooketAiKey"]) {
+    $(id).addEventListener("change", saveAiSettings);
+    $(id).addEventListener("blur", saveAiSettings);
+  }
   overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !overlay.classList.contains("hidden")) close();
