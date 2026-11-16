@@ -6,7 +6,11 @@
 <title>PEAK</title>
 <style>
   html,body{margin:0;height:100%;background:#0d0d0d;color:#e8e8e8;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
-  #game{position:fixed;inset:0;width:100%;height:100%;border:0;display:block;background:#000}
+  /* The upstream Unity build draws a fixed 960x600 canvas. Keeping the frame at
+     that size and scaling it keeps the aspect ratio while filling the screen. */
+  #game{position:fixed;left:50%;top:50%;width:960px;height:600px;border:0;display:block;background:#000;
+    transform-origin:center center;transform:translate(-50%,-50%) scale(var(--k,1));transition:transform .18s ease}
+  body.native #game{width:100%;height:100%;left:0;top:0;transform:none;transition:none}
   #boot{position:fixed;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#0d0d0d;transition:opacity .25s ease}
   #boot.gone{opacity:0;pointer-events:none}
   #boot h1{margin:0;font-size:15px;letter-spacing:.32em;text-transform:uppercase;font-weight:600;color:#dcdcdc}
@@ -17,6 +21,8 @@
   #chip{position:fixed;left:12px;bottom:12px;z-index:3;display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid #2a2a2a;border-radius:999px;background:rgba(12,12,12,.82);font-size:11px;color:#8a8a8a;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
   #chip a{color:#cfcfcf;text-decoration:none;border-bottom:1px solid #3a3a3a}
   #chip a:hover{color:#fff}
+  #chip button{background:none;border:0;color:#cfcfcf;font:inherit;padding:0;cursor:pointer;border-bottom:1px solid #3a3a3a}
+  #chip button:hover{color:#fff}
 </style>
 </head>
 <body>
@@ -29,12 +35,26 @@
 </div>
 <div id="chip">
   <span>wasm.rip</span>
+  <button type="button" id="fitToggle">Native size</button>
   <a href="https://wasm.rip/files/peak/PEAK.html" target="_blank" rel="noopener noreferrer">Open in new tab</a>
   <a href="../../index.html">Library</a>
 </div>
 <script>
 (function(){
   var frame=document.getElementById('game'),boot=document.getElementById('boot');
+  var RATIO=600/960;
+  function fit(){
+    if (document.body.classList.contains('native')) return;
+    var k=Math.min(window.innerWidth/960, window.innerHeight/600);
+    document.documentElement.style.setProperty('--k', Number(k.toFixed(4)));
+  }
+  window.addEventListener('resize', fit);
+  fit();
+  document.getElementById('fitToggle').addEventListener('click', function(){
+    var native=document.body.classList.toggle('native');
+    this.textContent=native?'Fill screen':'Native size';
+    fit();
+  });
   function hide(){boot.classList.add('gone');setTimeout(function(){if(boot.parentNode)boot.remove();},400);}
   // The upstream page is an 855-byte wrapper around the real game frame, so its
   // load event is the only reliable "the embed answered" signal we can observe.
