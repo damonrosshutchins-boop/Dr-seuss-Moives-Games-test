@@ -96,12 +96,15 @@ export function relayCandidates() {
     .map(item => ({ ...item, active: item.endpoint === endpoint }));
 }
 
+// The first connection to a relay pays DNS, TLS and (for the Cloudflare Worker)
+// Durable Object start-up, so it is a cold-start figure rather than a link
+// measurement. Sample one extra time and drop the first result.
 async function medianPing(url, pings) {
   const samples = [];
-  for (let i = 0; i < pings; i++) {
+  for (let i = 0; i <= pings; i++) {
     const sample = await pingRelay(url, 6000);
-    if (sample !== null) samples.push(sample);
-    if (i + 1 < pings) await new Promise(resolve => setTimeout(resolve, 120));
+    if (sample !== null && i > 0) samples.push(sample);
+    if (i < pings) await new Promise(resolve => setTimeout(resolve, 120));
   }
   samples.sort((a, b) => a - b);
   return samples.length ? samples[Math.floor(samples.length / 2)] : null;
