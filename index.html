@@ -92,6 +92,7 @@ const library=[
 {id:'meowdoku',kind:'game',name:'Meowdoku',desc:'Play the bundled Godot web port locally on this website.',icon:'🐱',bg:'linear-gradient(130deg,#505050,#9e9e9e)',url:'./games/meowdoku/index.html',local:true},
 {id:'deltarune',kind:'game',name:'DELTARUNE (web)',desc:'Browser-hosted DELTARUNE page.',icon:'💜',bg:'linear-gradient(130deg,#515151,#b8b8b8)',url:'https://mollomm1.github.io/test/'},
 {id:'hmm',kind:'game',name:'Hmm (web game)',desc:'Open the supplied sagaofowlz game page.',icon:'🦉',bg:'linear-gradient(130deg,#525252,#aeaeae)',url:'https://sagaofowlz.github.io/hmm/'},
+{id:'ultrakill',kind:'game',name:'ULTRAKILL (web)',desc:'Unity 1.4 web port from the stg420 mirror; 62 MB of split data and wasm parts load through the relay, so give it a minute on first open.',icon:'🩸',bg:'linear-gradient(130deg,#4a4a4a,#c9c9c9)',url:'https://stg420.github.io/ultrakill/'},
 {id:'web-dashers',kind:'game',name:'Web Dashers',desc:'Locally hosted Geometry Dash fan demo from the Web Dashers team. Online levels/accounts may need their servers.',icon:'💠',bg:'linear-gradient(130deg,#4b4b4b,#989898)',url:'./games/web-dashers/index.html',local:true},
 {id:'lmrip',kind:'game',name:"Luigi's Mansion (Web)",desc:'Locally hosted threaded game; opens in this tab on the same site so its service worker can enable cross-origin isolation.',icon:'👻',bg:'linear-gradient(130deg,#323232,#797979)',url:'./games/lmrip/index.html',local:true,needsIsolation:true},
 {id:'half-life-2',kind:'game',name:'Half-Life 2 Web Port',desc:'In-site viewer of the publisher-hosted build; requires large remote downloads.',icon:'🔶',bg:'linear-gradient(130deg,#424242,#828282)',url:'./games/half-life-2/index.html',local:true},
@@ -263,7 +264,7 @@ async function openItem(x){
       frame.src=path.href;
       return;
     }
-    const {openProxied}=await import('./proxy-client.js');
+    const {openProxied}=await import('./proxy-client.js?v=2');
     if(session!==playerSession)return;
     frame.addEventListener('load',()=>{
       if(session!==playerSession)return;
@@ -308,5 +309,5 @@ if(requested){
   if(match)requestAnimationFrame(()=>{void openItem(match);});
 }
 // Start the expensive player setup while the user browses the game library.
-import('./proxy-client.js').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
+import('./proxy-client.js?v=2').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
 </script><script defer src="./calls.js"></script></body></html>
