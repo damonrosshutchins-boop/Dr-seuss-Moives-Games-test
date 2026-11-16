@@ -104,8 +104,13 @@
     b.style.display = 'flex';
   }
   var OOM = /array buffer|out of memory|allocation failed|invalid array length|outofmemory|memory limit/i;
+  // These Unity ports request Pointer Lock and play an intro video before any
+  // click exists, so the browser rejects both. Neither stops the game, and
+  // turning them into a blocking panel made a working port look broken.
+  var BENIGN = /pointer ?lock|user gesture|notallowederror|play\(\) failed|the play method|playback was interrupted|autoplay/i;
   function fail(e) {
     var m = (e && (e.message || (e.reason && e.reason.message))) || String(e || 'unknown error');
+    if (BENIGN.test(m)) { if (W.console) W.console.info('[loader-guard] ignored benign startup error:', m); return; }
     if (OOM.test(m)) {
       fatal('The browser ran out of memory.',
         m + ' — this build expands to over a gigabyte in memory. Close other tabs and retry, or run it on a desktop with several GB of RAM free.');
@@ -121,6 +126,24 @@
     fail(e);
   }, true);
   W.addEventListener('unhandledrejection', function (e) { fail(e.reason || e); });
+  // Grant pointer lock on the next real click instead of losing it forever.
+  try {
+    var origLock = Element.prototype.requestPointerLock;
+    if (origLock) {
+      var lockTarget = null;
+      Element.prototype.requestPointerLock = function () {
+        var self = this, promise;
+        try { promise = origLock.call(self); } catch (err) { lockTarget = self; return; }
+        if (promise && typeof promise.catch === 'function') promise.catch(function () { lockTarget = self; });
+        return promise;
+      };
+      D.addEventListener('click', function () {
+        if (!lockTarget) return;
+        try { origLock.call(lockTarget); } catch (err) {}
+        lockTarget = null;
+      }, true);
+    }
+  } catch (err) {}
   W.__arcadeGuard = { touch: touch, fatal: fatal, fail: fail };
   if (W.MutationObserver) new MutationObserver(touch).observe(D.documentElement, { childList: true, subtree: true, characterData: true });
   D.addEventListener('DOMContentLoaded', function () {
