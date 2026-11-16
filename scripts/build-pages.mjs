@@ -132,7 +132,7 @@ await copyRuntime("libcurl",pkgDir("@mercuryworkshop/libcurl-transport"),"index.
 // works during the first installation, so a restarted worker that relied on it
 // lost the router and answered every proxied request with a 404.
 {
-  const controllerSource=await fs.readFile(path.join(pkgDir("@mercuryworkshop/scramjet-controller"),"dist","controller.sw.js"),"utf8");
+  const controllerSource=await fs.readFile(path.join(pkgDir("@mercuryworkshop/scramjet-controller"),"controller.sw.js"),"utf8");
   if(!controllerSource.includes("$scramjetController"))throw new Error("Unexpected Scramjet controller bundle");
   const workerPath=path.join(out,"sw.js");
   const workerSource=await fs.readFile(workerPath,"utf8");
