@@ -217,11 +217,13 @@ async function createController(onStage) {
   keepWorkerWarm(worker);
 
   report("Loading relay scripts…", onStage);
-  for (const src of [
-    asset("scram/scramjet.js"),
+  // controller.api.js and the utils hang off the namespace scramjet.js creates,
+  // so that one still goes first; the other two only need it, not each other.
+  await loadScript(asset("scram/scramjet.js"));
+  await Promise.all([
     asset("controller/controller.api.js"),
     asset("utils/scramjet-utils.js")
-  ]) await loadScript(src);
+  ].map(loadScript));
 
   if (typeof window.$scramjetController?.Controller !== "function") {
     throw new Error("Scramjet controller did not initialize. Check the browser console.");
@@ -231,9 +233,12 @@ async function createController(onStage) {
   const module = await timeout(import(asset("libcurl/index.mjs")), "Loading transport module");
   const LibcurlClient = module.default;
   if (typeof LibcurlClient !== "function") throw new Error("Libcurl transport module did not export a client.");
+  // libcurl defaults to 50 connections, a 40-entry connection cache and only
+  // 6 sockets per host, which serialises asset-heavy pages: a search results
+  // page pulls dozens of files from a single host.
   const instance = new window.$scramjetController.Controller({
     serviceworker: worker,
-    transport: new LibcurlClient({ wisp: endpoint }),
+    transport: new LibcurlClient({ wisp: endpoint, connections: [120, 96, 16] }),
     config: {
       scramjetPath: asset("scram/scramjet.js"),
       wasmPath: asset("scram/scramjet.wasm"),
@@ -270,4 +275,46 @@ export async function browse(iframe, raw, onStage) {
 
 export function currentFrame() {
   return frame || null;
+}
+
+// The controller costs about a second on a cold page (service worker handshake,
+// relay scripts, wasm fetch, wisp websocket). Paying it while the page sits idle
+// turns the first search into just a navigation.
+export function preconnectRelay() {
+  try {
+    const origin = relayHttpOrigin();
+    for (const rel of ["preconnect", "dns-prefetch"]) {
+      if (document.querySelector('link[data-seuss-relay][rel="' + rel + '"]')) continue;
+      const link = document.createElement("link");
+      link.rel = rel;
+      link.href = origin;
+      if (rel === "preconnect") link.crossOrigin = "anonymous";
+      link.dataset.seussRelay = origin;
+      document.head.append(link);
+    }
+    if (!document.querySelector('link[data-seuss-transport]')) {
+      const module = document.createElement("link");
+      module.rel = "modulepreload";
+      module.href = asset("libcurl/index.mjs");
+      module.dataset.seussTransport = "1";
+      document.head.append(module);
+    }
+  } catch { /* hints are optional */ }
+}
+
+let priming;
+export function primeRelay() {
+  preconnectRelay();
+  if (controller) return Promise.resolve(controller);
+  if (!navigator.serviceWorker) return Promise.resolve(null);
+  if (!priming) {
+    priming = createController(() => {}).then(value => {
+      controller = value;
+      return value;
+    }).catch(error => {
+      console.info("[Seuss search] Warm-up skipped:", error?.message || error);
+      return null;
+    }).finally(() => { priming = undefined; });
+  }
+  return priming;
 }
