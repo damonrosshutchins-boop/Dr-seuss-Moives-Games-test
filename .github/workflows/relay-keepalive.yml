@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Warm the relay
         env:
-          RELAY_HEALTH_URL: ${{ vars.RELAY_HEALTH_URL || 'https://seuss-cinema-arcade.onrender.com/health' }}
+          RELAY_HEALTH_URL: ${{ vars.RELAY_HEALTH_URL || 'https://seuss-wisp-relay.damonrosshutchins.workers.dev/health' }}
         run: |
           set -uo pipefail
           for attempt in 1 2 3; do

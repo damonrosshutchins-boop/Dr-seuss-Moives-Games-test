@@ -1,11 +1,11 @@
 // Seuss Search v2 client: unrestricted public-web navigation through the
-// Render-hosted Wisp relay. Any http(s) destination the relay can resolve.
+// Cloudflare-hosted Wisp relay. Any http(s) destination the relay can resolve.
 // The curated player (proxy-client.js) keeps its own allowlist for games.
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-// Relay choice lives in localStorage so Settings can switch between the Render
-// relay, a Cloudflare Worker relay and any custom endpoint.
-const RENDER_ENDPOINT = "wss://seuss-cinema-arcade.onrender.com/wisp/";
+// Relay choice lives in localStorage so Settings can switch between the Cloudflare
+// Worker relay, the loopback relay and any custom endpoint.
+const CLOUDFLARE_ENDPOINT = "wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/";
 const RELAY_KEY = "seuss-relay";
 const onLoopback = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 const loopbackEndpoint = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/wisp/";
@@ -14,7 +14,7 @@ export function readRelay() {
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(RELAY_KEY) || "{}") || {}; } catch { stored = {}; }
   return {
-    mode: ["render", "cloudflare", "custom"].includes(stored.mode) ? stored.mode : null,
+    mode: ["cloudflare", "custom"].includes(stored.mode) ? stored.mode : null,
     cloudflare: typeof stored.cloudflare === "string" ? stored.cloudflare.trim() : "",
     custom: typeof stored.custom === "string" ? stored.custom.trim() : ""
   };
@@ -28,8 +28,7 @@ function pickEndpoint() {
   const relay = readRelay();
   if (relay.mode === "cloudflare" && relay.cloudflare) return relay.cloudflare;
   if (relay.mode === "custom" && relay.custom) return relay.custom;
-  if (relay.mode === "render") return RENDER_ENDPOINT;
-  return onLoopback ? loopbackEndpoint : RENDER_ENDPOINT;
+  return onLoopback ? loopbackEndpoint : CLOUDFLARE_ENDPOINT;
 }
 
 const endpoint = pickEndpoint();
@@ -53,7 +52,7 @@ function keepWorkerWarm(worker) {
 }
 
 export const relayEndpoint = endpoint;
-export { RENDER_ENDPOINT, loopbackEndpoint, RELAY_KEY };
+export { CLOUDFLARE_ENDPOINT, loopbackEndpoint, RELAY_KEY };
 
 // Link quality for the relay actually in use. Ping runs on the same WebSocket
 // path the tunnel uses; throughput downloads the relay's /speedtest payload, so
@@ -77,12 +76,12 @@ export function relayLabelOf(url) {
 
 export function relayLabel() { return relayLabelOf(endpoint); }
 
-// Every relay this browser has configured, so Render and Cloudflare can be
+// Every relay this browser has configured, so all of them can be
 // compared side by side instead of only seeing the one currently selected.
 export function relayCandidates() {
   const relay = readRelay();
-  const list = [{ key: "render", name: "Render", endpoint: RENDER_ENDPOINT }];
-  if (relay.cloudflare) list.push({ key: "cloudflare", name: "Cloudflare", endpoint: relay.cloudflare });
+  const list = [{ key: "cloudflare", name: "Cloudflare", endpoint: CLOUDFLARE_ENDPOINT }];
+  if (relay.cloudflare && relay.cloudflare !== CLOUDFLARE_ENDPOINT) list.push({ key: "cloudflare", name: "Cloudflare", endpoint: relay.cloudflare });
   if (relay.custom) list.push({ key: "custom", name: relayLabelOf(relay.custom), endpoint: relay.custom });
   if (onLoopback) list.push({ key: "local", name: "Local", endpoint: loopbackEndpoint });
   const seen = new Set();
@@ -103,7 +102,7 @@ async function medianPing(url, pings) {
 }
 
 // Latency for every configured relay at once, so the Cloudflare figure is
-// available even when Render is the relay in use.
+// available even when another relay is the one in use.
 export async function measureRelayPings(pings = 2) {
   return Promise.all(relayCandidates().map(async target => ({
     ...target,
@@ -227,7 +226,7 @@ async function createController(onStage) {
     throw new Error("Scramjet controller did not initialize. Check the browser console.");
   }
 
-  report("Connecting to the Render relay…", onStage);
+  report("Connecting to the Cloudflare relay…", onStage);
   const module = await timeout(import(asset("libcurl/index.mjs")), "Loading transport module");
   const LibcurlClient = module.default;
   if (typeof LibcurlClient !== "function") throw new Error("Libcurl transport module did not export a client.");

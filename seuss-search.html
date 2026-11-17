@@ -199,7 +199,7 @@
         <button type="button" class="speed" id="relaySpeed" title="Test this relay's connection speed">Testing relay…</button>
         <button type="button" class="speed" id="cfSpeed" title="Cloudflare relay latency">Cloudflare · checking…</button>
         <span>Searches run on Bing</span>
-        <code id="endpoint">wss://seuss-cinema-arcade.onrender.com/wisp/</code>
+        <code id="endpoint">wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/</code>
       </div>
     </section>
 
@@ -240,7 +240,6 @@
     <section>
       <h3>RELAY</h3>
       <div class="opts" id="relayOpts">
-        <button type="button" data-relay="render">Render</button>
         <button type="button" data-relay="cloudflare">Cloudflare</button>
         <button type="button" data-relay="custom">Custom</button>
       </div>
@@ -251,8 +250,9 @@
         <input type="url" id="customUrl" placeholder="wss://your-relay.example.com/wisp/" spellcheck="false">
       </label>
       <p class="hint">Currently in use: <code id="currentRelay">—</code><br>
-        Deploy the Cloudflare relay from <code>cloudflare/wisp-relay</code>, paste its
-        <code>wss://…workers.dev/wisp/</code> URL above, then pick Cloudflare.</p>
+        The relay in <code>cloudflare/wisp-relay</code> is deployed at
+        <code>seuss-wisp-relay.damonrosshutchins.workers.dev</code> and is filled in
+        above; replace it to use your own, then pick Cloudflare.</p>
     </section>
 
     <section>
@@ -432,7 +432,7 @@ function markActive(containerId, attribute, value) {
 }
 function syncSettings() {
   markActive("bgOpts", "bg", bgMode);
-  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "render"));
+  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "cloudflare"));
   $("cfUrl").value = pendingRelay.cloudflare || "";
   $("customUrl").value = pendingRelay.custom || "";
 }
