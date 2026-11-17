@@ -199,7 +199,7 @@
         <button type="button" class="speed" id="relaySpeed" title="Test this relay's connection speed">Testing relay…</button>
         <button type="button" class="speed" id="cfSpeed" title="Cloudflare relay latency">Cloudflare · checking…</button>
         <span>Searches run on Bing</span>
-        <code id="endpoint">wss://seuss-cinema-arcade.onrender.com/wisp/</code>
+        <code id="endpoint">wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/</code>
       </div>
     </section>
 
@@ -240,7 +240,6 @@
     <section>
       <h3>RELAY</h3>
       <div class="opts" id="relayOpts">
-        <button type="button" data-relay="render">Render</button>
         <button type="button" data-relay="cloudflare">Cloudflare</button>
         <button type="button" data-relay="custom">Custom</button>
       </div>
@@ -441,7 +440,7 @@ function markActive(containerId, attribute, value) {
 }
 function syncSettings() {
   markActive("bgOpts", "bg", bgMode);
-  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "render"));
+  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "cloudflare"));
   $("cfUrl").value = pendingRelay.cloudflare || "";
   $("customUrl").value = pendingRelay.custom || "";
 }

@@ -278,13 +278,53 @@ async function openItem(x){
     await openProxied(frame,x.url,stage=>{if(session===playerSession)$('viewerStatus').textContent=stage});
     if(session===playerSession && !$('playerProgress').classList.contains('hidden'))
       $('viewerStatus').textContent='Player started · loading content';
+    watchRelayFailure(frame,session);
   }catch(err){
     if(session!==playerSession)return;
+    const reason=err&&err.message?err.message:String(err);
+    if(RELAY_FAILURE.test(reason)){showRelayHelp(session);return;}
     $('viewerStatus').textContent='Unable to load game';
     updatePlayerProgress('Unable to load game');
-    $('viewerAlert').textContent=err.message||String(err);
+    $('viewerAlert').textContent=reason;
     $('viewerAlert').classList.remove('hidden');
   }
+}
+// A relay that cannot open the destination leaves the worker's own error page in
+// the frame, which looks like a site fault. Turn that into a hint about Settings.
+const RELAY_FAILURE=/Internal Service Worker Error|SSL connect error|could not connect|failed to connect|does not contain the requested file|File not found/i;
+function watchRelayFailure(frame,session){
+  let ticks=0;
+  const timer=setInterval(()=>{
+    if(session!==playerSession){clearInterval(timer);return;}
+    if(++ticks>30){clearInterval(timer);return;}
+    let text='';
+    try{text=frame.contentDocument&&frame.contentDocument.body?frame.contentDocument.body.innerText:'';}catch(err){return;}
+    if(!RELAY_FAILURE.test(text))return;
+    clearInterval(timer);
+    showRelayHelp(session);
+  },1000);
+}
+function showRelayHelp(session){
+  if(session!==playerSession)return;
+  $('viewerStatus').textContent='The relay could not connect';
+  updatePlayerProgress('The relay could not connect');
+  $('playerProgress').classList.add('hidden');
+  const alert=$('viewerAlert');
+  alert.innerHTML='';
+  const message=document.createElement('p');
+  message.textContent='This game needs a relay that can reach it. Open Settings, paste a working wss:// relay address under “Use a different relay”, then reload the game.';
+  const button=document.createElement('button');
+  button.type='button';
+  button.className='primary';
+  button.textContent='Open relay settings';
+  button.onclick=()=>{
+    closePlayer();
+    $('settings').classList.remove('hidden');
+    const field=$('playerRelay');
+    if(field){field.focus();if(field.select)field.select();}
+  };
+  alert.append(message,button);
+  alert.classList.remove('hidden');
 }
 $('closeViewer').onclick=closePlayer;
 $('fullscreenGame').onclick=()=>{void toggleGameFullscreen();};

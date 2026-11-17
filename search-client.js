@@ -1,11 +1,10 @@
 // Seuss Search v2 client: unrestricted public-web navigation through the
-// Render-hosted Wisp relay. Any http(s) destination the relay can resolve.
+// Cloudflare-hosted Wisp relay. Any http(s) destination the relay can resolve.
 // The curated player (proxy-client.js) keeps its own allowlist for games.
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-// Relay choice lives in localStorage so Settings can switch between the Render
-// relay, a Cloudflare Worker relay and any custom endpoint.
-const RENDER_ENDPOINT = "wss://seuss-cinema-arcade.onrender.com/wisp/";
+// Relay choice lives in localStorage so Settings can switch between the
+// Cloudflare Worker relay and any custom endpoint.
 // Deployed from cloudflare/wisp-relay, so the Cloudflare figure and the
 // Cloudflare relay option work without pasting a URL into Settings first.
 const CLOUDFLARE_ENDPOINT = "wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/";
@@ -17,7 +16,7 @@ export function readRelay() {
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(RELAY_KEY) || "{}") || {}; } catch { stored = {}; }
   return {
-    mode: ["render", "cloudflare", "custom"].includes(stored.mode) ? stored.mode : null,
+    mode: ["cloudflare", "custom"].includes(stored.mode) ? stored.mode : null,
     cloudflare: typeof stored.cloudflare === "string" && stored.cloudflare.trim()
       ? stored.cloudflare.trim()
       : CLOUDFLARE_ENDPOINT,
@@ -33,7 +32,6 @@ function pickEndpoint() {
   const relay = readRelay();
   if (relay.mode === "cloudflare" && relay.cloudflare) return relay.cloudflare;
   if (relay.mode === "custom" && relay.custom) return relay.custom;
-  if (relay.mode === "render") return RENDER_ENDPOINT;
   return onLoopback ? loopbackEndpoint : CLOUDFLARE_ENDPOINT;
 }
 
@@ -58,7 +56,7 @@ function keepWorkerWarm(worker) {
 }
 
 export const relayEndpoint = endpoint;
-export { RENDER_ENDPOINT, CLOUDFLARE_ENDPOINT, loopbackEndpoint, RELAY_KEY };
+export { CLOUDFLARE_ENDPOINT, loopbackEndpoint, RELAY_KEY };
 
 // Link quality for the relay actually in use. Ping runs on the same WebSocket
 // path the tunnel uses; throughput downloads the relay's /speedtest payload, so
@@ -74,7 +72,6 @@ export function relayHttpOrigin() {
 export function relayLabelOf(url) {
   let host;
   try { host = new URL(url.replace(/^ws/, "http")).hostname; } catch { host = location.hostname; }
-  if (host.endsWith("onrender.com")) return "Render";
   if (host.endsWith("workers.dev")) return "Cloudflare";
   if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(host)) return "Local";
   return host;
@@ -82,11 +79,11 @@ export function relayLabelOf(url) {
 
 export function relayLabel() { return relayLabelOf(endpoint); }
 
-// Every relay this browser has configured, so Render and Cloudflare can be
-// compared side by side instead of only seeing the one currently selected.
+// Every relay this browser has configured, so the Cloudflare relay and a custom
+// one can be compared side by side instead of only seeing the selected one.
 export function relayCandidates() {
   const relay = readRelay();
-  const list = [{ key: "render", name: "Render", endpoint: RENDER_ENDPOINT }];
+  const list = [];
   if (relay.cloudflare) list.push({ key: "cloudflare", name: "Cloudflare", endpoint: relay.cloudflare });
   if (relay.custom) list.push({ key: "custom", name: relayLabelOf(relay.custom), endpoint: relay.custom });
   if (onLoopback) list.push({ key: "local", name: "Local", endpoint: loopbackEndpoint });
