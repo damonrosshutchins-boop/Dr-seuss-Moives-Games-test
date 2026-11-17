@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Five Night's at BIG E · Seuss Arcade</title>
-<link rel="stylesheet" href="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/fnae/TemplateData/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/style.css">
 <style>html,body{margin:0;background:#09090b;color:#eee;font:15px system-ui,sans-serif;min-height:100%;}#loading-text{position:fixed;top:12px;left:12px;z-index:8;padding:10px;background:#17171ddd;max-width:90vw;border-radius:6px}#unity-container{width:100vw;height:100vh;display:grid;place-items:center}#unity-canvas{width:min(100vw,100%);height:min(100vh,100%);max-height:100vh;object-fit:contain;background:#101013}#unity-loading-bar{position:absolute;bottom:24px;width:60%;max-width:450px}#unity-progress-bar-empty{height:10px;background:#34343c;border-radius:10px}#unity-progress-bar-full{height:100%;width:0;background:#88ba9b;border-radius:10px}#error{color:#ffbabb;white-space:pre-wrap}</style>
 </head><body>
 <div id="loading-text" role="status" aria-live="polite">Loading Five Night's at BIG E… <span id="progress"></span><p id="error"></p></div>
 <div id="unity-container"><canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas><div id="unity-loading-bar"><div id="unity-progress-bar-empty"><div id="unity-progress-bar-full"></div></div></div></div>
 <script>
 (async()=>{
- const base="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/fnae/";
+ const base="https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/";
  const status=document.getElementById("loading-text"),progress=document.getElementById("progress"),error=document.getElementById("error");
  let loaded=0;
  async function read(url){

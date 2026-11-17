@@ -29,9 +29,8 @@ button:disabled{opacity:.5;cursor:wait}
 </div>
 <script>
 "use strict";
-const ROOT="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/run2/";
-const SCRIPT=ROOT+"ruffle.js";
-const GAME=ROOT+"Run2.swf";
+const SCRIPT="https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/ruffle.js";
+const GAME="https://cdn.jsdelivr.net/gh/bubbls/UGS-file-encryption@f69cc42a2ca577ff18acdf1158d3dc6940afd3d3/Run2.swf";
 const playerHost=document.getElementById("player");
 const overlay=document.getElementById("overlay");
 const statusNode=document.getElementById("status");
@@ -58,7 +57,7 @@ function loadScript(src){
   script.src=src;
   script.async=true;
   script.onload=resolve;
-  script.onerror=()=>reject(Error("Ruffle runtime failed to load from the approved Render route"));
+  script.onerror=()=>reject(Error("Ruffle runtime failed to load from the GitHub CDN"));
   document.head.appendChild(script);
  });
 }

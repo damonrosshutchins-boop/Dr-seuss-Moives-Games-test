@@ -30,7 +30,7 @@ button:focus-visible{outline:3px solid #ffe3a2;outline-offset:3px}
 </main>
 <script>
 "use strict";
-const base="https://seuss-cinema-arcade.onrender.com/approved-games/cheese/";
+const base="https://raw.githubusercontent.com/SomeRandomFella/portsandrips@9546494b3052e8e078fb28df7430ac35f42a8787/CheeseRollingWeb/";
 const game=document.getElementById("game");
 const status=document.getElementById("status");
 const message=document.getElementById("message");
@@ -39,20 +39,15 @@ async function launch(){
   status.hidden=false;
   retry.hidden=true;
   game.removeAttribute("src");
-  message.textContent="Checking the approved Render game connection…";
+  message.textContent="Checking the GitHub game source…";
   try{
-    const response=await fetch(base+"status",{mode:"cors",cache:"no-store",signal:AbortSignal.timeout(15000)});
-    const detail=await response.json().catch(()=>({}));
-    if(!response.ok||!detail.ok){
-      throw Error(detail.note||"The upstream game is temporarily unavailable (HTTP "+response.status+").");
-    }
-    message.textContent="Loading the new Cheese Rolling Unity build through Render…";
+    message.textContent="Loading the Cheese Rolling Unity build from GitHub…";
     game.onload=()=>{status.hidden=true;};
     game.src=base+"index.html";
   }catch(error){
-    message.textContent="Cheese Rolling could not connect through the restricted Render game route. "+
+    message.textContent="Cheese Rolling could not load from GitHub. "+
       (error.message||String(error))+
-      " The pinned game source or the Render connection may be temporarily unavailable.";
+      " The pinned game source may be temporarily unavailable.";
     retry.hidden=false;
   }
 }

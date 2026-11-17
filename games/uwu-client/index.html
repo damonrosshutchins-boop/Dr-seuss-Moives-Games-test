@@ -31,7 +31,10 @@ button:disabled{opacity:.5;cursor:wait}
 <div id="notice" role="alert"><strong>UwU Client could not be loaded.</strong><span id="errorText"></span></div>
 <script>
 "use strict";
-const GAME_URL="https://seuss-cinema-arcade.onrender.com/approved-games/uwu-client/index.html";
+const UWU_PARTS=[
+ "https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/uwuclient/cluwuclient.html.part1",
+ "https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/uwuclient/cluwuclient.html.part2"
+];
 const frame=document.getElementById("game");
 const label=document.getElementById("status");
 const reload=document.getElementById("reload");
@@ -48,20 +51,20 @@ async function launch(){
  const current=++session;
  reload.disabled=true;notice.style.display="none";
  frame.removeAttribute("src");
- progress("Checking the approved Render UwU Client route…");
+ progress("Fetching UwU Client parts from the GitHub CDN…");
  try{
-  const response=await fetch(GAME_URL,{method:"HEAD",mode:"cors",cache:"no-store",signal:AbortSignal.timeout(60000)});
-  if(!response.ok)throw new Error("Approved game route returned HTTP "+response.status);
+  const bodies=await Promise.all(UWU_PARTS.map(async url=>{
+   const response=await fetch(url,{cache:"no-store",signal:AbortSignal.timeout(120000)});
+   if(!response.ok)throw new Error("Part unavailable (HTTP "+response.status+"): "+url);
+   return response.text();
+  }));
   if(current!==session)return;
-  progress("Loading UwU Client (about 39 MB) from Render…");
-  // Keep the game isolated on Render's origin, inside the arcade frame.
-  // It is not sent to the original CDN and cannot navigate the parent frame.
-  frame.addEventListener("load",()=>{
-   if(current!==session)return;
-   progress("UwU Client document loaded · initializing game…");
-   reload.disabled=false;
-  },{once:true});
-  frame.src=GAME_URL;
+  progress("Building the UwU Client document…");
+  // The parts are one HTML document split for size, so they are joined here
+  // and handed to the sandboxed frame; the game stays inside this page.
+  frame.srcdoc=bodies.join("");
+  progress("UwU Client document loaded · initializing game…");
+  reload.disabled=false;
  }catch(error){
   if(current!==session)return;
   errorText.textContent=(error?.message||String(error))+". Reload to retry.";
