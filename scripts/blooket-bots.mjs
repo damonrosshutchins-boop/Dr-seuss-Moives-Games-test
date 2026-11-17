@@ -6,8 +6,14 @@
 //   node scripts/blooket-bots.mjs --code 1234567 --count 3 --names "ann,bob,cid"
 //   node scripts/blooket-bots.mjs --code 1234567 --count 3 --minutes 40 --show
 //
+// Answers come from an OpenAI-compatible endpoint when one is supplied:
+//   AI_URL=https://api.openai.com/v1 AI_MODEL=gpt-4o-mini AI_KEY=sk-... \
+//     node scripts/blooket-bots.mjs --code 1234567 --count 3
+//
+// Add --show to watch the browsers instead of running them headless. --url
+// points the bots at another page, which is how the mock is tested.
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -22,6 +28,9 @@ const names = (flag("names", "") || "").split(",").map((name) => name.trim()).fi
 const minutes = Math.max(1, Math.min(180, Number(flag("minutes", "20")) || 20));
 const show = args.includes("--show");
 const pageUrl = flag("url", "https://play.blooket.com/play");
+const aiUrl = process.env.AI_URL || "";
+const aiModel = process.env.AI_MODEL || "";
+const aiKey = process.env.AI_KEY || "";
 
 if (!/^\d{4,8}$/.test(code)) {
   console.error("Pass the game code: --code 1234567");
@@ -33,37 +42,10 @@ const WORDS = ["calm", "brave", "sunny", "rapid", "lucky", "bold", "misty", "sha
 const CREATURES = ["Crane", "Otter", "Yak", "Panda", "Falcon", "Lynx", "Moth", "Tapir", "Bison", "Puffin"];
 const botName = (index) => names[index] || WORDS[index % WORDS.length] + CREATURES[Math.floor(index / WORDS.length) % CREATURES.length];
 
-// Playwright's browser cache, so a container can use the Chromium it installed.
-function playwrightChromium() {
-  const cache = process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(process.env.HOME || "/root", ".cache", "ms-playwright");
-  let entries = [];
-  try { entries = readdirSync(cache); } catch (error) { return null; }
-  for (const entry of entries.filter((name) => name.startsWith("chromium-")).sort().reverse()) {
-    for (const suffix of ["chrome-linux/chrome", "chrome-linux64/chrome", "chrome-mac/Chromium.app/Contents/MacOS/Chromium"]) {
-      const candidate = path.join(cache, entry, suffix);
-      if (existsSync(candidate)) return candidate;
-    }
-  }
-  return null;
-}
-
-// Works on a Windows machine (Edge), a Linux container (Chromium) or macOS.
-function browserPath() {
-  const candidates = [
-    process.env.BROWSER_PATH,
-    process.env.EDGE_PATH,
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-    "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
-    "C:/Program Files/Google/Chrome/Application/chrome.exe",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-    "/usr/bin/microsoft-edge",
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate)) || playwrightChromium();
-  if (!found) throw new Error("No Chromium browser was found; set BROWSER_PATH to the browser executable");
+function edgePath() {
+  const found = [process.env.EDGE_PATH, "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"]
+    .filter(Boolean).find((candidate) => existsSync(candidate));
+  if (!found) throw new Error("Edge was not found; set EDGE_PATH to msedge.exe");
   return found;
 }
 
@@ -78,27 +60,23 @@ async function freePort() {
   });
 }
 
-// One browser window with its own profile, driven over the debug protocol.
-async function launchPage(url, { visible = false } = {}) {
+// A browser with its own profile: separate cookies and storage per bot.
+async function openBot(index, name) {
   const port = await freePort();
   const profile = mkdtempSync(path.join(tmpdir(), "blooket-bot-"));
   const chrome = [
     "--remote-debugging-port=" + port, "--remote-allow-origins=*", "--user-data-dir=" + profile,
     "--no-first-run", "--no-default-browser-check", "--window-size=1000,780", "--mute-audio"
   ];
-  // Containers run as root, where Chromium refuses its sandbox.
-  if (process.env.BROWSER_NO_SANDBOX === "1" || process.platform === "linux") {
-    chrome.push("--no-sandbox", "--disable-dev-shm-usage");
-  }
-  if (!visible) {
+  if (!show) {
     chrome.push("--headless=new", "--disable-gpu",
       "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       "--disable-blink-features=AutomationControlled");
   }
-  const child = spawn(browserPath(), [...chrome, url], { stdio: "ignore" });
+  const child = spawn(edgePath(), [...chrome, pageUrl], { stdio: "ignore" });
 
   let target = null;
-  for (let attempt = 0; attempt < 90 && !target; attempt += 1) {
+  for (let attempt = 0; attempt < 80 && !target; attempt += 1) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
       target = list.find((item) => item.type === "page" && !String(item.url).startsWith("edge://"));
@@ -125,25 +103,18 @@ async function launchPage(url, { visible = false } = {}) {
       pending.set(messageId, resolve);
       socket.send(JSON.stringify({ id: messageId, method: "Runtime.evaluate", params: { expression, awaitPromise: true, returnByValue: true, userGesture: true } }));
     });
-    if (reply.result?.exceptionDetails) {
-      const text = reply.result.exceptionDetails.exception?.description || reply.result.exceptionDetails.text || "";
-      throw new Error(String(text).split("\n")[0].slice(0, 160));
-    }
+    if (reply.result?.exceptionDetails) return undefined;
     return reply.result?.result?.value;
   };
   const close = () => {
     try { socket.close(); } catch (error) { /* ignore */ }
-    if (process.platform === "win32") {
-      spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-    } else {
-      try { child.kill("SIGKILL"); } catch (error) { /* already gone */ }
-    }
+    spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
     setTimeout(() => { try { rmSync(profile, { recursive: true, force: true }); } catch (error) { /* locked */ } }, 2000);
   };
-  return { evaluate, close };
+  return { index, name, evaluate, close };
 }
 
-const snapshot = (bot) => bot.page.evaluate(`(() => {
+const snapshot = (bot) => bot.evaluate(`(() => {
   const shown = (node) => !!node && node.offsetParent !== null;
   const text = (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').trim();
   const inputs = [...document.querySelectorAll('input')].filter(shown).map((input) => ({ type: input.type, placeholder: input.placeholder || '', value: input.value }));
@@ -154,11 +125,11 @@ const snapshot = (bot) => bot.page.evaluate(`(() => {
   })();
   const answers = [...document.querySelectorAll('[class*="answer" i], [class*="option" i]')]
     .filter((node) => shown(node) && (node.innerText || '').trim() && !node.querySelector('[class*="answer" i], [class*="option" i]'))
-    .map((node) => (node.innerText || '').trim().slice(0, 80));
-  return JSON.stringify({ text: text.slice(0, 500), inputs, buttons, question, answers, url: location.href });
+    .map((node) => ({ text: (node.innerText || '').trim().slice(0, 80), node }));
+  return JSON.stringify({ text: text.slice(0, 500), inputs, buttons, question, answers: answers.map((answer) => answer.text), url: location.href });
 })()`);
 
-const clickText = (bot, pattern) => bot.page.evaluate(`(() => {
+const clickText = (bot, pattern) => bot.evaluate(`(() => {
   const node = [...document.querySelectorAll('button, [role=button], a')]
     .find((item) => item.offsetParent !== null && ${pattern}.test((item.textContent || '').trim()));
   if (!node) return '';
@@ -166,7 +137,7 @@ const clickText = (bot, pattern) => bot.page.evaluate(`(() => {
   return (node.textContent || '').trim();
 })()`);
 
-const typeInto = (bot, placeholderPattern, value) => bot.page.evaluate(`(() => {
+const typeInto = (bot, placeholderPattern, value) => bot.evaluate(`(() => {
   const input = [...document.querySelectorAll('input')]
     .find((item) => item.offsetParent !== null && (item.type === 'tel' || item.type === 'text') && ${placeholderPattern}.test(item.placeholder || ''));
   if (!input) return '';
@@ -181,7 +152,7 @@ const typeInto = (bot, placeholderPattern, value) => bot.page.evaluate(`(() => {
   return 'form';
 })()`);
 
-const clickAnswer = (bot, text) => bot.page.evaluate(`(() => {
+const clickAnswer = (bot, text) => bot.evaluate(`(() => {
   const wanted = ${JSON.stringify(text)};
   const node = [...document.querySelectorAll('[class*="answer" i], [class*="option" i], button')]
     .find((item) => item.offsetParent !== null && (item.innerText || '').trim() === wanted);
@@ -190,22 +161,49 @@ const clickAnswer = (bot, text) => bot.page.evaluate(`(() => {
   return (node.innerText || '').trim();
 })()`);
 
+async function askAi(question, options) {
+  if (!aiUrl) return Math.floor(Math.random() * options.length);
+  const response = await fetch(aiUrl.replace(/\/$/, "") + "/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(aiKey ? { authorization: "Bearer " + aiKey } : {}) },
+    body: JSON.stringify({
+      model: aiModel || "gpt-4o-mini",
+      temperature: 0,
+      max_tokens: 8,
+      messages: [
+        { role: "system", content: "Reply with only the number of the correct option." },
+        { role: "user", content: "Question: " + question + "\nOptions:\n" + options.map((text, index) => index + 1 + ". " + text).join("\n") }
+      ]
+    })
+  });
+  if (!response.ok) throw new Error("AI endpoint answered " + response.status);
+  const body = await response.json();
+  const answer = String(body.choices?.[0]?.message?.content || "");
+  const number = answer.match(/\d+/);
+  if (number) {
+    const index = Number(number[0]) - 1;
+    if (index >= 0 && index < options.length) return index;
+  }
+  const matched = options.findIndex((text) => answer.toLowerCase().includes(String(text).toLowerCase()));
+  return matched >= 0 ? matched : Math.floor(Math.random() * options.length);
+}
+
 async function runBot(bot) {
   const log = (message) => console.log(`[${bot.name}] ${message}`);
   const deadline = Date.now() + minutes * 60000;
   let stage = "opening";
   let lastQuestion = "";
   let joinClicks = 0;
-  let reportedBlook = false;
+  let reportedStuck = false;
 
   while (Date.now() < deadline) {
-    const raw = await snapshot(bot).catch(() => undefined);
+    const raw = await snapshot(bot);
     if (!raw) { await sleep(800); continue; }
     const page = JSON.parse(raw);
     const shownText = page.text;
 
-    // Cookie banners cover the join form and swallow clicks, so clear them on
-    // every pass rather than only once.
+    // 1. Cookie banners cover the join form and swallow clicks, so clear them
+    //    on every pass rather than only once.
     if (page.buttons.some((label) => /^accept( all)?$/i.test(label))) {
       if (await clickText(bot, /^accept( all)?$/i)) { await sleep(600); continue; }
     }
@@ -215,12 +213,14 @@ async function runBot(bot) {
       return "refused";
     }
 
+    // 2. Not in the lobby yet: work whichever screen is on top by what it shows.
     const inLobby = /waiting for (the )?host|you are in|joining the game/i.test(shownText);
     if (!inLobby) {
       const codeField = page.inputs.find((input) => input.type === "tel" || /game id|code/i.test(input.placeholder));
       if (codeField) {
         if (codeField.value !== code) {
-          if (await typeInto(bot, /game id|code/i, code)) { log("typed game code " + code); await sleep(2000); continue; }
+          const how = await typeInto(bot, /game id|code/i, code);
+          if (how) { log("typed game code " + code); await sleep(2000); continue; }
         }
         await sleep(1200);
         continue;
@@ -229,15 +229,17 @@ async function runBot(bot) {
       const nameField = page.inputs.find((input) => /name|nick/i.test(input.placeholder));
       if (nameField) {
         if (nameField.value !== bot.name) {
-          if (await typeInto(bot, /name|nick/i, bot.name)) { log("typed nickname " + bot.name); await sleep(2000); continue; }
+          const how = await typeInto(bot, /name|nick/i, bot.name);
+          if (how) { log("typed nickname " + bot.name); await sleep(2000); continue; }
         }
-        const picked = await bot.page.evaluate(`(() => {
+        // A Blook must be chosen first; only then is the join button usable.
+        const picked = await bot.evaluate(`(() => {
           const choices = [...document.querySelectorAll('button[class*="blook" i], [class*="blook" i] button')].filter((node) => node.offsetParent !== null);
           if (!choices.length) return '';
           (choices[Math.floor(Math.random() * choices.length)]).click();
           return String(choices.length);
         })()`);
-        if (picked && !reportedBlook) { reportedBlook = true; log("picked a Blook (" + picked + " available)"); }
+        if (picked && !reportedStuck) { reportedStuck = true; log("picked a Blook (" + picked + " available)"); }
         await sleep(900);
         const joined = await clickText(bot, /join|play|continue|start|let'?s go|confirm/i);
         if (joined) { joinClicks += 1; log("clicked \"" + joined + "\""); }
@@ -249,6 +251,7 @@ async function runBot(bot) {
         continue;
       }
 
+      // Nothing to type: press the game's own join button if it has one.
       if (page.buttons.some((label) => /join|play|start|continue|confirm/i.test(label))) {
         await clickText(bot, /join|play|start|continue|confirm/i);
         await sleep(1500);
@@ -260,12 +263,12 @@ async function runBot(bot) {
 
     if (stage !== "lobby") { stage = "lobby"; log("joined — waiting for the host"); }
 
+    // 3. In the lobby: answer whatever question is showing.
     if (page.question && page.answers.length >= 2) {
       const signature = page.question + "|" + page.answers.join("|");
       if (signature !== lastQuestion) {
         lastQuestion = signature;
-        // Bots pick a random option; there is no AI provider involved.
-        const index = Math.floor(Math.random() * page.answers.length);
+        const index = await askAi(page.question, page.answers);
         const clicked = await clickAnswer(bot, page.answers[index]);
         log(`answered "${page.answers[index]}"${clicked ? "" : " (click missed)"}`);
       }
@@ -280,12 +283,14 @@ async function runBot(bot) {
 const bots = [];
 const results = [];
 try {
-  console.log(`game ${code} · ${count} bot${count === 1 ? "" : "s"} · random answers${show ? " · visible" : " · headless"}`);
+  console.log(`game ${code} · ${count} bot${count === 1 ? "" : "s"} · ${aiUrl ? "AI " + (aiModel || "default model") : "random answers"}${show ? " · visible" : " · headless"}`);
   for (let index = 0; index < count; index += 1) {
     const name = botName(index);
-    bots.push({ name, page: await launchPage(pageUrl, { visible: show }) });
+    const bot = await openBot(index, name);
+    bots.push(bot);
     console.log(`[${name}] browser ready`);
   }
+  // Every bot joins at the same time, so they are all in the lobby together.
   results.push(...await Promise.all(bots.map((bot) => runBot(bot))));
   const joined = results.filter((result) => result === "lobby").length;
   console.log(`\n${joined} of ${count} bots joined game ${code}`);
@@ -293,5 +298,5 @@ try {
   console.error("failed: " + (error.message || error));
   process.exitCode = 1;
 } finally {
-  for (const bot of bots) bot.page.close();
+  for (const bot of bots) bot.close();
 }
