@@ -44,6 +44,9 @@ const server = createServer((request, response) => {
     response.setHeader("access-control-allow-origin", origin);
     response.setHeader("access-control-allow-headers", "content-type");
     response.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
+    // Chromium asks for explicit consent before a public page may talk to a
+    // loopback server; without this header the request never leaves the page.
+    response.setHeader("access-control-allow-private-network", "true");
     response.setHeader("vary", "origin");
   }
   if (request.method === "OPTIONS") {

@@ -111,8 +111,8 @@
         setState(message);
       }
     } catch (error) {
-      logLine("The bot program is not running. Start it with: " + BRIDGE_HINT, "err");
-      setState("The bot program is not running yet.");
+      logLine("No answer from the bot program. Start it with: " + BRIDGE_HINT + " (if it is already running, allow this site to use your local network when the browser asks)", "err");
+      setState("The page could not reach the bot program on this computer.");
     } finally {
       $("blooketStart").disabled = false;
     }
@@ -129,8 +129,8 @@
         setState("No bot run is active.");
       }
     } catch (error) {
-      logLine("The bot program is not running. Start it with: " + BRIDGE_HINT, "err");
-      setState("The bot program is not running yet.");
+      logLine("No answer from the bot program. Start it with: " + BRIDGE_HINT, "err");
+      setState("The page could not reach the bot program on this computer.");
     }
   }
 
@@ -147,7 +147,7 @@
         setState("Bot program ready. Enter the host's game code and press Send bots.");
       }
     } catch (error) {
-      setState("The bot program is not running yet. Start it in a terminal: " + BRIDGE_HINT);
+      setState("No bot program found. Start it in a terminal: " + BRIDGE_HINT + " — and allow local network access if the browser asks.");
     }
   }
 
