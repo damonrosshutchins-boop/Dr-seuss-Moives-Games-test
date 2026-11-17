@@ -34,7 +34,7 @@ function pickEndpoint() {
   if (relay.mode === "cloudflare" && relay.cloudflare) return relay.cloudflare;
   if (relay.mode === "custom" && relay.custom) return relay.custom;
   if (relay.mode === "render") return RENDER_ENDPOINT;
-  return onLoopback ? loopbackEndpoint : CLOUDFLARE_ENDPOINT;
+  return onLoopback ? loopbackEndpoint : RENDER_ENDPOINT;
 }
 
 const endpoint = pickEndpoint();
@@ -237,7 +237,7 @@ async function createController(onStage) {
     throw new Error("Scramjet controller did not initialize. Check the browser console.");
   }
 
-  report("Connecting to the Cloudflare relay…", onStage);
+  report("Connecting to the Render relay…", onStage);
   const module = await timeout(import(asset("libcurl/index.mjs")), "Loading transport module");
   const LibcurlClient = module.default;
   if (typeof LibcurlClient !== "function") throw new Error("Libcurl transport module did not export a client.");

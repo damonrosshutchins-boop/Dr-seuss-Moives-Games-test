@@ -260,6 +260,11 @@
     }, TEST_TARGET ? 30000 : 120000, "the Blooket join page");
 
     checkAbort(signal);
+    // With the relay down the frame falls through to the host, which shows a
+    // "File not found" page; report that instead of waiting for a code box.
+    if (/file not found|does not contain the requested file/i.test(textOf(frame.contentDocument))) {
+      throw new Error("the game proxy is offline, so Blooket never loaded — try again once the relay is back");
+    }
     clickLabel(frame.contentDocument, /^accept( all)?$/i);
     const netHits = [];
     watchNetwork(frame, netHits);
