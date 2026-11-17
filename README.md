@@ -225,8 +225,7 @@ The ⚙ button opens Settings on `seuss-search.html`:
 Durable Object per client websocket, TCP through `cloudflare:sockets`, same
 policy as the Node relay (any public host, private ranges blocked). Deploy with
 `npm install && npx wrangler deploy` inside that folder, then paste the printed
-`wss://…workers.dev/wisp/` URL into Settings → Relay → Cloudflare (both relays
-are pre-filled, so the speed pills measure Render and Cloudflare out of the box). See
+`wss://…workers.dev/wisp/` URL into Settings → Relay → Cloudflare. See
 `cloudflare/wisp-relay/README.md` for the binding and origin details.
 
 Note the platform trade-off: a websocket is one long-lived connection per tab,

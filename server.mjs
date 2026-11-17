@@ -1234,7 +1234,7 @@ app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controlle
 app.use("/libcurl/",express.static(dirOf("@mercuryworkshop/libcurl-transport")));
 app.use("/epoxy/",express.static(dirOf("@mercuryworkshop/epoxy-transport")));
 // Publish only the frontend entrypoints, not server source or configuration files.
-for (const file of ["index.html","proxy-client.js","sw.js","blooket.js","blooket.css","calls.js","calls.css","seuss-search.html","search-client.js"]) {
+for (const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","seuss-search.html","search-client.js"]) {
  const route=file==="index.html"?"/":"/"+file;
  app.get(route,(req,res)=>res.sendFile(path.join(process.cwd(),file),{
   headers:{"Cache-Control":file==="index.html"?"no-cache":"no-store"}
@@ -1245,7 +1245,7 @@ server.on("upgrade",(req,socket,head)=>{
  try{
  const pathname=new URL(req.url??"/","http://localhost").pathname;
  const origin=req.headers.origin;
- const isOwnOrigin=typeof origin==="string"&&(origin==="https://"+req.headers.host||origin==="http://"+req.headers.host);
+ const isOwnOrigin=typeof origin==="string"&&origin===("https://"+req.headers.host);
  if(pathname!=="/wisp/"||typeof origin!=="string"||(!allowedOrigin.has(origin)&&!isOwnOrigin)){socket.destroy();return;}
  req.url=pathname;wisp.routeRequest(req,socket,head);
  }catch{socket.destroy();}

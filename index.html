@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Seuss Cinema & Arcade</title><meta name="theme-color" content="#121212"><style>
 :root{color-scheme:dark;--bg:#000000;--panel:#101010;--muted:#9a9a9a;--edge:#2a2a2a;--accent:#ffffff}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% -10%,#ffffff0d,transparent 52%),var(--bg);color:#fcfcfc;font-family:Inter,system-ui,Arial,sans-serif}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid #ffffff;outline-offset:3px}.shell{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100vh}aside{border-right:1px solid var(--edge);background:#080808;padding:28px 17px;display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:12px;padding:0 12px 35px}.logo{display:grid;place-items:center;background:linear-gradient(135deg,#ffffff,#9a9a9a);border-radius:14px;width:44px;height:44px;color:#000000;font-size:27px}.brand strong{font-size:20px;letter-spacing:1px}.brand small{display:block;font-size:10px;color:#8f8f8f;letter-spacing:1px}.nav-title{font-size:10px;letter-spacing:2px;color:#9e9e9e;font-weight:800;margin:8px 15px 12px}nav button{border:0;background:transparent;color:#afafaf;width:100%;border-radius:12px;padding:14px 16px;text-align:left;font-weight:750;margin:3px 0}nav button.active,nav button:hover,.navlink:hover{background:#1f1f1f;color:white}.navlink{display:block;text-decoration:none;color:#afafaf;border-radius:12px;padding:14px 16px;font-weight:750;margin:3px 0}.navlink b{color:#ffffff;font-size:11px;letter-spacing:1px}nav button.active{box-shadow:inset 3px 0 var(--accent)}.foot{margin-top:auto;background:#252525;border:1px solid #484848;border-radius:14px;padding:15px;font-size:12px}.foot p{color:var(--muted);line-height:1.6;margin-bottom:0}main{padding:29px clamp(20px,4vw,55px) 50px;min-width:0}header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px}.crumb{font-size:13px;color:#aaaaaa}.crumb b{color:#fafafa}.tools{display:flex;gap:10px}.search{background:#232323;border:1px solid #4a4a4a;border-radius:12px;padding:0 13px;display:flex;align-items:center;gap:8px}.search input{border:0;background:none;outline:none;color:white;height:43px;width:200px}.secondary{color:white;background:#323232;border:1px solid #525252;border-radius:11px;padding:12px 15px;font-weight:700}.secondary:hover{background:#414141}.hero{background:radial-gradient(circle at 82% 50%,#a3a3a35a,transparent 42%),linear-gradient(115deg,#545454,#353535);border:1px solid #717171;border-radius:22px;padding:38px;min-height:278px;position:relative;overflow:hidden;display:flex;align-items:center}.hero:after{content:'✳';position:absolute;right:10%;top:-90px;font-size:360px;color:#e8e8e819;transform:rotate(-25deg)}.hero>div{position:relative;z-index:1}.eyebrow{color:#e9e9e9;font-weight:750;letter-spacing:2px;font-size:11px}.hero h1{font-size:clamp(32px,4.1vw,54px);letter-spacing:-2px;line-height:1.09;margin:13px 0}.hero h1 span{color:#bdbdbd}.hero p{color:#e0e0e0;font-size:14px;line-height:1.65;max-width:470px}.primary{background:linear-gradient(115deg,#ffffff,#c4c4c4);color:#000000;border:0;border-radius:11px;padding:13px 19px;font-weight:850}.hero .primary{margin-top:13px}.sectionhead{display:flex;align-items:end;justify-content:space-between;margin:32px 0 18px}.sectionhead h2{font-size:24px;letter-spacing:-.8px;margin:0 0 6px}.sectionhead p,.sectionhead span{font-size:13px;color:var(--muted);margin:0}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(206px,1fr));gap:17px}.card{border:1px solid #242424;background:#0d0d0d;border-radius:17px;overflow:hidden;transition:transform .2s,border-color .2s}.card:hover{transform:translateY(-4px);border-color:#ffffff}.art{height:144px;display:grid;place-items:center;position:relative}.art .emoji{font-size:65px;filter:drop-shadow(0 15px 15px #00000088)}.art.photo-art{background-repeat:no-repeat;background-color:#151515}.art.photo-art .emoji{display:none}.art.photo-art .tag{z-index:1}.art.photo-art:after{content:'';position:absolute;inset:0;box-shadow:inset 0 -38px 35px -38px #000b;pointer-events:none}.art .tag{position:absolute;top:12px;left:12px;background:#1a1a1abb;border:1px solid #ffffff33;border-radius:7px;font-size:10px;letter-spacing:1px;padding:5px 8px;font-weight:700}.body{padding:15px}.body h3{margin:0 0 8px;font-size:16px}.body p{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 14px;min-height:37px}.actions{display:flex;gap:8px}.play{background:#383838;color:#f6f6f6;border:1px solid #707070;border-radius:9px;padding:9px;flex:1;font-weight:750}.fav{border:1px solid #4e4e4e;background:#333333;color:#e3e3e3;border-radius:9px;padding:9px 12px}.note{margin-top:30px;border:1px solid #464646;background:#242424;padding:17px;border-radius:14px;color:#c8c8c8;font-size:13px;line-height:1.55}.note b{color:white}.hidden{display:none!important}.overlay{position:fixed;inset:0;background:#0a0a0ac9;z-index:30;display:grid;place-items:center;padding:20px}.dialog{border:1px solid #626262;border-radius:18px;background:#282828;width:min(560px,100%);padding:24px}.dialog h2{margin:0}.dialog p,.dialog label{font-size:13px;line-height:1.6;color:#c7c7c7}.dialog label{font-weight:700;display:block;margin-top:15px}.dialog input{width:100%;background:#1a1a1a;color:#ffffff;border:1px solid #5a5a5a;border-radius:10px;padding:12px;margin-top:7px}.buttons{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.viewer{position:fixed;inset:0;background:#101010;z-index:20;display:flex;flex-direction:column}.viewer header{position:relative;z-index:2147483647;flex:none;min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;background:#242424;border-bottom:1px solid #525252;padding:13px 18px;isolation:isolate}.viewer header button{position:relative;z-index:2;pointer-events:auto;touch-action:manipulation}.viewer .viewer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}.viewer:fullscreen{height:100dvh;width:100vw}.viewer:fullscreen iframe{width:100%;height:100%}.viewer small{display:block;font-size:12px;color:#bebebe;margin-top:5px}.player-progress{flex:none;padding:7px 18px 9px;background:#1e1e1e;border-bottom:1px solid #444444;color:#ebebeb;font-size:12px}.player-progress-label{display:flex;gap:12px;justify-content:space-between;align-items:center;margin-bottom:5px}.player-progress-label span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.player-progress-label span:last-child{flex:none;font-variant-numeric:tabular-nums;color:#d4d4d4}.progress-track{height:6px;border-radius:6px;overflow:hidden;background:#484848}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#c2c2c2,#dadada);transition:width .15s ease}.progress-fill.indeterminate{width:35%;animation:arcade-load-sweep 1.4s ease-in-out infinite alternate}@keyframes arcade-load-sweep{from{transform:translateX(-105%)}to{transform:translateX(290%)}}.viewer iframe{display:block;position:relative;z-index:0;flex:1 1 0;min-height:0;width:100%;border:0;background:white}.alert{padding:12px;background:#323232;color:#dfdfdf;font-size:13px}@media(max-width:770px){.shell{display:block}aside{padding:14px;position:static}.brand{padding:4px 8px 13px}.nav-title,.foot{display:none}nav{display:flex;overflow:auto;gap:5px}nav button{width:auto;white-space:nowrap}main{padding:20px}.hero{padding:25px}.hero:after{right:-65px}.tools{flex-wrap:wrap}.search input{width:130px}}@media(max-width:480px){header{flex-direction:column;align-items:stretch}.tools{width:100%}.search{flex:1}.search input{width:100%}}
-</style><link rel="stylesheet" href="./calls.css"><link rel="stylesheet" href="./blooket.css"></head><body>
-<div class="shell"><aside><div class="brand"><div class="logo">✦</div><div><strong>SEUSS</strong><small>CINEMA + ARCADE</small></div></div><div class="nav-title">DISCOVER</div><nav><button class="active" data-filter="all">◈　Discover</button><button data-filter="game">▣　Games</button><button data-filter="movie">▤　Movies</button><button data-filter="favorite">♡　Favorites</button><button type="button" id="callsOpen">📹　Voice & Video Calls</button><button type="button" id="blooketOpen">🤖　Blooket Bots</button><a class="navlink" href="./seuss-search.html">🔍　Seuss Search <b>v2</b></a></nav><div class="foot"><b>Entertainment library</b><p>Curated destinations, without an unrestricted URL bar.</p></div></aside><main><header><div class="crumb">Library　/　<b id="current">Discover</b></div><div class="tools"><label class="search">⌕ <input id="search" type="search" aria-label="Search library" placeholder="Search library…"></label><button id="settingsButton" class="secondary">⚙ Settings</button></div></header><section class="hero"><div><div class="eyebrow">WELCOME TO YOUR LIBRARY</div><h1>Play something.<br><span>Watch something.</span></h1><p>Your curated collection of browser games and entertainment, all in one clean dashboard.</p><button class="primary" id="explore">Explore library →</button></div></section><div class="sectionhead"><div><h2 id="heading">Featured picks</h2><p>Find your next favorite.</p></div><span id="count"></span></div><section class="grid" id="cards" aria-live="polite"></section><div class="note"><b>Compatibility</b><div>Scramjet needs an installed browser runtime and Wisp backend. Games and movie sites may not support embedding. This site does not bypass DRM, logins, or paid access. Use content only where permitted.</div></div></main></div>
+</style><link rel="stylesheet" href="./calls.css"></head><body>
+<div class="shell"><aside><div class="brand"><div class="logo">✦</div><div><strong>SEUSS</strong><small>CINEMA + ARCADE</small></div></div><div class="nav-title">DISCOVER</div><nav><button class="active" data-filter="all">◈　Discover</button><button data-filter="game">▣　Games</button><button data-filter="movie">▤　Movies</button><button data-filter="favorite">♡　Favorites</button><button type="button" id="callsOpen">📹　Voice & Video Calls</button><a class="navlink" href="./seuss-search.html">🔍　Seuss Search <b>v2</b></a></nav><div class="foot"><b>Entertainment library</b><p>Curated destinations, without an unrestricted URL bar.</p></div></aside><main><header><div class="crumb">Library　/　<b id="current">Discover</b></div><div class="tools"><label class="search">⌕ <input id="search" type="search" aria-label="Search library" placeholder="Search library…"></label><button id="settingsButton" class="secondary">⚙ Settings</button></div></header><section class="hero"><div><div class="eyebrow">WELCOME TO YOUR LIBRARY</div><h1>Play something.<br><span>Watch something.</span></h1><p>Your curated collection of browser games and entertainment, all in one clean dashboard.</p><button class="primary" id="explore">Explore library →</button></div></section><div class="sectionhead"><div><h2 id="heading">Featured picks</h2><p>Find your next favorite.</p></div><span id="count"></span></div><section class="grid" id="cards" aria-live="polite"></section><div class="note"><b>Compatibility</b><div>Scramjet needs an installed browser runtime and Wisp backend. Games and movie sites may not support embedding. This site does not bypass DRM, logins, or paid access. Use content only where permitted.</div></div></main></div>
 <section id="callsOverlay" class="calls-overlay hidden" role="dialog" aria-modal="true" aria-label="Seuss voice and video calls">
  <div class="calls-modal">
   <header><div><h2>📹 Seuss Calls</h2><p>Private invite-only calls, coordinated with Supabase. No recording.</p></div><button type="button" id="callsClose">✕ Close</button></header>
@@ -51,8 +51,7 @@
  </div>
 </section>
 <div id="viewer" class="viewer hidden" role="dialog" aria-label="Player" aria-modal="true"><header><div><b id="viewerTitle">Player</b><small id="viewerStatus">Ready</small></div><div class="viewer-actions"><button type="button" id="fullscreenGame" class="secondary" title="Toggle fullscreen (F)" aria-pressed="false">⛶ Fullscreen</button> <button type="button" id="reload" class="secondary" title="Restart the current game">↻ Reload</button> <button type="button" id="closeViewer" class="secondary" title="Exit game and return to library">✕ Close</button></div></header><div id="playerProgress" class="player-progress"><div class="player-progress-label"><span id="progressLabel">Preparing player…</span><span id="progressValue">Loading…</span></div><div class="progress-track" id="progressTrack" role="progressbar" aria-label="Game loading" aria-valuemin="0" aria-valuemax="100"><div id="progressFill" class="progress-fill indeterminate"></div></div></div><div id="viewerAlert" class="alert hidden"></div><iframe id="frame" title="Embedded game or movie" allow="gamepad; autoplay; fullscreen" allowfullscreen referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-pointer-lock"></iframe></div>
-<div id="blooketOverlay" class="bk-overlay hidden" role="dialog" aria-modal="true" aria-label="Blooket bots"><div class="bk-modal"><header><div><h2>Blooket bots</h2><p>Open one Blooket join tab per bot, in this browser.</p></div><button type="button" id="blooketClose" class="secondary">✕ Close</button></header><div class="bk-content"><div class="bk-row"><label for="blooketCode">Game code<input id="blooketCode" type="text" inputmode="numeric" autocomplete="off" placeholder="1234567" maxlength="8"></label><label for="blooketCount">How many bots<input id="blooketCount" type="number" min="1" max="25" step="1" value="3"></label></div><div class="bk-actions"><button type="button" id="blooketStart" class="primary">Open bot tabs</button><button type="button" id="blooketStop" disabled>Close tabs</button></div><div id="blooketState" role="status" aria-live="polite">Type the code from the host screen, then press Open bot tabs.</div><p class="bk-help">Each tab opens Blooket's own join page for that code, carrying the code in its address. Browsers allow one tab per press until this site is allowed to open pop-ups: click the pop-up icon at the end of the address bar, choose Always allow, and press again. No website may type into another site's page, so finish the name on each tab — or leave it to the host's random names.</p><ol id="blooketLog" class="bk-log"></ol></div></div></div>
-<div id="settings" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="dialog"><h2 id="settingsTitle">Player connection</h2><p>Curated games and movie sites use Scramjet with the restricted Cloudflare-hosted Wisp relay.</p><label>Relay endpoint</label><p><code>wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/</code></p><label for="playerRelay">Use a different relay</label><p><input id="playerRelay" type="text" placeholder="wss://your-relay.example.com/wisp/" autocomplete="off" spellcheck="false"> <button type="button" id="savePlayerRelay" class="secondary">Save relay</button></p><p id="playerRelayState"></p><label for="botService">Bot program address</label><p><input id="botService" type="text" placeholder="https://your-bots.example.com" autocomplete="off" spellcheck="false"> <input id="botToken" type="text" placeholder="Access token" autocomplete="off" spellcheck="false"> <button type="button" id="saveBotService" class="secondary">Save bots</button></p><p id="botServiceState"></p><p>Leave the bot program address empty to use the program on this computer. A hosted address runs the bots where you deployed them, so no program has to be started here.</p><p>There is no direct-site fallback. If the relay is unavailable or a resource is not approved, it will not load in the player. Supabase calls and local games are separate.</p><div class="buttons"><button class="primary" id="closeSettings">Close</button></div></div></div>
+<div id="settings" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="dialog"><h2 id="settingsTitle">Player connection</h2><p>Curated games and movie sites use Scramjet with the restricted Render-hosted Wisp relay.</p><label>Render Wisp endpoint</label><p><code>wss://seuss-cinema-arcade.onrender.com/wisp/</code></p><p>There is no direct-site fallback. If the relay is unavailable or a resource is not approved, it will not load in the player. Supabase calls and local games are separate.</p><div class="buttons"><button class="primary" id="closeSettings">Close</button></div></div></div>
 <script>
 'use strict';
 const library=[
@@ -76,7 +75,7 @@ const library=[
 {id:'centipede-arcade',kind:'game',name:'Centipede (Arcade)',desc:'Classic arcade game and EmulatorJS assets from fixed, approved Render routes.',icon:'🐛',bg:'linear-gradient(130deg,#303030,#7e7e7e)',url:'./games/centipede-arcade/index.html',local:true},
 {id:'fnae',kind:'game',name:"Five Night's at BIG E",desc:'Unity WebGL game loaded inside the Arcade with pinned game files through Render.',icon:'🌙',bg:'linear-gradient(130deg,#2f2f2f,#7a7a7a)',url:'./games/fnae/index.html',local:true},
 {id:'cheese',kind:'game',name:'Cheese Rolling',desc:'Updated Cheese Rolling Unity WebGL port from SomeRandomFella/portsandrips; split files load through the restricted Render game route.',icon:'🧀',bg:'linear-gradient(130deg,#5e5e5e,#989898)',url:'./games/cheese/index.html',local:true},
-{id:'peak',kind:'game',name:'PEAK',desc:'Co-op climbing Unity port; the launcher frames the wasm.rip page directly so its 242 MB build downloads from the source instead of through the relay. First open takes a minute.',icon:'⛰️',bg:'linear-gradient(130deg,#444444,#969696)',url:'./games/peak/index.html',local:true},
+{id:'peak',kind:'game',name:'PEAK',desc:'Browser game from the WASM.RIP collection.',icon:'⛰️',bg:'linear-gradient(130deg,#444444,#969696)',url:'https://wasm.rip/files/peak/PEAK.html'},
 {id:'slimerancher',kind:'game',name:'Slime Rancher (Web)',desc:'Unity WebGL port with a local launcher; its 555 MB of split game assets stream from the approved jsDelivr mirror, so the first run takes a few minutes.',icon:'🟢',bg:'linear-gradient(130deg,#4a4a4a,#9c9c9c)',url:'./games/slimeranch/index.html',local:true},
 {id:'lobcorp',kind:'game',name:'Lobotomy Corporation (Web)',desc:'Unity port on a local launcher; 1.1 GB of compressed chunks stream from the approved jsDelivr mirror and decompress in the browser, so the first load is long.',icon:'🧠',bg:'linear-gradient(130deg,#3a3a3a,#8d8d8d)',url:'./games/lobcorp/index.html',local:true},
 {id:'plague-inc',kind:'game',name:'Plague Inc: Evolved (Web)',desc:'Unity port on a local launcher; about 272 MB of split wasm and data parts stream from the approved jsDelivr mirror with per-part retries.',icon:'🦠',bg:'linear-gradient(130deg,#3e3e3e,#949494)',url:'./games/plague-inc/index.html',local:true},
@@ -93,7 +92,6 @@ const library=[
 {id:'meowdoku',kind:'game',name:'Meowdoku',desc:'Play the bundled Godot web port locally on this website.',icon:'🐱',bg:'linear-gradient(130deg,#505050,#9e9e9e)',url:'./games/meowdoku/index.html',local:true},
 {id:'deltarune',kind:'game',name:'DELTARUNE (web)',desc:'Browser-hosted DELTARUNE page.',icon:'💜',bg:'linear-gradient(130deg,#515151,#b8b8b8)',url:'https://mollomm1.github.io/test/'},
 {id:'hmm',kind:'game',name:'Hmm (web game)',desc:'Open the supplied sagaofowlz game page.',icon:'🦉',bg:'linear-gradient(130deg,#525252,#aeaeae)',url:'https://sagaofowlz.github.io/hmm/'},
-{id:'ultrakill',kind:'game',name:'ULTRAKILL (web)',desc:'Unity 1.4 web port from the stg420 mirror; 62 MB of split data and wasm parts load through the relay, so give it a minute on first open.',icon:'🩸',bg:'linear-gradient(130deg,#4a4a4a,#c9c9c9)',url:'https://stg420.github.io/ultrakill/'},
 {id:'web-dashers',kind:'game',name:'Web Dashers',desc:'Locally hosted Geometry Dash fan demo from the Web Dashers team. Online levels/accounts may need their servers.',icon:'💠',bg:'linear-gradient(130deg,#4b4b4b,#989898)',url:'./games/web-dashers/index.html',local:true},
 {id:'lmrip',kind:'game',name:"Luigi's Mansion (Web)",desc:'Locally hosted threaded game; opens in this tab on the same site so its service worker can enable cross-origin isolation.',icon:'👻',bg:'linear-gradient(130deg,#323232,#797979)',url:'./games/lmrip/index.html',local:true,needsIsolation:true},
 {id:'half-life-2',kind:'game',name:'Half-Life 2 Web Port',desc:'In-site viewer of the publisher-hosted build; requires large remote downloads.',icon:'🔶',bg:'linear-gradient(130deg,#424242,#828282)',url:'./games/half-life-2/index.html',local:true},
@@ -102,8 +100,7 @@ const library=[
 {id:'fnash2',kind:'game',name:'Five Nights at Shrek\'s Hotel 2',desc:'Local Unity web build from your FNASH2 fork.',icon:'🏨',bg:'linear-gradient(130deg,#343434,#777777)',url:'./games/fnash2/index.html',local:true},
 {id:'hollowknight',kind:'game',name:'Hollow Knight Webport',desc:'Opens inside the site; downloads a large Unity build from your fork (around 1 GB).',icon:'🦋',bg:'linear-gradient(130deg,#303030,#878787)',url:'./games/hollow-knight/index.html',local:true},
 {id:'fish',kind:'game',name:'FISH (Unity web port)',desc:'Run bundled Unity game files from this site.',icon:'🐟',bg:'linear-gradient(130deg,#404040,#888888)',url:'./games/fish/index.html',local:true},
-{id:'shuttle',kind:'movie',name:'ShuttleTV',desc:'Browse the external entertainment site.',icon:'🎬',bg:'linear-gradient(130deg,#4a4a4a,#a4a4a4)',url:'https://shuttletv.pk/'},
-{id:'projection',kind:'movie',name:'Projection Studios',desc:'Movies, TV, anime and manga in one catalogue; opened through the restricted proxy.',icon:'📽️',bg:'linear-gradient(130deg,#3d3d3d,#a2a2a2)',url:'https://projection-studios.dogeeats531.workers.dev/'}
+{id:'shuttle',kind:'movie',name:'ShuttleTV',desc:'Browse the external entertainment site.',icon:'🎬',bg:'linear-gradient(130deg,#4a4a4a,#a4a4a4)',url:'https://shuttletv.pk/'}
 ];
 const $=id=>document.getElementById(id);let filter='all',selected=null;
 const favorites=new Set(JSON.parse(localStorage.getItem('seussFavorites')||'[]'));
@@ -266,7 +263,7 @@ async function openItem(x){
       frame.src=path.href;
       return;
     }
-    const {openProxied}=await import('./proxy-client.js?v=4');
+    const {openProxied}=await import('./proxy-client.js');
     if(session!==playerSession)return;
     frame.addEventListener('load',()=>{
       if(session!==playerSession)return;
@@ -278,53 +275,13 @@ async function openItem(x){
     await openProxied(frame,x.url,stage=>{if(session===playerSession)$('viewerStatus').textContent=stage});
     if(session===playerSession && !$('playerProgress').classList.contains('hidden'))
       $('viewerStatus').textContent='Player started · loading content';
-    watchRelayFailure(frame,session);
   }catch(err){
     if(session!==playerSession)return;
-    const reason=err&&err.message?err.message:String(err);
-    if(RELAY_FAILURE.test(reason)){showRelayHelp(session);return;}
     $('viewerStatus').textContent='Unable to load game';
     updatePlayerProgress('Unable to load game');
-    $('viewerAlert').textContent=reason;
+    $('viewerAlert').textContent=err.message||String(err);
     $('viewerAlert').classList.remove('hidden');
   }
-}
-// A relay that cannot open the destination leaves the worker's own error page in
-// the frame, which looks like a site fault. Turn that into a hint about Settings.
-const RELAY_FAILURE=/Internal Service Worker Error|SSL connect error|could not connect|failed to connect|does not contain the requested file|File not found/i;
-function watchRelayFailure(frame,session){
-  let ticks=0;
-  const timer=setInterval(()=>{
-    if(session!==playerSession){clearInterval(timer);return;}
-    if(++ticks>30){clearInterval(timer);return;}
-    let text='';
-    try{text=frame.contentDocument&&frame.contentDocument.body?frame.contentDocument.body.innerText:'';}catch(err){return;}
-    if(!RELAY_FAILURE.test(text))return;
-    clearInterval(timer);
-    showRelayHelp(session);
-  },1000);
-}
-function showRelayHelp(session){
-  if(session!==playerSession)return;
-  $('viewerStatus').textContent='The relay could not connect';
-  updatePlayerProgress('The relay could not connect');
-  $('playerProgress').classList.add('hidden');
-  const alert=$('viewerAlert');
-  alert.innerHTML='';
-  const message=document.createElement('p');
-  message.textContent='This game needs a relay that can reach it. Open Settings, paste a working wss:// relay address under “Use a different relay”, then reload the game.';
-  const button=document.createElement('button');
-  button.type='button';
-  button.className='primary';
-  button.textContent='Open relay settings';
-  button.onclick=()=>{
-    closePlayer();
-    $('settings').classList.remove('hidden');
-    const field=$('playerRelay');
-    if(field){field.focus();if(field.select)field.select();}
-  };
-  alert.append(message,button);
-  alert.classList.remove('hidden');
 }
 $('closeViewer').onclick=closePlayer;
 $('fullscreenGame').onclick=()=>{void toggleGameFullscreen();};
@@ -332,36 +289,6 @@ document.addEventListener('fullscreenchange',updateGameFullscreenButton);
 $('reload').onclick=()=>{const game=selected;if(game){releaseGameControls();openItem(game);}};
 $('settingsButton').onclick=()=>$('settings').classList.remove('hidden');
 $('closeSettings').onclick=()=>$('settings').classList.add('hidden');
-  // A relay can be swapped without a rebuild; only this browser remembers it.
-  try{$('playerRelay').value=localStorage.getItem('seussPlayerRelay')||'';}catch(err){}
-  $('savePlayerRelay').onclick=()=>{
-    const value=($('playerRelay').value||'').trim();
-    if(value&&!/^wss?:\/\//.test(value)){$('playerRelayState').textContent='A relay address starts with wss://';return;}
-    try{
-      if(value)localStorage.setItem('seussPlayerRelay',value);
-      else localStorage.removeItem('seussPlayerRelay');
-    }catch(err){}
-    $('playerRelayState').textContent=value?'Saved. Reload the page to use it.':'Cleared. Reload the page to use the default relay.';
-  };
-  // The bot program can run on a host instead of this computer.
-  const botService=()=>{try{return ($('botService').value||'').trim().replace(/\/+$/,'');}catch(err){return '';}};
-  const botToken=()=>{try{return ($('botToken').value||'').trim();}catch(err){return '';}};
-  try{
-    $('botService').value=localStorage.getItem('seussBotService')||'';
-    $('botToken').value=localStorage.getItem('seussBotToken')||'';
-  }catch(err){}
-  $('saveBotService').onclick=()=>{
-    const address=botService();
-    if(address&&!/^https?:\/\//.test(address)){$('botServiceState').textContent='A bot program address starts with https://';return;}
-    try{
-      if(address)localStorage.setItem('seussBotService',address);
-      else localStorage.removeItem('seussBotService');
-      const token=botToken();
-      if(token)localStorage.setItem('seussBotToken',token);
-      else localStorage.removeItem('seussBotToken');
-    }catch(err){}
-    $('botServiceState').textContent=address?'Saved. The bot panel now uses '+address+'.':'Cleared. The bot panel uses the program on this computer.';
-  };
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     // Let the browser exit fullscreen on Esc; do not close the game as well.
@@ -381,5 +308,5 @@ if(requested){
   if(match)requestAnimationFrame(()=>{void openItem(match);});
 }
 // Start the expensive player setup while the user browses the game library.
-import('./proxy-client.js?v=4').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
-</script><script defer src="./calls.js"></script><script defer src="./blooket.js"></script></body></html>
+import('./proxy-client.js').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
+</script><script defer src="./calls.js"></script></body></html>

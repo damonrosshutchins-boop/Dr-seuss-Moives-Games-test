@@ -1,13 +1,11 @@
 // Seuss Search v2 client: unrestricted public-web navigation through the
-// Cloudflare-hosted Wisp relay. Any http(s) destination the relay can resolve.
+// Render-hosted Wisp relay. Any http(s) destination the relay can resolve.
 // The curated player (proxy-client.js) keeps its own allowlist for games.
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-// Relay choice lives in localStorage so Settings can switch between the
-// Cloudflare Worker relay and any custom endpoint.
-// Deployed from cloudflare/wisp-relay, so the Cloudflare figure and the
-// Cloudflare relay option work without pasting a URL into Settings first.
-const CLOUDFLARE_ENDPOINT = "wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/";
+// Relay choice lives in localStorage so Settings can switch between the Render
+// relay, a Cloudflare Worker relay and any custom endpoint.
+const RENDER_ENDPOINT = "wss://seuss-cinema-arcade.onrender.com/wisp/";
 const RELAY_KEY = "seuss-relay";
 const onLoopback = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 const loopbackEndpoint = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/wisp/";
@@ -16,10 +14,8 @@ export function readRelay() {
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(RELAY_KEY) || "{}") || {}; } catch { stored = {}; }
   return {
-    mode: ["cloudflare", "custom"].includes(stored.mode) ? stored.mode : null,
-    cloudflare: typeof stored.cloudflare === "string" && stored.cloudflare.trim()
-      ? stored.cloudflare.trim()
-      : CLOUDFLARE_ENDPOINT,
+    mode: ["render", "cloudflare", "custom"].includes(stored.mode) ? stored.mode : null,
+    cloudflare: typeof stored.cloudflare === "string" ? stored.cloudflare.trim() : "",
     custom: typeof stored.custom === "string" ? stored.custom.trim() : ""
   };
 }
@@ -32,7 +28,8 @@ function pickEndpoint() {
   const relay = readRelay();
   if (relay.mode === "cloudflare" && relay.cloudflare) return relay.cloudflare;
   if (relay.mode === "custom" && relay.custom) return relay.custom;
-  return onLoopback ? loopbackEndpoint : CLOUDFLARE_ENDPOINT;
+  if (relay.mode === "render") return RENDER_ENDPOINT;
+  return onLoopback ? loopbackEndpoint : RENDER_ENDPOINT;
 }
 
 const endpoint = pickEndpoint();
@@ -56,7 +53,7 @@ function keepWorkerWarm(worker) {
 }
 
 export const relayEndpoint = endpoint;
-export { CLOUDFLARE_ENDPOINT, loopbackEndpoint, RELAY_KEY };
+export { RENDER_ENDPOINT, loopbackEndpoint, RELAY_KEY };
 
 // Link quality for the relay actually in use. Ping runs on the same WebSocket
 // path the tunnel uses; throughput downloads the relay's /speedtest payload, so
@@ -72,6 +69,7 @@ export function relayHttpOrigin() {
 export function relayLabelOf(url) {
   let host;
   try { host = new URL(url.replace(/^ws/, "http")).hostname; } catch { host = location.hostname; }
+  if (host.endsWith("onrender.com")) return "Render";
   if (host.endsWith("workers.dev")) return "Cloudflare";
   if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(host)) return "Local";
   return host;
@@ -79,11 +77,11 @@ export function relayLabelOf(url) {
 
 export function relayLabel() { return relayLabelOf(endpoint); }
 
-// Every relay this browser has configured, so the Cloudflare relay and a custom
-// one can be compared side by side instead of only seeing the selected one.
+// Every relay this browser has configured, so Render and Cloudflare can be
+// compared side by side instead of only seeing the one currently selected.
 export function relayCandidates() {
   const relay = readRelay();
-  const list = [];
+  const list = [{ key: "render", name: "Render", endpoint: RENDER_ENDPOINT }];
   if (relay.cloudflare) list.push({ key: "cloudflare", name: "Cloudflare", endpoint: relay.cloudflare });
   if (relay.custom) list.push({ key: "custom", name: relayLabelOf(relay.custom), endpoint: relay.custom });
   if (onLoopback) list.push({ key: "local", name: "Local", endpoint: loopbackEndpoint });
@@ -93,15 +91,12 @@ export function relayCandidates() {
     .map(item => ({ ...item, active: item.endpoint === endpoint }));
 }
 
-// The first connection to a relay pays DNS, TLS and (for the Cloudflare Worker)
-// Durable Object start-up, so it is a cold-start figure rather than a link
-// measurement. Sample one extra time and drop the first result.
 async function medianPing(url, pings) {
   const samples = [];
-  for (let i = 0; i <= pings; i++) {
+  for (let i = 0; i < pings; i++) {
     const sample = await pingRelay(url, 6000);
-    if (sample !== null && i > 0) samples.push(sample);
-    if (i < pings) await new Promise(resolve => setTimeout(resolve, 120));
+    if (sample !== null) samples.push(sample);
+    if (i + 1 < pings) await new Promise(resolve => setTimeout(resolve, 120));
   }
   samples.sort((a, b) => a - b);
   return samples.length ? samples[Math.floor(samples.length / 2)] : null;
@@ -222,28 +217,23 @@ async function createController(onStage) {
   keepWorkerWarm(worker);
 
   report("Loading relay scripts…", onStage);
-  // controller.api.js and the utils hang off the namespace scramjet.js creates,
-  // so that one still goes first; the other two only need it, not each other.
-  await loadScript(asset("scram/scramjet.js"));
-  await Promise.all([
+  for (const src of [
+    asset("scram/scramjet.js"),
     asset("controller/controller.api.js"),
     asset("utils/scramjet-utils.js")
-  ].map(loadScript));
+  ]) await loadScript(src);
 
   if (typeof window.$scramjetController?.Controller !== "function") {
     throw new Error("Scramjet controller did not initialize. Check the browser console.");
   }
 
-  report("Connecting to the Cloudflare relay…", onStage);
+  report("Connecting to the Render relay…", onStage);
   const module = await timeout(import(asset("libcurl/index.mjs")), "Loading transport module");
   const LibcurlClient = module.default;
   if (typeof LibcurlClient !== "function") throw new Error("Libcurl transport module did not export a client.");
-  // libcurl defaults to 50 connections, a 40-entry connection cache and only
-  // 6 sockets per host, which serialises asset-heavy pages: a search results
-  // page pulls dozens of files from a single host.
   const instance = new window.$scramjetController.Controller({
     serviceworker: worker,
-    transport: new LibcurlClient({ wisp: endpoint, connections: [120, 96, 16] }),
+    transport: new LibcurlClient({ wisp: endpoint }),
     config: {
       scramjetPath: asset("scram/scramjet.js"),
       wasmPath: asset("scram/scramjet.wasm"),
@@ -280,46 +270,4 @@ export async function browse(iframe, raw, onStage) {
 
 export function currentFrame() {
   return frame || null;
-}
-
-// The controller costs about a second on a cold page (service worker handshake,
-// relay scripts, wasm fetch, wisp websocket). Paying it while the page sits idle
-// turns the first search into just a navigation.
-export function preconnectRelay() {
-  try {
-    const origin = relayHttpOrigin();
-    for (const rel of ["preconnect", "dns-prefetch"]) {
-      if (document.querySelector('link[data-seuss-relay][rel="' + rel + '"]')) continue;
-      const link = document.createElement("link");
-      link.rel = rel;
-      link.href = origin;
-      if (rel === "preconnect") link.crossOrigin = "anonymous";
-      link.dataset.seussRelay = origin;
-      document.head.append(link);
-    }
-    if (!document.querySelector('link[data-seuss-transport]')) {
-      const module = document.createElement("link");
-      module.rel = "modulepreload";
-      module.href = asset("libcurl/index.mjs");
-      module.dataset.seussTransport = "1";
-      document.head.append(module);
-    }
-  } catch { /* hints are optional */ }
-}
-
-let priming;
-export function primeRelay() {
-  preconnectRelay();
-  if (controller) return Promise.resolve(controller);
-  if (!navigator.serviceWorker) return Promise.resolve(null);
-  if (!priming) {
-    priming = createController(() => {}).then(value => {
-      controller = value;
-      return value;
-    }).catch(error => {
-      console.info("[Seuss search] Warm-up skipped:", error?.message || error);
-      return null;
-    }).finally(() => { priming = undefined; });
-  }
-  return priming;
 }

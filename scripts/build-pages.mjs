@@ -36,7 +36,7 @@ async function copyRuntime(name,root,entry){
 }
 await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
-for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","blooket.js","blooket.css","seuss-search.html","search-client.js"])
+for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","seuss-search.html","search-client.js"])
  await fs.copyFile(file,path.join(out,file));
 // Ghost of Sparta is proxied only by Render's fixed-origin route.
 // Publish a same-site launcher, never a direct iframe of the Surge source.
@@ -104,10 +104,6 @@ for(const slug of ["balatro","cheese"]){
 
 
 
-// PEAK ships as a 3 KB launcher that frames the upstream wasm.rip page, so its
-// 242 MB Unity build downloads from the source rather than the Wisp relay.
-await fs.mkdir(path.join(out,"games","peak"),{recursive:true});
-await fs.copyFile(path.join("games","peak","index.html"),path.join(out,"games","peak","index.html"));
 // Publish the four imported game launchers on GitHub Pages. The browser
 // stays inside the arcade; large game binaries are fetched from pinned
 // approved Render routes rather than copied into the Pages artifact.
@@ -128,17 +124,6 @@ await copyRuntime("scram",scramjetPath,"scramjet.js");
 await copyRuntime("controller",pkgDir("@mercuryworkshop/scramjet-controller"),"controller.api.js");
 await copyRuntime("utils",pkgDir("@mercuryworkshop/scramjet-utils"),"scramjet-utils.js");
 await copyRuntime("libcurl",pkgDir("@mercuryworkshop/libcurl-transport"),"index.mjs");
-// Inline the Scramjet controller into the published worker. importScripts only
-// works during the first installation, so a restarted worker that relied on it
-// lost the router and answered every proxied request with a 404.
-{
-  const controllerSource=await fs.readFile(path.join(pkgDir("@mercuryworkshop/scramjet-controller"),"controller.sw.js"),"utf8");
-  if(!controllerSource.includes("$scramjetController"))throw new Error("Unexpected Scramjet controller bundle");
-  const workerPath=path.join(out,"sw.js");
-  const workerSource=await fs.readFile(workerPath,"utf8");
-  await fs.writeFile(workerPath, "// Scramjet controller, inlined by the Pages build." + String.fromCharCode(10) + controllerSource + String.fromCharCode(10) + workerSource);
-  console.log("Inlined Scramjet controller into sw.js");
-}
 for(const file of ["scram/scramjet.js","scram/scramjet.wasm","controller/controller.sw.js","controller/controller.api.js","controller/controller.inject.js","utils/scramjet-utils.js","libcurl/index.mjs"]){
  const target=path.join(out,file);
  if(!await exists(target))throw new Error("Pages build missing mandatory browser asset: "+file);
