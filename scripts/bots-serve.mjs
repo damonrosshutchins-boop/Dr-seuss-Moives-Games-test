@@ -13,6 +13,7 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { mkdirSync, openSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const PORT = Number(process.env.BOTS_PORT || 8791);
@@ -28,6 +29,45 @@ const allowedOrigins = new Set([
 const isLocalOrigin = (origin) => /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 
 const running = new Map();
+
+// The service also hands out the arcade, so the panel can call it from the same
+// origin: a page on the public site is not allowed to reach loopback addresses,
+// which is why pressing Start works from http://127.0.0.1:PORT/ and not there.
+const ROOT = process.cwd();
+const TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".jpg": "image/jpeg",
+  ".gif": "image/gif",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".wasm": "application/wasm"
+};
+
+async function serveArcade(response, pathname) {
+  const rel = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
+  const full = path.normalize(path.join(ROOT, rel));
+  const type = TYPES[path.extname(full).toLowerCase()];
+  if (!full.startsWith(ROOT) || !type) {
+    response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    response.end("Not found");
+    return;
+  }
+  try {
+    const data = await readFile(full);
+    response.writeHead(200, { "content-type": type, "cache-control": "no-store" });
+    response.end(data);
+  } catch (error) {
+    response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    response.end("Not found");
+  }
+}
 
 function cors(origin) {
   const ok = allowedOrigins.has(origin) || isLocalOrigin(origin) || !origin;
@@ -108,6 +148,10 @@ const server = http.createServer(async (request, response) => {
       reply(response, 200, start(String(body.code || "").trim(), body.count), origin);
       return;
     }
+    if (request.method === "GET" || request.method === "HEAD") {
+      await serveArcade(response, url.pathname);
+      return;
+    }
     reply(response, 404, { error: "not found" }, origin);
   } catch (error) {
     reply(response, 400, { error: error.message || String(error) }, origin);
@@ -116,6 +160,6 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log("[bots] Blooket bot service on http://127.0.0.1:" + PORT);
-  console.log("[bots] Open the arcade, type a room code, pick how many bots, press Start bots.");
+  console.log("[bots] Open http://127.0.0.1:" + PORT + "/ — type a room code, pick how many bots, press Start bots.");
   if (testUrl) console.log("[bots] Test mode: bots join " + testUrl);
 });

@@ -14,7 +14,10 @@
 
   const JOIN = "https://play.blooket.com/play?gameId=";
   // The local bot service (npm run bots:serve) does the typing for every bot.
-  const SERVICE = "http://127.0.0.1:8791";
+  // It is reachable same-origin when it is also serving the arcade, and on its
+  // port otherwise; a page on the public site cannot call loopback at all.
+  const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  const SERVICE_URLS = LOOPBACK ? ["", "http://127.0.0.1:8791"] : ["http://127.0.0.1:8791"];
   const MAX_BOTS = 50;
   const WORDS = ["calm", "brave", "sunny", "rapid", "lucky", "bold", "misty", "sharp", "quiet", "wild", "sneaky", "giddy", "cosmic", "turbo", "mossy", "frosty", "jazzy", "zippy", "noble", "peppy"];
   const CREATURES = ["Crane", "Otter", "Yak", "Panda", "Falcon", "Lynx", "Moth", "Tapir", "Bison", "Puffin", "Badger", "Heron", "Gecko", "Moose", "Robin", "Walrus", "Ibis", "Koala", "Ferret", "Narwhal"];
@@ -111,23 +114,27 @@
   // Ask the service on this computer to start the bots. Returns null when it is
   // not running, so the panel can fall back to opening join tabs.
   async function startOnThisComputer(code, count) {
-    const stop = new AbortController();
-    const timer = setTimeout(() => stop.abort(), 2500);
-    try {
-      const response = await fetch(SERVICE + "/join", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code, count }),
-        signal: stop.signal
-      });
-      if (!response.ok) return null;
-      const data = await response.json();
-      return data && data.ok ? data : null;
-    } catch (error) {
-      return null;
-    } finally {
-      clearTimeout(timer);
+    for (const base of SERVICE_URLS) {
+      const stop = new AbortController();
+      const timer = setTimeout(() => stop.abort(), 2500);
+      try {
+        const response = await fetch(base + "/join", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code, count }),
+          signal: stop.signal
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.ok) return data;
+        }
+      } catch (error) {
+        // try the next address
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    return null;
   }
 
   function closeTabs() {
