@@ -160,6 +160,14 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log("[bots] Blooket bot service on http://127.0.0.1:" + PORT);
-  console.log("[bots] Open http://127.0.0.1:" + PORT + "/ — type a room code, pick how many bots, press Start bots.");
+  const address = "http://127.0.0.1:" + PORT + "/";
+  console.log("[bots] Open " + address + " — type a room code, pick how many bots, press Start bots.");
+  if (!process.env.BOTS_NO_OPEN) {
+    const opener = process.platform === "win32" ? ["cmd", ["/c", "start", "", address]]
+      : process.platform === "darwin" ? ["open", [address]]
+      : ["xdg-open", [address]];
+    try { spawn(opener[0], opener[1], { stdio: "ignore", detached: true }).unref(); }
+    catch (error) { /* the address is printed above anyway */ }
+  }
   if (testUrl) console.log("[bots] Test mode: bots join " + testUrl);
 });

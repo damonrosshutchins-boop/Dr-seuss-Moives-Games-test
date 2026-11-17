@@ -71,7 +71,7 @@
     $("blooketStart").disabled = false;
     if (!started) {
       log("Could not reach the bot program on this computer", "err");
-      setState("The bot program is not running. Start it once with npm run bots:serve, open the arcade at http://127.0.0.1:8791/ and press Start bots again.");
+      setState("The bot program is not running. Double-click Start-Blooket-Bots in the arcade folder (it opens http://127.0.0.1:8791/ by itself), then press Start bots again.");
       return;
     }
     const many = started.bots === 1 ? "bot" : "bots";
