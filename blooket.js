@@ -9,8 +9,16 @@
   const overlay = $("blooketOverlay");
   if (!overlay) return;
 
-  const BRIDGE = "http://127.0.0.1:8788";
+  const LOCAL_BRIDGE = "http://127.0.0.1:8788";
   const BRIDGE_HINT = "cd _work/target  then  npm run bots:bridge";
+
+  // Settings can name a bot program running on a host, so nothing has to be
+  // started on this computer; otherwise the local bridge is used.
+  function stored(key) {
+    try { return (localStorage.getItem(key) || "").trim(); } catch (error) { return ""; }
+  }
+  const hosted = () => !!stored("seussBotService");
+  const serviceBase = () => (stored("seussBotService") || LOCAL_BRIDGE).replace(/\/+$/, "");
   const ADJECTIVES = ["swift", "quiet", "brave", "clever", "lucky", "wild", "calm", "sharp", "sunny", "rapid", "frosty", "noble", "merry", "bold", "sly", "vivid", "gentle", "cosmic", "zesty", "misty"];
   const NOUNS = ["Otter", "Falcon", "Panda", "Tiger", "Koala", "Raven", "Lynx", "Bison", "Heron", "Yak", "Gecko", "Moth", "Wombat", "Crane", "Badger", "Ferret", "Quokka", "Tapir", "Marmot", "Puffin"];
 
@@ -84,10 +92,12 @@
   }
 
   async function callBridge(path, options) {
+    const token = stored("seussBotToken");
+    const headers = { ...((options && options.headers) || {}), ...(token ? { "x-bots-token": token } : {}) };
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
+    const timer = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch(BRIDGE + path, { ...options, signal: controller.signal });
+      const response = await fetch(serviceBase() + path, { ...options, headers, signal: controller.signal });
       const data = await response.json().catch(() => ({}));
       return { status: response.status, data };
     } finally {
@@ -124,6 +134,11 @@
         setState(message);
       }
     } catch (error) {
+      if (hosted()) {
+        logLine("The hosted bot program did not answer at " + serviceBase() + ". Check the address in Settings.", "err");
+        setState("The hosted bot program did not answer. Open Settings and check the bot program address.");
+        return;
+      }
       logLine("No answer from the bot program. Start it with: " + BRIDGE_HINT + " — or use the bot page link below, which works even when the browser blocks this page.", "err");
       setState("The page could not reach the bot program on this computer.");
       showLocalPage();
@@ -143,6 +158,11 @@
         setState("No bot run is active.");
       }
     } catch (error) {
+      if (hosted()) {
+        logLine("The hosted bot program did not answer at " + serviceBase() + ".", "err");
+        setState("The hosted bot program did not answer.");
+        return;
+      }
       logLine("No answer from the bot program. Start it with: " + BRIDGE_HINT, "err");
       setState("The page could not reach the bot program on this computer.");
     }
@@ -162,6 +182,10 @@
         hideLocalPage();
       }
     } catch (error) {
+      if (hosted()) {
+        setState("No answer from the hosted bot program at " + serviceBase() + ". Check the address in Settings.");
+        return;
+      }
       setState("No bot program found. Start it in a terminal: " + BRIDGE_HINT);
       showLocalPage();
     }

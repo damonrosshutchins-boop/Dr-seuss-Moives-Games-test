@@ -7,7 +7,7 @@
 //   node scripts/blooket-bots.mjs --code 1234567 --count 3 --minutes 40 --show
 //
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -33,10 +33,37 @@ const WORDS = ["calm", "brave", "sunny", "rapid", "lucky", "bold", "misty", "sha
 const CREATURES = ["Crane", "Otter", "Yak", "Panda", "Falcon", "Lynx", "Moth", "Tapir", "Bison", "Puffin"];
 const botName = (index) => names[index] || WORDS[index % WORDS.length] + CREATURES[Math.floor(index / WORDS.length) % CREATURES.length];
 
-function edgePath() {
-  const found = [process.env.EDGE_PATH, "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"]
-    .filter(Boolean).find((candidate) => existsSync(candidate));
-  if (!found) throw new Error("Edge was not found; set EDGE_PATH to msedge.exe");
+// Playwright's browser cache, so a container can use the Chromium it installed.
+function playwrightChromium() {
+  const cache = process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(process.env.HOME || "/root", ".cache", "ms-playwright");
+  let entries = [];
+  try { entries = readdirSync(cache); } catch (error) { return null; }
+  for (const entry of entries.filter((name) => name.startsWith("chromium-")).sort().reverse()) {
+    for (const suffix of ["chrome-linux/chrome", "chrome-linux64/chrome", "chrome-mac/Chromium.app/Contents/MacOS/Chromium"]) {
+      const candidate = path.join(cache, entry, suffix);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
+// Works on a Windows machine (Edge), a Linux container (Chromium) or macOS.
+function browserPath() {
+  const candidates = [
+    process.env.BROWSER_PATH,
+    process.env.EDGE_PATH,
+    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+    "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
+    "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/microsoft-edge",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  ].filter(Boolean);
+  const found = candidates.find((candidate) => existsSync(candidate)) || playwrightChromium();
+  if (!found) throw new Error("No Chromium browser was found; set BROWSER_PATH to the browser executable");
   return found;
 }
 
@@ -59,12 +86,16 @@ async function launchPage(url, { visible = false } = {}) {
     "--remote-debugging-port=" + port, "--remote-allow-origins=*", "--user-data-dir=" + profile,
     "--no-first-run", "--no-default-browser-check", "--window-size=1000,780", "--mute-audio"
   ];
+  // Containers run as root, where Chromium refuses its sandbox.
+  if (process.env.BROWSER_NO_SANDBOX === "1" || process.platform === "linux") {
+    chrome.push("--no-sandbox", "--disable-dev-shm-usage");
+  }
   if (!visible) {
     chrome.push("--headless=new", "--disable-gpu",
       "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       "--disable-blink-features=AutomationControlled");
   }
-  const child = spawn(edgePath(), [...chrome, url], { stdio: "ignore" });
+  const child = spawn(browserPath(), [...chrome, url], { stdio: "ignore" });
 
   let target = null;
   for (let attempt = 0; attempt < 90 && !target; attempt += 1) {
@@ -102,7 +133,11 @@ async function launchPage(url, { visible = false } = {}) {
   };
   const close = () => {
     try { socket.close(); } catch (error) { /* ignore */ }
-    spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    if (process.platform === "win32") {
+      spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      try { child.kill("SIGKILL"); } catch (error) { /* already gone */ }
+    }
     setTimeout(() => { try { rmSync(profile, { recursive: true, force: true }); } catch (error) { /* locked */ } }, 2000);
   };
   return { evaluate, close };

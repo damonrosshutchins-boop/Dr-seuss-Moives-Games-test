@@ -1,0 +1,22 @@
+# Hosts the bot program itself: the bridge plus a Chromium it can drive.
+# Deploy this image on any container host and point the arcade site's Settings
+# at the public address, so nothing runs on the player's computer.
+FROM node:22-bookworm-slim
+
+WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=8080 \
+    BOTS_HOST=0.0.0.0 \
+    BROWSER_NO_SANDBOX=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+COPY package.json package-lock.json ./
+RUN npm install --omit=dev
+
+# Chromium and the libraries it needs, installed by Playwright.
+RUN npx --yes playwright install --with-deps chromium
+
+COPY scripts ./scripts
+
+EXPOSE 8080
+CMD ["node", "scripts/bots-bridge.mjs"]

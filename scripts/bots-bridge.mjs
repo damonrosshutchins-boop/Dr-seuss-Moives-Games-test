@@ -15,10 +15,17 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PORT = Number(process.env.BOTS_BRIDGE_PORT || 8788);
+const PORT = Number(process.env.PORT || process.env.BOTS_BRIDGE_PORT || 8788);
+// Loopback by default so nothing outside this computer can reach it. A host
+// sets BOTS_HOST=0.0.0.0 (and a token) to serve the arcade site instead.
+const HOST = process.env.BOTS_HOST || "127.0.0.1";
+const TOKEN = (process.env.BOTS_TOKEN || "").trim();
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const runner = path.join(rootDir, "scripts", "blooket-bots.mjs");
-const allowedOrigins = new Set(["https://damonrosshutchins-boop.github.io"]);
+const allowedOrigins = new Set([
+  "https://damonrosshutchins-boop.github.io",
+  ...(process.env.BOTS_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean)
+]);
 
 let current = null;
 // Served from this origin so the page can start bots even when the browser
@@ -47,7 +54,7 @@ const server = createServer((request, response) => {
       return;
     }
     response.setHeader("access-control-allow-origin", origin);
-    response.setHeader("access-control-allow-headers", "content-type");
+    response.setHeader("access-control-allow-headers", "content-type, x-bots-token");
     response.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
     // Chromium asks for explicit consent before a public page may talk to a
     // loopback server; without this header the request never leaves the page.
@@ -60,6 +67,13 @@ const server = createServer((request, response) => {
   }
 
   const url = new URL(request.url || "/", "http://127.0.0.1");
+  // A public host must not let anyone start bots: the site sends this token.
+  if (TOKEN && (url.pathname === "/bots" || url.pathname === "/stop")) {
+    if (String(request.headers["x-bots-token"] || "").trim() !== TOKEN) {
+      reply(response, 401, { error: "access token missing or wrong" });
+      return;
+    }
+  }
   if ((url.pathname === "/" || url.pathname === "/index.html") && request.method === "GET") {
     try {
       const body = panelHtml();
@@ -129,7 +143,13 @@ const server = createServer((request, response) => {
   });
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log("Blooket bot bridge ready on http://127.0.0.1:" + PORT);
-  console.log("Open http://127.0.0.1:" + PORT + "/ to send bots, or press Send bots on the arcade page.");
+server.listen(PORT, HOST, () => {
+  const shown = HOST === "0.0.0.0" ? "port " + PORT : "http://127.0.0.1:" + PORT;
+  console.log("Blooket bot bridge ready on " + shown);
+  if (HOST === "0.0.0.0") {
+    console.log("Add this address (with BOTS_TOKEN) to the arcade site under Settings -> Bot program address.");
+    if (!TOKEN) console.log("Warning: no BOTS_TOKEN is set, so anyone who finds this address can start bots.");
+  } else {
+    console.log("Open http://127.0.0.1:" + PORT + "/ to send bots, or press Send bots on the arcade page.");
+  }
 });
