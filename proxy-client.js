@@ -127,10 +127,7 @@ export async function openProxied(iframe, url, onProgress) {
     ![...allowed].some(host => target.hostname === host || target.hostname.endsWith("." + host))) {
     throw new Error("Only approved games and movie destinations can be opened.");
   }
-  // ?bkbot= only namespaces one bot's storage; the destination is unchanged.
-  const bare = new URL(target.href);
-  bare.searchParams.delete("bkbot");
-  if (target.hostname !== "wasm.rip" && target.hostname !== "shuttletv.pk" && !gameEntries.has(bare.href)) {
+  if (target.hostname !== "wasm.rip" && target.hostname !== "shuttletv.pk" && !gameEntries.has(target.href)) {
     throw new Error("Only the approved game entry points can be opened here.");
   }
   if (!navigator.serviceWorker)
