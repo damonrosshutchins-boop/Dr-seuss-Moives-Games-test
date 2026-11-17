@@ -10,6 +10,7 @@
 // BOTS_URL is a test seam: point it at a stand-in page to exercise the panel
 // without a live game.
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,10 @@ const runner = path.join(rootDir, "scripts", "blooket-bots.mjs");
 const allowedOrigins = new Set(["https://damonrosshutchins-boop.github.io"]);
 
 let current = null;
+// Served from this origin so the page can start bots even when the browser
+// refuses to let the public arcade page reach a local server.
+const pagePath = path.join(rootDir, "scripts", "bots-bridge-page.html");
+const panelHtml = () => readFileSync(pagePath);
 
 function reply(response, status, payload) {
   const body = JSON.stringify(payload);
@@ -55,6 +60,16 @@ const server = createServer((request, response) => {
   }
 
   const url = new URL(request.url || "/", "http://127.0.0.1");
+  if ((url.pathname === "/" || url.pathname === "/index.html") && request.method === "GET") {
+    try {
+      const body = panelHtml();
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-length": body.length });
+      response.end(body);
+    } catch (error) {
+      reply(response, 500, { error: "the panel page is missing: " + pagePath });
+    }
+    return;
+  }
   if (url.pathname === "/health") {
     reply(response, 200, { ok: true, running: !!current, code: current ? current.code : "" });
     return;
@@ -116,5 +131,5 @@ const server = createServer((request, response) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log("Blooket bot bridge ready on http://127.0.0.1:" + PORT);
-  console.log("Keep this running, then press Send bots on the arcade page.");
+  console.log("Open http://127.0.0.1:" + PORT + "/ to send bots, or press Send bots on the arcade page.");
 });

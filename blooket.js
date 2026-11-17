@@ -28,6 +28,18 @@
     $("blooketState").textContent = text;
   }
 
+  // The browser may refuse a public page's call to a local server; the program
+  // serves its own panel at that address, which always works.
+  function showLocalPage() {
+    const wrap = $("blooketFallback");
+    if (wrap) wrap.classList.remove("hidden");
+  }
+
+  function hideLocalPage() {
+    const wrap = $("blooketFallback");
+    if (wrap) wrap.classList.add("hidden");
+  }
+
   function generatedNames(count) {
     const names = [];
     const used = new Set();
@@ -102,6 +114,7 @@
         body: JSON.stringify({ code, count, names })
       });
       if (status === 202) {
+        hideLocalPage();
         logLine("Started " + data.count + " bot" + (data.count === 1 ? "" : "s") + " for game " + data.code, "ok");
         setState("Bots are joining game " + code + ". Watch the terminal for progress; they answer each question with a random option.");
         $("blooketStop").disabled = false;
@@ -111,8 +124,9 @@
         setState(message);
       }
     } catch (error) {
-      logLine("No answer from the bot program. Start it with: " + BRIDGE_HINT + " (if it is already running, allow this site to use your local network when the browser asks)", "err");
+      logLine("No answer from the bot program. Start it with: " + BRIDGE_HINT + " — or use the bot page link below, which works even when the browser blocks this page.", "err");
       setState("The page could not reach the bot program on this computer.");
+      showLocalPage();
     } finally {
       $("blooketStart").disabled = false;
     }
@@ -145,9 +159,11 @@
         $("blooketStop").disabled = false;
       } else {
         setState("Bot program ready. Enter the host's game code and press Send bots.");
+        hideLocalPage();
       }
     } catch (error) {
-      setState("No bot program found. Start it in a terminal: " + BRIDGE_HINT + " — and allow local network access if the browser asks.");
+      setState("No bot program found. Start it in a terminal: " + BRIDGE_HINT);
+      showLocalPage();
     }
   }
 
