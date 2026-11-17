@@ -68,7 +68,7 @@ for(const entry of entries){
 }
 for(const [label,source,required] of [
   ["Viewer restricted remote launcher",html,["await openProxied(frame,x.url","frame.src=path.href","location.assign(localUrl.href)","if(path.origin!==location.origin)"]],
-  ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-cinema-arcade.onrender.com/wisp/","Only approved games and movie destinations"]],
+  ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/","Only approved games and movie destinations"]],
   ["Render Wisp policy",server,["wisp.options.hostname_whitelist=null","wisp.options.port_whitelist=null","wisp.options.allow_private_ips=","wisp.options.allow_loopback_ips=","const allowedOrigin=new Set","function approvedGameCors"]],
   ["Seuss Search v2 client",searchClient,["wss://seuss-cinema-arcade.onrender.com/wisp/","frame.go(target.href)","www.bing.com/search?q=","Only http and https pages"]],
   ["Seuss Search v2 page",searchPage,["id=\"field\"","id=\"searchForm\"","id=\"bgOpts\"","id=\"relayOpts\"","id=\"toLibrary\"","search-client.js"]],
