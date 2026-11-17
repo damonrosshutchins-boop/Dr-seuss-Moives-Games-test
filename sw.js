@@ -35,36 +35,11 @@
       });
     }
   });
-  // Proxied pages run on this site's origin, so each bot needs its own storage
-  // keys or the site's backend sees one repeated visitor. Inject the per-frame
-  // shim into navigations; it does nothing unless the URL carries ?bkbot=.
-  const storageShimUrl = new URL("bot-storage.js", self.location.href).href;
-  const storageShim = '<script src="' + storageShimUrl + '"><' + '/script>';
-
-  async function routeWithShim(event) {
-    const response = await self.$scramjetController.route(event);
-    if (event.request.mode !== "navigate") return response;
-    try {
-      const type = response.headers.get("content-type") || "";
-      if (!/text\/html/i.test(type) || response.status !== 200) return response;
-      const html = await response.clone().text();
-      if (html.indexOf("bot-storage.js") >= 0) return response;
-      const patched = /<head[^>]*>/i.test(html)
-        ? html.replace(/<head[^>]*>/i, (match) => match + storageShim)
-        : storageShim + html;
-      const headers = new Headers(response.headers);
-      headers.delete("content-length");
-      return new Response(patched, { status: response.status, statusText: response.statusText, headers });
-    } catch (error) {
-      return response;
-    }
-  }
-
   self.addEventListener("fetch", (event) => {
     if (!controllerLoaded) return;
     try {
       if (self.$scramjetController.shouldRoute(event)) {
-        event.respondWith(routeWithShim(event));
+        event.respondWith(self.$scramjetController.route(event));
       }
     } catch (error) {
       console.error("Worker routing error:", error);
