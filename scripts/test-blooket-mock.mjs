@@ -51,22 +51,6 @@ function serveSite(port) {
   return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve(server)));
 }
 
-// Minimal OpenAI-compatible stub: always answers option 2 of the list.
-function serveAi(port) {
-  const server = createServer((request, response) => {
-    let body = "";
-    request.on("data", (chunk) => { body += chunk; });
-    request.on("end", () => {
-      response.writeHead(200, {
-        "content-type": "application/json",
-        "access-control-allow-origin": "*",
-        "access-control-allow-headers": "*"
-      });
-      response.end(JSON.stringify({ choices: [{ message: { role: "assistant", content: "2" } }] }));
-    });
-  });
-  return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve(server)));
-}
 
 function edgePath() {
   const candidates = [
@@ -139,13 +123,11 @@ const failures = [];
 const check = (condition, message) => { if (!condition) failures.push(message); };
 
 const sitePort = await freePort();
-const aiPort = await freePort();
 const site = await serveSite(sitePort);
-const ai = await serveAi(aiPort);
 let browser = null;
 
 try {
-  console.log(`site :${sitePort} · ai :${aiPort} · headless Edge`);
+  console.log(`site :${sitePort} · headless Edge`);
   browser = await launchHeadless(`http://127.0.0.1:${sitePort}/index.html?blooketTest=/blooket-mock.html&test=1`);
   const { evaluate } = browser;
 
@@ -156,10 +138,6 @@ try {
 
   await evaluate(`(() => {
     document.getElementById('blooketOpen').click();
-    document.getElementById('blooketAiOn').checked = true;
-    document.getElementById('blooketAiUrl').value = 'http://127.0.0.1:${aiPort}/v1';
-    document.getElementById('blooketAiModel').value = 'mock-model';
-    document.getElementById('blooketAiKey').value = 'test-key';
     document.getElementById('blooketCode').value = '${CODE}';
     document.getElementById('blooketCount').value = '${BOTS}';
     document.getElementById('blooketStart').click();
@@ -176,7 +154,7 @@ try {
   // A bot only sees the mock's question a couple of seconds after joining, and
   // the watcher polls every 1.5s, so the answers arrive after the join lines.
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const answered = await evaluate(`[...document.querySelectorAll('#blooketLog li')].filter((line) => /AI answered/i.test(line.textContent)).length`);
+    const answered = await evaluate(`[...document.querySelectorAll('#blooketLog li')].filter((line) => /answered "/i.test(line.textContent)).length`);
     if (answered >= BOTS) break;
     await sleep(1500);
   }
@@ -184,7 +162,7 @@ try {
   const logs = await evaluate(`[...document.querySelectorAll('#blooketLog li')].map((line) => line.textContent)`);
   const reloads = logs.filter((line) => /not shown the code box|loading it again/i.test(line)).length;
   const joined = logs.filter((line) => /joined — /i.test(line)).length;
-  const answered = logs.filter((line) => /AI answered/i.test(line)).length;
+  const answered = logs.filter((line) => /answered "/i.test(line)).length;
   const bots = await evaluate(`(() => {
     const out = [];
     for (let index = 0; index < ${BOTS}; index += 1) {
@@ -214,13 +192,12 @@ try {
   check(bots.every((bot) => bot.name && bot.name.length > 2), "every bot should have typed a name");
   check(bots.every((bot) => bot.blook), "every bot should have picked a Blook");
   check(new Set(bots.map((bot) => bot.id)).size === BOTS, "bots should have separate player identities");
-  check(bots.every((bot) => bot.answer === "4"), "bots should answer the option the stub picked");
+  check(bots.every((bot) => bot.answer), "every bot should pick an answer option");
 } catch (error) {
   failures.push(error.message || String(error));
 } finally {
   if (browser) browser.close();
   site.close();
-  ai.close();
 }
 
 if (failures.length) {

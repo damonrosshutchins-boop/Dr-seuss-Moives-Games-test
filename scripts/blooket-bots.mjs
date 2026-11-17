@@ -6,36 +6,10 @@
 //   node scripts/blooket-bots.mjs --code 1234567 --count 3 --names "ann,bob,cid"
 //   node scripts/blooket-bots.mjs --code 1234567 --count 3 --minutes 40 --show
 //
-// Answers come from an OpenAI-compatible endpoint when one is supplied. Put the
-// key in .blooket-ai.env next to this folder (git-ignored), and the runner picks
-// it up on its own:
-//
-//   AI_URL=https://api.openai.com/v1
-//   AI_MODEL=gpt-4o-mini
-//   AI_KEY=sk-...
-//   AI_PROXY=1
-//
-// or pass it inline for one run:
-//   AI_URL=https://api.openai.com/v1 AI_MODEL=gpt-4o-mini AI_KEY=sk-... \
-//     node scripts/blooket-bots.mjs --code 1234567 --count 3
-//
-// If the AI provider is blocked on this network, add --ai-proxy (or set
-// AI_PROXY=1): the AI request is then sent from inside a page running through
-// this site's own proxy, so it leaves from the proxy server instead of here.
-// The runner also falls back to that route automatically when a direct call
-// fails, so the bots keep answering either way.
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-// A local key file keeps the key out of the command line and out of git.
-const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const keyFile = path.join(rootDir, ".blooket-ai.env");
-if (existsSync(keyFile)) {
-  try { process.loadEnvFile(keyFile); } catch (error) { console.error("could not read " + keyFile + ": " + error.message); }
-}
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -48,11 +22,6 @@ const names = (flag("names", "") || "").split(",").map((name) => name.trim()).fi
 const minutes = Math.max(1, Math.min(180, Number(flag("minutes", "20")) || 20));
 const show = args.includes("--show");
 const pageUrl = flag("url", "https://play.blooket.com/play");
-const aiUrl = process.env.AI_URL || "";
-const aiModel = process.env.AI_MODEL || "";
-const aiKey = process.env.AI_KEY || "";
-const aiProxy = args.includes("--ai-proxy") || process.env.AI_PROXY === "1";
-const siteUrl = process.env.SITE_URL || "https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/index.html";
 
 if (!/^\d{4,8}$/.test(code)) {
   console.error("Pass the game code: --code 1234567");
@@ -137,94 +106,6 @@ async function launchPage(url, { visible = false } = {}) {
     setTimeout(() => { try { rmSync(profile, { recursive: true, force: true }); } catch (error) { /* locked */ } }, 2000);
   };
   return { evaluate, close };
-}
-
-// A page on this site, with a proxied frame inside it. Requests made from that
-// frame leave through the site's proxy instead of this machine's network.
-async function openRelay() {
-  const page = await launchPage(siteUrl, { visible: false });
-  const opened = await page.evaluate(`(async () => {
-    const mod = await import('./proxy-client.js?v=4');
-    const frame = document.createElement('iframe');
-    frame.id = 'ai-relay';
-    frame.style.cssText = 'position:fixed;left:-3000px;top:0;width:800px;height:600px';
-    document.body.appendChild(frame);
-    await mod.openProxied(frame, 'https://play.blooket.com/play?bkbot=ai');
-    return 'opened';
-  })()`);
-  if (opened !== "opened") throw new Error("the proxy page did not open");
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const ready = await page.evaluate(`(() => {
-      const frame = document.getElementById('ai-relay');
-      try { return !!(frame && frame.contentDocument && frame.contentDocument.body && frame.contentDocument.body.innerText.trim().length > 40); }
-      catch (error) { return false; }
-    })()`);
-    if (ready) break;
-    await sleep(1000);
-  }
-  return page;
-}
-
-const ASK_SYSTEM = "Reply with only the number of the correct option.";
-const askBody = (question, options) => ({
-  model: aiModel || "gpt-4o-mini",
-  temperature: 0,
-  max_tokens: 8,
-  messages: [
-    { role: "system", content: ASK_SYSTEM },
-    { role: "user", content: "Question: " + question + "\nOptions:\n" + options.map((text, index) => index + 1 + ". " + text).join("\n") }
-  ]
-});
-
-async function askDirect(question, options) {
-  const response = await fetch(aiUrl.replace(/\/$/, "") + "/chat/completions", {
-    method: "POST",
-    headers: { "content-type": "application/json", ...(aiKey ? { authorization: "Bearer " + aiKey } : {}) },
-    body: JSON.stringify(askBody(question, options))
-  });
-  if (!response.ok) throw new Error("AI endpoint answered " + response.status);
-  return response.json();
-}
-
-let relay = null;
-let relayTried = false;
-async function askThroughProxy(question, options) {
-  if (!relayTried) {
-    relayTried = true;
-    relay = await openRelay();
-  }
-  const payload = JSON.stringify({
-    url: aiUrl.replace(/\/$/, "") + "/chat/completions",
-    headers: { "content-type": "application/json", ...(aiKey ? { authorization: "Bearer " + aiKey } : {}) },
-    body: JSON.stringify(askBody(question, options))
-  });
-  const answer = await relay.evaluate(`(async () => {
-    const request = ${payload};
-    const frame = document.getElementById('ai-relay');
-    const response = await frame.contentWindow.fetch(request.url, { method: 'POST', headers: request.headers, body: request.body });
-    return JSON.stringify({ status: response.status, body: await response.text() });
-  })()`);
-  const parsed = JSON.parse(answer);
-  if (parsed.status >= 300) throw new Error("proxy AI answered " + parsed.status);
-  return JSON.parse(parsed.body);
-}
-
-async function askAi(question, options) {
-  if (!aiUrl) return Math.floor(Math.random() * options.length);
-  let payload = null;
-  if (!aiProxy) {
-    try { payload = await askDirect(question, options); }
-    catch (error) { console.log("AI direct call failed (" + error.message + ") — retrying through the site proxy"); }
-  }
-  if (!payload) payload = await askThroughProxy(question, options);
-  const answer = String(payload.choices?.[0]?.message?.content || "");
-  const number = answer.match(/\d+/);
-  if (number) {
-    const index = Number(number[0]) - 1;
-    if (index >= 0 && index < options.length) return index;
-  }
-  const matched = options.findIndex((text) => answer.toLowerCase().includes(String(text).toLowerCase()));
-  return matched >= 0 ? matched : Math.floor(Math.random() * options.length);
 }
 
 const snapshot = (bot) => bot.page.evaluate(`(() => {
@@ -348,9 +229,8 @@ async function runBot(bot) {
       const signature = page.question + "|" + page.answers.join("|");
       if (signature !== lastQuestion) {
         lastQuestion = signature;
-        let index = Math.floor(Math.random() * page.answers.length);
-        try { index = await askAi(page.question, page.answers); }
-        catch (error) { log("AI unavailable (" + error.message.slice(0, 60) + ") — guessing"); }
+        // Bots pick a random option; there is no AI provider involved.
+        const index = Math.floor(Math.random() * page.answers.length);
         const clicked = await clickAnswer(bot, page.answers[index]);
         log(`answered "${page.answers[index]}"${clicked ? "" : " (click missed)"}`);
       }
@@ -365,8 +245,7 @@ async function runBot(bot) {
 const bots = [];
 const results = [];
 try {
-  const route = aiUrl ? (aiProxy ? "AI via proxy" : "AI direct (proxy fallback)") : "random answers";
-  console.log(`game ${code} · ${count} bot${count === 1 ? "" : "s"} · ${route}${show ? " · visible" : " · headless"}`);
+  console.log(`game ${code} · ${count} bot${count === 1 ? "" : "s"} · random answers${show ? " · visible" : " · headless"}`);
   for (let index = 0; index < count; index += 1) {
     const name = botName(index);
     bots.push({ name, page: await launchPage(pageUrl, { visible: show }) });
@@ -380,5 +259,4 @@ try {
   process.exitCode = 1;
 } finally {
   for (const bot of bots) bot.page.close();
-  if (relay) relay.close();
 }
