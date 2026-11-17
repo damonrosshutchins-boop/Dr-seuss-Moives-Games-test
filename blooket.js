@@ -13,6 +13,8 @@
   if (!overlay) return;
 
   const JOIN = "https://play.blooket.com/play?gameId=";
+  // The local bot service (npm run bots:serve) does the typing for every bot.
+  const SERVICE = "http://127.0.0.1:8791";
   const MAX_BOTS = 50;
   const WORDS = ["calm", "brave", "sunny", "rapid", "lucky", "bold", "misty", "sharp", "quiet", "wild", "sneaky", "giddy", "cosmic", "turbo", "mossy", "frosty", "jazzy", "zippy", "noble", "peppy"];
   const CREATURES = ["Crane", "Otter", "Yak", "Panda", "Falcon", "Lynx", "Moth", "Tapir", "Bison", "Puffin", "Badger", "Heron", "Gecko", "Moose", "Robin", "Walrus", "Ibis", "Koala", "Ferret", "Narwhal"];
@@ -106,6 +108,28 @@
     return { code, count };
   }
 
+  // Ask the service on this computer to start the bots. Returns null when it is
+  // not running, so the panel can fall back to opening join tabs.
+  async function startOnThisComputer(code, count) {
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), 2500);
+    try {
+      const response = await fetch(SERVICE + "/join", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code, count }),
+        signal: stop.signal
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data && data.ok ? data : null;
+    } catch (error) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   function closeTabs() {
     let closed = 0;
     for (const tab of tabs) {
@@ -117,7 +141,7 @@
     return closed;
   }
 
-  function start() {
+  async function start() {
     const { code, count } = readInputs();
     if (!/^\d{4,8}$/.test(code)) {
       setState("Type the 4 to 8 digit join code shown on the host screen.");
@@ -127,6 +151,14 @@
     closeTabs();
     renderNames(count);
     refreshCommand(code, count);
+    const started = await startOnThisComputer(code, count);
+    if (started) {
+      const many = started.bots === 1 ? "bot" : "bots";
+      log("Started " + started.bots + " " + many + " for room " + code + " with the bot service", "ok");
+      setState("Joining room " + code + " with " + started.bots + " " + many + ". Each bot opens its own browser, types the code and its nickname, and joins on its own — leave the bot service running.");
+      $("blooketStop").disabled = true;
+      return;
+    }
     const url = JOIN + encodeURIComponent(code);
     let opened = 0;
     for (let index = 0; index < count; index += 1) {
@@ -136,7 +168,7 @@
     }
     const lead = "Made " + count + " nickname" + (count === 1 ? "" : "s") + " for game " + code + ".";
     if (!opened) {
-      setState(lead + " The browser blocked the tabs. Click the pop-up icon at the right end of the address bar, choose \"Always allow\", then press Open bot tabs again.");
+      setState(lead + " The bot service is not running and the browser blocked the tabs. Run npm run bots:serve once, then press Start bots again — the bots then join by themselves.");
       log("No tabs opened: the browser blocked pop-ups for this page.", "err");
       $("blooketStop").disabled = true;
       return;
@@ -145,7 +177,7 @@
     if (opened < count) {
       log("The browser allowed " + opened + " of " + count + " tabs. Allow pop-ups for this site (pop-up icon in the address bar → Always allow), then press again for the rest.", "err");
     }
-    setState(lead + " Opened " + opened + " join tab" + (opened === 1 ? "" : "s") + "; each bot's nickname is listed below, or press Copy auto-join command to have them type it themselves.");
+    setState(lead + " Opened " + opened + " join tab" + (opened === 1 ? "" : "s") + "; each bot's nickname is listed below. To have the bots join by themselves, run npm run bots:serve once and press Start bots again.");
     $("blooketStop").disabled = false;
   }
 
