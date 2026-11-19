@@ -885,6 +885,7 @@ async function handleApproved(request, env, url) {
     const target = importedAssetUrl(asset);
     if (!target) return textError(404, "Not an approved imported asset");
     if (asset === "1v1/2.7.json") return serve11Manifest(request, target);
+    if (firebaseSdkAssets.has(asset)) return serve11FirebaseSdk(request, target);
     for (const [prefix, primaryBase, fallbackBase] of pinnedUnitySources) {
       if (asset.startsWith(prefix) && Object.hasOwn(importedExactAssets, asset) && target.startsWith(primaryBase)) {
         return fetchPinnedWithFallback(request, [target, fallbackBase + target.slice(primaryBase.length)], {
@@ -1028,6 +1029,141 @@ async function serve11Manifest(request, target) {
     status: 200,
     headers: corsHeaders(request, {
       "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "x-content-type-options": "nosniff"
+    })
+  });
+}
+
+/* --------------------------------------------- 1v1.LOL Firebase relay --- */
+
+// The game's Firebase SDK normally calls Google directly for auth tokens and
+// Firestore. Its bundles are rewritten (serve11FirebaseSdk) to send those calls
+// here instead, so the data and token traffic goes through Cloudflare. Google
+// sign-in itself is deliberately left alone: signInWithPopup opens the project's
+// firebaseapp.com auth domain, which cannot be proxied without breaking OAuth.
+const FIREBASE_ROUTE = "/firebase/1v1/";
+const firebaseUpstreams = Object.freeze({
+  // identitytoolkit: sign-in/sign-up REST methods (the game's own accounts).
+  idt: "https://www.googleapis.com/identitytoolkit/v3/relyingparty/",
+  // securetoken: ID-token refresh.
+  st: "https://securetoken.googleapis.com/v1/",
+  // firestore: the game's live data store.
+  fs: "https://firestore.googleapis.com/"
+});
+const firebaseSdkAssets = new Set(["1v1/1firebase-auth.js", "1v1/1firebase-firestore.js"]);
+const FIREBASE_METHODS = "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS";
+const FIREBASE_DROP_HEADERS = new Set([
+  "host", "connection", "content-length", "accept-encoding", "cookie", "origin", "referer",
+  "upgrade-insecure-requests", "sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest"
+]);
+
+// The Firebase SDK sends its XHRs with credentials, so the exact origin plus
+// allow-credentials is required; a bare wildcard would be rejected.
+function firebaseCors(request, response) {
+  const origin = request.headers.get("Origin");
+  if (!origin) return response;
+  const headers = new Headers(response.headers);
+  headers.set("access-control-allow-origin", origin);
+  headers.set("access-control-allow-credentials", "true");
+  // Firestore's WebChannel reads these to learn the session Google assigned; a
+  // cross-origin client cannot see them unless they are exposed explicitly.
+  headers.set("access-control-expose-headers", "X-HTTP-Session-Id, X-Client-Wire-Protocol");
+  headers.set("vary", "Origin");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
+function firebasePreflight(request) {
+  // Echo the requested header list back: the SDK sends its own x-goog-* and
+  // x-firebase-* headers, and a fixed list would fail preflight as it changes.
+  const headers = corsHeaders(request, {
+    "access-control-allow-methods": FIREBASE_METHODS,
+    "access-control-allow-headers": request.headers.get("access-control-request-headers") || "authorization, content-type, accept",
+    "access-control-allow-credentials": "true",
+    "access-control-max-age": "600"
+  });
+  headers.set("cache-control", "no-store");
+  return new Response(null, { status: 204, headers });
+}
+
+// Firestore keeps a long-lived streaming channel, so the body is passed through
+// untouched rather than buffered or parsed.
+async function handleFirebaseRelay(request, url) {
+  if (request.method === "OPTIONS") return firebasePreflight(request);
+  if (!FIREBASE_METHODS.split(", ").includes(request.method)) {
+    return firebaseCors(request, textError(405, "Unsupported method for the Firebase route"));
+  }
+  const tail = url.pathname.slice(FIREBASE_ROUTE.length);
+  const slash = tail.indexOf("/");
+  const bucket = slash < 0 ? tail : tail.slice(0, slash);
+  const rest = slash < 0 ? "" : tail.slice(slash + 1);
+  const upstream = firebaseUpstreams[bucket];
+  if (!upstream || (rest && rest.split("/").some(part => !part || part === ".." || part === "."))) {
+    return firebaseCors(request, textError(404, "Not an approved Firebase route"));
+  }
+  const headers = new Headers();
+  for (const [name, value] of request.headers) {
+    const lower = name.toLowerCase();
+    if (FIREBASE_DROP_HEADERS.has(lower) || lower.startsWith("cf-") || lower.startsWith("x-forwarded-")) continue;
+    headers.set(name, value);
+  }
+  const init = {
+    method: request.method,
+    headers,
+    redirect: "follow",
+    signal: AbortSignal.timeout(120000)
+  };
+  if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+  let response;
+  try {
+    response = await fetch(upstream + rest + url.search, init);
+  } catch (error) {
+    console.warn("firebase relay failed", url.pathname, String(error));
+    return firebaseCors(request, textError(502, "The Firebase endpoint could not be reached"));
+  }
+  const out = new Headers();
+  for (const name of ["content-type", "content-disposition", "retry-after", "x-http-session-id", "x-client-wire-protocol"]) {
+    const value = response.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  out.set("cache-control", "no-store");
+  out.set("x-content-type-options", "nosniff");
+  return firebaseCors(request, new Response(request.method === "HEAD" ? null : response.body, {
+    status: response.status,
+    headers: out
+  }));
+}
+
+// The SDK bundles carry the Google hosts in plain strings; point them at this
+// origin, taken from the request so a custom domain or a dev port still works.
+async function serve11FirebaseSdk(request, target) {
+  let upstream;
+  try {
+    upstream = await fetch(target, { signal: AbortSignal.timeout(45000) });
+  } catch (error) {
+    console.warn("1v1 firebase sdk fetch failed", String(error));
+    return textError(502, "The 1v1.LOL Firebase bundle is unavailable");
+  }
+  if (!upstream.ok) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "The 1v1.LOL Firebase bundle is unavailable (" + upstream.status + ")");
+  }
+  const origin = new URL(request.url).origin;
+  const host = new URL(origin).host;
+  const source = (await upstream.text())
+    .replaceAll("https://www.googleapis.com/identitytoolkit/v3/relyingparty/", origin + FIREBASE_ROUTE + "idt/")
+    .replaceAll("https://securetoken.googleapis.com/v1/token", origin + FIREBASE_ROUTE + "st/token")
+    // Firestore builds its URLs as https://<host>/v1/..., so the prefix rides on
+    // the host string itself.
+    .replaceAll('"firestore.googleapis.com"', JSON.stringify(host + FIREBASE_ROUTE + "fs"));
+  return new Response(request.method === "HEAD" ? null : source, {
+    status: 200,
+    headers: corsHeaders(request, {
+      "content-type": "application/javascript; charset=utf-8",
       "cache-control": "public, max-age=300",
       "x-content-type-options": "nosniff"
     })
@@ -1227,6 +1363,17 @@ export default {
       if (denied) return denied;
       return env.WISP_RELAY.get(env.WISP_RELAY.idFromName("seuss")).fetch(request);
     }
+    if (pathname.startsWith(FIREBASE_ROUTE)) {
+      const denied = denyOrigin(request, env);
+      if (denied) return denied;
+      try {
+        return await handleFirebaseRelay(request, url);
+      } catch (error) {
+        console.error("firebase route failed", pathname, String(error));
+        return withCors(request, textError(502, "The Firebase route failed"));
+      }
+    }
+
     // Everything outside the pinned routes is the mirrored legacy Minecraft
     // site, whose launcher, game page and hashed asset paths all need this
     // origin's root.
