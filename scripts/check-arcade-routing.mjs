@@ -34,9 +34,10 @@ const entries=rows.map(line=>({
   id:line.match(/^\{id:'([^']+)'/)?.[1],
   url:line.match(/url:'([^']+)'/)?.[1],
   local:line.includes("local:true"),
+  direct:line.includes("direct:true"),
   isolated:line.includes("needsIsolation:true")
 }));
-let localCount=0,remoteCount=0,isolatedCount=0;
+let localCount=0,remoteCount=0,isolatedCount=0,directCount=0;
 for(const entry of entries){
   if(!entry.id||!entry.url){errors.push("Unrecognized catalogue row: "+JSON.stringify(entry));continue;}
   let url;
@@ -57,7 +58,9 @@ for(const entry of entries){
       }
     }
   }else{
-    remoteCount++;
+    // Cloudflare-held hosts refuse the relay's TCP sockets, so those approved
+    // pages load their pinned URL in the frame instead of through the proxy.
+    if(entry.direct)directCount++; else remoteCount++;
     const host=url.hostname.toLowerCase();
     if(url.protocol!=="https:" ||
        ![...allowed].some(candidate=>host===candidate||host.endsWith("."+candidate)))
@@ -94,7 +97,8 @@ if(errors.length){
   for(const error of errors)console.error("ROUTING CHECK FAILED:",error);
   process.exitCode=1;
 }else{
-  console.log("Routing audit passed: "+entries.length+" entries ("+localCount+" local, "+remoteCount+" via restricted Wisp, "+isolatedCount+" same-origin top-level isolation exceptions).");
-  console.log("Every game asset route resolves to the Cloudflare Worker; no Render host remains.");
+  console.log("Routing audit passed: "+entries.length+" entries ("+localCount+" local, "+remoteCount+" via restricted Wisp, "+directCount+" direct Cloudflare-hosted pages, "+isolatedCount+" same-origin top-level isolation exceptions).");
+  console.log("Every proxied game asset route resolves to the Cloudflare Worker; no Render host remains.");
+  if(directCount)console.log(directCount+" entries load their pinned publisher page directly because Cloudflare refuses the relay's sockets to its own addresses.");
   console.log("This checks routing and published files, not emulator gameplay or third-party asset availability.");
 }

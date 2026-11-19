@@ -64,14 +64,14 @@ const library=[
 {id:'1v1-lol',kind:'game',name:'1v1.LOL',desc:'Local game launcher with Unity build files served by Cloudflare; online features may need third-party services.',icon:'🎯',bg:'linear-gradient(130deg,#464646,#a8a8a8)',url:'./games/1v1-lol/index.html',local:true},
 {id:'zelda-oot',kind:'game',name:'The Legend of Zelda: Ocarina of Time',desc:'Nintendo 64 emulator with approved, pinned game parts delivered from Cloudflare.',icon:'🗡️',bg:'linear-gradient(130deg,#3a3a3a,#909090)',url:'./games/zelda-oot/index.html',local:true},
 {id:'tomb-of-the-mask',kind:'game',name:'Tomb of the Mask',desc:'Unity WebGL arcade maze game in the built-in player with fixed, approved Cloudflare game assets.',icon:'🗿',bg:'linear-gradient(130deg,#434343,#919191)',url:'./games/tomb-of-the-mask/index.html',local:true},
-{id:'paper-mario-ttyd',kind:'game',name:'Paper Mario: The Thousand-Year Door',desc:'GameCube browser game loaded from its exact approved Nostalgia.fun page through Scramjet and restricted Cloudflare Wisp. Source availability and gameplay remain unverified.',icon:'📖',bg:'linear-gradient(130deg,#575757,#a5a5a5)',url:'https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html'},
+{id:'paper-mario-ttyd',kind:'game',name:'Paper Mario: The Thousand-Year Door',desc:'GameCube browser game loaded directly from its exact approved Nostalgia.fun page, which is Cloudflare-hosted. Source availability and gameplay remain unverified.',icon:'📖',bg:'linear-gradient(130deg,#575757,#a5a5a5)',url:'https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html',direct:true},
 {id:'garten-of-banban',kind:'game',name:'Garten of Banban',desc:'Full WebAssembly browser port loaded inside the arcade; game assets pinned and streamed through approved Cloudflare routes. Large download.',icon:'🌈',bg:'linear-gradient(130deg,#424242,#989898)',url:'./games/garten-of-banban/index.html',local:true},
 {id:'webcompiled',kind:'game',name:'WebCompiled (Mario Kart Wii)',desc:'Browser recompiler project added; needs an authorized compiled game build before it can be played. WebGPU and JSPI required.',icon:'🏎️',bg:'linear-gradient(130deg,#464646,#9e9e9e)',url:'./games/webcompiled/index.html',local:true},
 {id:'eaglercraft-26-2',kind:'game',name:'Eaglercraft 26.2',desc:'Your self-contained 26.2 HTML client, launched locally inside the arcade; build-time public Drive publishing or local-file fallback.',icon:'🟩',bg:'linear-gradient(130deg,#353535,#888888)',url:'./games/eaglercraft-26-2/index.html',local:true},
 {id:'repo-halloween',kind:'game',name:'R.E.P.O. Halloween WebGL',desc:'Large Unity Halloween game, played in-site with 764 MB of pinned game chunks streamed through approved Cloudflare routes.',icon:'🎃',bg:'linear-gradient(130deg,#2c2c2c,#7e7e7e)',url:'./games/repo-halloween/index.html',local:true},
 {id:'btd6',kind:'game',name:'Bloons TD 6',desc:'Licensed, recovered Unity WebGL build with approved pinned game assets through Cloudflare. Large download (883 MB initial assets).',icon:'🎈',bg:'linear-gradient(130deg,#404040,#969696)',url:'./games/btd6/index.html',local:true},
-{id:'toby-web',kind:'game',name:'Toby Web (Undertale & Deltarune)',desc:'Curated Undertale, Deltarune and fan-mod hub inside Seuss Arcade, using only the approved Toby Web entry via restricted Cloudflare Wisp. Some mod resources may need external hosts.',icon:'❤️',bg:'linear-gradient(130deg,#3c3c3c,#707070)',url:'https://toby.booksforschool.online/index.html'},
-{id:'wacky-flip',kind:'game',name:'Wacky Flip',desc:'Game-only publisher embed through the restricted Seuss player. Surrounding website articles and banner areas are not loaded; ads inside the game are controlled by its publisher.',icon:'🤸',bg:'linear-gradient(130deg,#4f4f4f,#a0a0a0)',url:'https://game.azgame.io/wacky-flip/'},
+{id:'toby-web',kind:'game',name:'Toby Web (Undertale & Deltarune)',desc:'Curated Undertale, Deltarune and fan-mod hub inside Seuss Arcade, using only the approved Toby Web entry via restricted Cloudflare Wisp. Some mod resources may need external hosts.',icon:'❤️',bg:'linear-gradient(130deg,#3c3c3c,#707070)',url:'https://toby.booksforschool.online/index.html',direct:true},
+{id:'wacky-flip',kind:'game',name:'Wacky Flip',desc:'Game-only publisher embed, loaded directly in the player. Surrounding website articles and banner areas are not loaded; ads inside the game are controlled by its publisher.',icon:'🤸',bg:'linear-gradient(130deg,#4f4f4f,#a0a0a0)',url:'https://game.azgame.io/wacky-flip/',direct:true},
 {id:'snow-rider-3d',kind:'game',name:'Snow Rider 3D',desc:'Unity WebGL snowboarding game played inside the arcade, with pinned assets through Cloudflare.',icon:'🏂',bg:'linear-gradient(130deg,#555555,#cbcbcb)',url:'./games/snow-rider-3d/index.html',local:true},
 {id:'run-2',kind:'game',name:'Run 2 (Flash)',desc:'Classic Run 2 Flash game in the Arcade, using Ruffle and pinned Cloudflare assets.',icon:'🏃',bg:'linear-gradient(130deg,#3f3f3f,#a3a3a3)',url:'./games/run-2/index.html',local:true},
 {id:'centipede-arcade',kind:'game',name:'Centipede (Arcade)',desc:'Classic arcade game and EmulatorJS assets from fixed, approved Cloudflare routes.',icon:'🐛',bg:'linear-gradient(130deg,#303030,#7e7e7e)',url:'./games/centipede-arcade/index.html',local:true},
@@ -104,7 +104,7 @@ const library=[
 {id:'hollowknight',kind:'game',name:'Hollow Knight Webport',desc:'Opens inside the site; downloads a large Unity build from your fork (around 1 GB).',icon:'🦋',bg:'linear-gradient(130deg,#303030,#878787)',url:'./games/hollow-knight/index.html',local:true},
 {id:'fish',kind:'game',name:'FISH (Unity web port)',desc:'Run bundled Unity game files from this site.',icon:'🐟',bg:'linear-gradient(130deg,#404040,#888888)',url:'./games/fish/index.html',local:true},
 {id:'shuttle',kind:'movie',name:'ShuttleTV',desc:'Browse the external entertainment site.',icon:'🎬',bg:'linear-gradient(130deg,#4a4a4a,#a4a4a4)',url:'https://shuttletv.pk/'},
-{id:'projection',kind:'movie',name:'Projection Studios',desc:'Movies, TV, anime and manga in one catalogue; opened through the restricted proxy.',icon:'📽️',bg:'linear-gradient(130deg,#3d3d3d,#a2a2a2)',url:'https://projection-studios.dogeeats531.workers.dev/'}
+{id:'projection',kind:'movie',name:'Projection Studios',desc:'Movies, TV, anime and manga in one catalogue; opened directly in the player.',icon:'📽️',bg:'linear-gradient(130deg,#3d3d3d,#a2a2a2)',url:'https://projection-studios.dogeeats531.workers.dev/',direct:true}
 ];
 const $=id=>document.getElementById(id);let filter='all',selected=null;
 const favorites=new Set(JSON.parse(localStorage.getItem('seussFavorites')||'[]'));
@@ -239,7 +239,7 @@ async function openItem(x){
   selected=x;
   const frame=resetPlayerFrame();
   $('viewerTitle').textContent=x.name;
-  $('viewerStatus').textContent=x.local?'Preparing local game…':'Starting Scramjet over Wisp…';
+  $('viewerStatus').textContent=x.local?'Preparing local game…':x.direct?'Loading publisher page…':'Starting Scramjet over Wisp…';
   $('playerProgress').classList.remove('hidden');
   updatePlayerProgress(x.local?'Opening game page…':'Connecting through Cloudflare…');
   $('viewerAlert').classList.add('hidden');
@@ -265,6 +265,16 @@ async function openItem(x){
         }
       },{once:true});
       frame.src=path.href;
+      return;
+    }
+    if(x.direct){
+      // These approved pages sit behind Cloudflare, whose addresses the relay's
+      // TCP sockets are not allowed to reach. The browser can reach them, so the
+      // exact catalogue URL is loaded straight into the frame instead.
+      updatePlayerProgress('Opening publisher page…');
+      $('viewerStatus').textContent='Loading publisher page…';
+      frame.addEventListener('load',()=>{if(session!==playerSession)return;finishPlayerLoading(session,'Game opened');},{once:true});
+      frame.src=new URL(x.url,location.href).href;
       return;
     }
     const {openProxied}=await import('./proxy-client.js?v=5');
