@@ -102,6 +102,13 @@ async function ensureRouting(controller, prefix, onProgress) {
 }
 // A page the archive could not proxy: the static host's 404 page or the worker's
 // own error document. Both are safe to retry once the route is restored.
+function failedFrameMessage(iframe) {
+  let detail = "";
+  try { detail = (iframe.contentDocument?.body?.textContent || "").trim().slice(0, 200); } catch {}
+  return detail
+    ? "This destination could not be loaded through the proxy: " + detail
+    : "This destination could not be loaded through the proxy. Try Reload or another item.";
+}
 async function frameState(iframe) {
   try {
     const doc = iframe.contentDocument;
@@ -219,7 +226,16 @@ export async function openProxied(iframe, url, onProgress) {
         throw new Error("The proxy route could not be restored. Reload the page and try again.");
       }
       await timeout(Promise.resolve(frame.go(target.href)), "Retrying content");
-      return;
+      // Report what the frame actually shows: a destination the relay cannot
+      // reach must not look like an arcade that simply did nothing.
+      const retryDeadline = Date.now() + 6000;
+      while (Date.now() < retryDeadline) {
+        const next = await frameState(iframe);
+        if (next === "loaded") return;
+        if (next === "failed") break;
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      throw new Error(failedFrameMessage(iframe));
     }
     await new Promise(resolve => setTimeout(resolve, 200));
   }
