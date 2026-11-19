@@ -68,8 +68,8 @@
 </div></div>
 <script src="split-loader.js"></script>
 <script>
-// where the game data (manifest.json + game/) is served from: '' = next to this page, or a CDN base such as
-// 'https://cdn.jsdelivr.net/gh/<user>/<repo>@<tag>/' (build.py pack writes the chunked tree)
+// where the game data (manifest.json + game/) is served from: '' keeps every
+// request on this page's own base, which is the approved Cloudflare route.
 const GAME_BASE = '';
 const BASE_DEPTH_FIX = [
   '9be4bc7f38cddc89', 'c50e90db15d00113', '14cecf7f47a3f4af',

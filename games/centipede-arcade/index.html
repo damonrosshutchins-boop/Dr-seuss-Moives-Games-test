@@ -88,12 +88,8 @@ async function launch(){
  started=true;start.disabled=true;
  report("Checking the approved game file and EmulatorJS…");
  try{
-  let runtime=RUNTIME;
-  let loader=await request(runtime+"loader.js");
-  if(!loader.ok){
-   runtime="https://cdn.emulatorjs.org/stable/data/";
-   loader=await request(runtime+"loader.js");
-  }
+  const runtime=RUNTIME;
+  const loader=await request(runtime+"loader.js");
   if(!loader.ok)throw Error("EmulatorJS runtime unavailable (HTTP "+loader.status+")");
   let gameUrl=GAME;
   let gameCheck=await request(GAME);

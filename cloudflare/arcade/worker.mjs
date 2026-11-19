@@ -336,6 +336,80 @@ async function attemptPinned(request, upstreamUrl, options = {}) {
 }
 
 // Always answers with a Response: a transport failure becomes a 502.
+// Concatenate a run of fixed parts into one streamed response. Each part is
+// opened, drained and closed before the next starts, so a game with twenty
+// parts never holds more upstream connections than the Worker allows.
+function streamParts(request, urls, options = {}) {
+  const headers = corsHeaders(request, {
+    "content-type": options.mime || "application/octet-stream",
+    "cache-control": options.cache || "public, max-age=3600",
+    "accept-ranges": "none",
+    "x-content-type-options": "nosniff"
+  });
+  if (request.method === "HEAD") {
+    return (async () => {
+      for (const url of urls) {
+        let probe;
+        try {
+          probe = await fetch(url, {
+            method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(options.timeout || 60000)
+          });
+        } catch {
+          return textError(502, "Approved game source unavailable (network error)");
+        }
+        try { await probe.body?.cancel(); } catch {}
+        if (!probe.ok) return textError(502, "Approved game source unavailable (" + probe.status + ")");
+      }
+      return new Response(null, { status: 200, headers });
+    })();
+  }
+  // Pull one chunk per demand. Enqueueing a 344 MB file faster than the client
+  // drains it fills the isolate's memory and Cloudflare cuts the response off
+  // around 90 MB, so backpressure has to be respected here.
+  let index = 0;
+  let reader = null;
+  const body = new ReadableStream({
+    async pull(controller) {
+      try {
+        for (;;) {
+          if (!reader) {
+            if (index >= urls.length) {
+              controller.close();
+              return;
+            }
+            const upstream = await fetch(urls[index++], {
+              headers: { "accept-encoding": "identity" },
+              redirect: "manual",
+              signal: AbortSignal.timeout(options.timeout || 120000)
+            });
+            if (!upstream.ok || !upstream.body) {
+              try { await upstream.body?.cancel(); } catch {}
+              controller.error(new Error("Approved game source unavailable (" + upstream.status + ")"));
+              return;
+            }
+            reader = upstream.body.getReader();
+          }
+          const { done, value } = await reader.read();
+          if (done) {
+            try { reader.releaseLock(); } catch {}
+            reader = null;
+            continue;
+          }
+          controller.enqueue(value);
+          return;
+        }
+      } catch (error) {
+        console.warn("streamed game parts failed", String(error));
+        controller.error(error);
+      }
+    },
+    cancel() {
+      try { reader?.cancel(); } catch {}
+    }
+  });
+  return new Response(body, { status: 200, headers });
+}
+
 async function fetchPinned(request, upstreamUrl, options = {}) {
   const response = await attemptPinned(request, upstreamUrl, options);
   return response || textError(502, "The approved game's source server could not be reached.");
@@ -604,6 +678,49 @@ const buckshotFiles = new Set([
   "buckshot-roulette.png", "buckshot-roulette.audio.worklet.js",
   "buckshot-roulette.audio.position.worklet.js"
 ]);
+// The port ships its pck and wasm split into 20 parts and merges them in the
+// browser, which meant two ~390 MB passes plus a 344 MB Blob and looked like a
+// hang. Serve each whole file from here instead: parts are concatenated while
+// streaming, one upstream connection at a time.
+const buckshotBundles = Object.freeze({
+  "buckshot-roulette.pck": 17,
+  "buckshot-roulette.wasm": 3
+});
+
+// Four Unity ports used to pull their builds straight from a third-party CDN.
+// Each mirror below is pinned to one commit and only serves paths inside that
+// commit, so every game file reaches the browser through this Worker.
+const unityMirrors = Object.freeze({
+  "peak": {
+    cdn: "https://cdn.jsdelivr.net/gh/skibbsz/jsdelivr-cdns@d4ce675e5ab1bddd8ef03994129d31a8c8b34c67/peak/",
+    raw: "https://raw.githubusercontent.com/skibbsz/jsdelivr-cdns/d4ce675e5ab1bddd8ef03994129d31a8c8b34c67/peak/"
+  },
+  "slimeranch": {
+    cdn: "https://cdn.jsdelivr.net/gh/reeyuki/SlimeRanch@eb5348fe5a0f17956daaea873fb161c7142ed0a7/",
+    raw: "https://raw.githubusercontent.com/reeyuki/SlimeRanch/eb5348fe5a0f17956daaea873fb161c7142ed0a7/"
+  },
+  "lobcorp": {
+    cdn: "https://cdn.jsdelivr.net/gh/Reeyuki/lobcorp@a8815a5edf746b24ebd8028273c4de80c8f67821/",
+    raw: "https://raw.githubusercontent.com/Reeyuki/lobcorp/a8815a5edf746b24ebd8028273c4de80c8f67821/"
+  },
+  "plague-inc": {
+    cdn: "https://cdn.jsdelivr.net/gh/Reeyuki/PlagueIncEvolved@79306ef07b5456ebdc6d25dc023aa61184c1ae27/",
+    raw: "https://raw.githubusercontent.com/Reeyuki/PlagueIncEvolved/79306ef07b5456ebdc6d25dc023aa61184c1ae27/"
+  },
+  "tabs": {
+    cdn: "https://cdn.jsdelivr.net/gh/reeyuki/tabs@631e27caca8f082cd60c8d374f7a7a96d422e26f/",
+    raw: "https://raw.githubusercontent.com/reeyuki/tabs/631e27caca8f082cd60c8d374f7a7a96d422e26f/"
+  }
+});
+const UNITY_MIRROR_DIRS = new Set(["Build", "StreamingAssets", "TemplateData"]);
+
+function approvedUnityMirrorFile(raw) {
+  const file = safeAssetPath(raw || "index.html");
+  if (!file) return null;
+  const slash = file.indexOf("/");
+  if (slash < 0) return file;
+  return UNITY_MIRROR_DIRS.has(file.slice(0, slash)) ? file : null;
+}
 
 /* ------------------------------------------------------------- rewrites --- */
 
@@ -816,6 +933,21 @@ async function handleApproved(request, env, url) {
     });
   }
 
+  for (const [slug, mirror] of Object.entries(unityMirrors)) {
+    const prefix = "/approved-games/" + slug + "/";
+    if (!pathname.startsWith(prefix)) continue;
+    const file = approvedUnityMirrorFile(pathname.slice(prefix.length));
+    if (!file) return textError(404, "Not an approved " + slug + " game file");
+    // jsDelivr answers a ranged request with an empty 206, so ranges go straight
+    // to GitHub raw, which honours them.
+    const sources = request.headers.get("Range")
+      ? [mirror.raw + encodePath(file)]
+      : [mirror.cdn + encodePath(file), mirror.raw + encodePath(file)];
+    return fetchPinnedWithFallback(request, sources, {
+      mime: mimeFor(file), cache: "public, max-age=86400, immutable", timeout: 180000
+    });
+  }
+
   if (pathname === "/approved-games/horizon/parts.json") {
     return fetchPinned(request, horizonRoot + "parts.json", { mime: "application/json; charset=utf-8" });
   }
@@ -855,7 +987,17 @@ async function handleApproved(request, env, url) {
   }
 
   if (pathname.startsWith(buckshotRoute)) {
-    const file = approvedBuckshotFile(pathname.slice(buckshotRoute.length));
+    const bundle = pathname.slice(buckshotRoute.length);
+    if (Object.hasOwn(buckshotBundles, bundle)) {
+      const urls = [];
+      for (let part = 1; part <= buckshotBundles[bundle]; part++) urls.push(buckshotRaw + bundle + ".part" + part);
+      return streamParts(request, urls, {
+        mime: bundle.endsWith(".wasm") ? "application/wasm" : "application/octet-stream",
+        cache: "public, max-age=86400, immutable",
+        timeout: 180000
+      });
+    }
+    const file = approvedBuckshotFile(bundle);
     if (!file) return textError(404, "Not an approved Buckshot Roulette file");
     const cache = file === "index.html" ? "public, max-age=300" : "public, max-age=86400, immutable";
     const sources = request.headers.get("Range")
@@ -1052,6 +1194,17 @@ const firebaseUpstreams = Object.freeze({
   fs: "https://firestore.googleapis.com/"
 });
 const firebaseSdkAssets = new Set(["1v1/1firebase-auth.js", "1v1/1firebase-firestore.js"]);
+// Only the endpoints the pinned Firebase auth bundle calls are relayed; this is
+// not a general Google proxy, so any other path is refused before a fetch.
+const firebaseIdtMethods = new Set([
+  "signupNewUser", "verifyPassword", "verifyAssertion", "verifyCustomToken",
+  "setAccountInfo", "getAccountInfo", "getProjectConfig", "getOobConfirmationCode",
+  "getRecaptchaParam", "resetPassword", "verifyPasswordResetCode", "deleteAccount",
+  "sendVerificationCode"
+]);
+// Firestore builds document paths at load time, so its lock is the game's own
+// project and database rather than a fixed endpoint list.
+const FIREBASE_FIRESTORE_PREFIX = "v1/projects/justbuild-cdb86/databases/(default)/documents";
 const FIREBASE_METHODS = "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS";
 const FIREBASE_DROP_HEADERS = new Set([
   "host", "connection", "content-length", "accept-encoding", "cookie", "origin", "referer",
@@ -1102,7 +1255,7 @@ async function handleFirebaseRelay(request, url) {
   const bucket = slash < 0 ? tail : tail.slice(0, slash);
   const rest = slash < 0 ? "" : tail.slice(slash + 1);
   const upstream = firebaseUpstreams[bucket];
-  if (!upstream || (rest && rest.split("/").some(part => !part || part === ".." || part === "."))) {
+  if (!upstream || !approvedFirebaseTarget(bucket, rest)) {
     return firebaseCors(request, textError(404, "Not an approved Firebase route"));
   }
   const headers = new Headers();
@@ -1136,6 +1289,17 @@ async function handleFirebaseRelay(request, url) {
     status: response.status,
     headers: out
   }));
+}
+
+function approvedFirebaseTarget(bucket, rest) {
+  if (!rest || rest.length > 600) return false;
+  if (rest.split("/").some(part => !part || part === "." || part === "..")) return false;
+  if (bucket === "idt") return firebaseIdtMethods.has(rest);
+  if (bucket === "st") return rest === "token";
+  if (bucket !== "fs") return false;
+  return rest === FIREBASE_FIRESTORE_PREFIX ||
+    rest.startsWith(FIREBASE_FIRESTORE_PREFIX + "/") ||
+    rest.startsWith(FIREBASE_FIRESTORE_PREFIX + ":");
 }
 
 // The SDK bundles carry the Google hosts in plain strings; point them at this
