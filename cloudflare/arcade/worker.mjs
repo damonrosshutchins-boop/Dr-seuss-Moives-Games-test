@@ -1125,6 +1125,18 @@ async function handleLegacyMirror(request, url) {
   if (request.method !== "GET" && request.method !== "HEAD" && request.method !== "POST") {
     return textError(405, "Only GET, HEAD and POST are supported here");
   }
+  // The launcher and game pages bounce first-time visitors to the author's
+  // long animated letter before they will render. The arcade opens the
+  // launcher directly, so mark the letter as read instead of redirecting.
+  if (/^\/r\/[0-9a-f]+\/letter-gate\.js$/.test(url.pathname)) {
+    return new Response('try{localStorage.setItem("webcraft.letter.v1","seen")}catch(e){}', {
+      headers: {
+        "content-type": "application/javascript; charset=utf-8",
+        "cache-control": "public, max-age=300",
+        "access-control-allow-origin": "*"
+      }
+    });
+  }
   const target = LEGACY_ORIGIN + url.pathname + url.search;
   const headers = new Headers();
   const range = request.headers.get("Range");
@@ -1157,6 +1169,14 @@ async function handleLegacyMirror(request, url) {
   out.set("cache-control", isHtml ? "no-store" : "public, max-age=86400");
   out.set("access-control-allow-origin", "*");
   out.set("x-robots-tag", "noindex");
+  // The game is a threaded Unity build: it transfers SharedArrayBuffer to its
+  // workers, which the browser only allows on a cross-origin isolated page.
+  // GitHub Pages cannot send these headers, this origin can. Isolation is
+  // decided by the document, so only pages carry them.
+  if (isHtml) {
+    out.set("cross-origin-opener-policy", "same-origin");
+    out.set("cross-origin-embedder-policy", "require-corp");
+  }
   return new Response(request.method === "HEAD" ? null : upstream.body, {
     status: upstream.status,
     headers: out

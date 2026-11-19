@@ -89,7 +89,7 @@ const library=[
 {id:'uwu-client',kind:'game',name:'UwU Client',desc:'Minecraft-style HTML client served through a fixed, approved Cloudflare proxy route and launched inside the arcade.',icon:'🐾',bg:'linear-gradient(130deg,#585858,#9f9f9f)',url:'./games/uwu-client/index.html',local:true},
 {id:'minecraft-18-wrust',kind:'game',name:'Minecraft 1.8 Wrust Mod',desc:'EaglercraftX 1.8 offline HTML from your Drive file, delivered through a fixed Cloudflare proxy route.',icon:'🟩',bg:'linear-gradient(130deg,#343434,#838383)',url:'./games/minecraft-18-wrust/index.html',local:true},
 {id:'minecraft-18-mods',kind:'game',name:'Minecraft 1.8 Mods',desc:'EaglerForge from your Drive file; its four fixed game chunks are served through the restricted Cloudflare proxy.',icon:'🧱',bg:'linear-gradient(130deg,#484848,#939393)',url:'./games/minecraft-18-mods/index.html',local:true},
-{id:'old-minecraft',kind:'game',name:'Old Minecraft',desc:'Minecraft Legacy Console Edition launcher (MCTM) served through the Seuss relay, because the publisher blocks framing and the relay cannot reach Cloudflare hosts. Loading counts are unverified.',icon:'⛏️',bg:'linear-gradient(130deg,#4a4a4a,#858585)',url:'https://seuss-arcade-relay.damonrosshutchins.workers.dev/',direct:true},
+{id:'old-minecraft',kind:'game',name:'Old Minecraft',desc:'Minecraft Legacy Console Edition launcher (MCTM) served through the Seuss relay, because the publisher blocks framing and the relay cannot reach Cloudflare hosts. Loading counts are unverified.',icon:'⛏️',bg:'linear-gradient(130deg,#4a4a4a,#858585)',url:'https://seuss-arcade-relay.damonrosshutchins.workers.dev/',direct:true,needsIsolation:true},
 {id:'sm64',kind:'game',name:'Super Mario 64 JS',desc:'Browser build bundled with this site; click inside the player to start.',icon:'🍄',bg:'linear-gradient(130deg,#6c6c6c,#a2a2a2)',url:'./games/sm64/start.html',local:true},
 {id:'meowdoku',kind:'game',name:'Meowdoku',desc:'Play the bundled Godot web port locally on this website.',icon:'🐱',bg:'linear-gradient(130deg,#505050,#9e9e9e)',url:'./games/meowdoku/index.html',local:true},
 {id:'deltarune',kind:'game',name:'DELTARUNE (web)',desc:'Browser-hosted DELTARUNE page.',icon:'💜',bg:'linear-gradient(130deg,#515151,#b8b8b8)',url:'https://mollomm1.github.io/test/'},
@@ -225,6 +225,17 @@ function closePlayer(){
   $('explore').focus();
 }
 async function openItem(x){
+  if(x.needsIsolation&&!x.local){
+    // The game transfers SharedArrayBuffer to its own workers, which browsers
+    // only allow on a cross-origin isolated page. The arcade page cannot send
+    // COOP/COEP (GitHub Pages), and an iframe inherits the top-level agent
+    // cluster, so the game gets the whole tab in a new window instead.
+    const target=new URL(x.url,location.href);
+    const opened=window.open(target.href,'_blank');
+    if(opened)opened.opener=null;
+    else location.assign(target.href);
+    return;
+  }
   if(x.local&&x.needsIsolation){
     // GitHub Pages cannot set COOP/COEP headers directly. The game's scoped
     // service worker adds them after its top-level page reloads. An iframe
