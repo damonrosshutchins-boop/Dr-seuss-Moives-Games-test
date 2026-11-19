@@ -109,6 +109,11 @@
   }
 
   const CODE_FIELD = /game id|code/i;
+  // Blooket sits behind Cloudflare, and the relay cannot open a TCP socket to
+  // Cloudflare-held addresses, so the in-page proxy is not guaranteed to reach
+  // it. This direct URL works in the user's own browser regardless.
+  const JOIN_URL = "https://play.blooket.com/play";
+  const UNREACHABLE = /could not be loaded through the proxy|Internal Service Worker Error|SSL connect error|Could not connect to server|proxy route/i;
 
   function findCodeInput(doc) {
     return [...doc.querySelectorAll("input")].find((input) => visible(input) &&
@@ -125,7 +130,7 @@
   async function joinBot(frame, code, name) {
     const mod = await getProxy();
     if (stopped) throw new Error("stopped");
-    await mod.openProxied(frame, "https://play.blooket.com/play");
+    await mod.openProxied(frame, JOIN_URL);
 
     await waitFor(() => {
       const doc = frame.contentDocument;
@@ -202,6 +207,9 @@
           line.textContent = "Bot " + name + ": " + (error && error.message ? error.message : String(error));
           if (/refused the code|invalid game id|game not found|game has ended|game is over/i.test(line.textContent)) {
             fatal = "Blooket did not accept code " + code + " — check the code on the host screen.";
+          } else if (UNREACHABLE.test(line.textContent)) {
+            // Every bot would fail the same way, so stop instead of retrying.
+            fatal = "Blooket is served through Cloudflare, which this arcade's relay cannot open a socket to, so bots cannot join automatically. Use “Open join page ↗” and enter code " + code + " there.";
           }
         } finally {
           finished += 1;
@@ -249,6 +257,12 @@
   $("blooketShowBots").addEventListener("click", () => {
     $("blooketBots").classList.toggle("bk-shown");
     $("blooketShowBots").textContent = $("blooketBots").classList.contains("bk-shown") ? "Hide bot windows" : "Show bot windows";
+  });
+  // Direct browser navigation, which works even though the relay cannot reach
+  // Blooket's Cloudflare front door.
+  $("blooketOpenJoin").addEventListener("click", () => {
+    window.open(JOIN_URL, "_blank", "noopener");
+    setState("Opened the Blooket join page. Enter code " + (($("blooketCode").value || "").trim() || "from the host screen") + " and a bot name there.");
   });
   overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
   document.addEventListener("keydown", (event) => {
