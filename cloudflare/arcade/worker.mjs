@@ -1001,7 +1001,22 @@ async function serveCheeseIndex(request) {
   }
   const html = await upstream.text();
   if (!/<base\b[^>]*>/i.test(html)) return textError(502, "Pinned Cheese Rolling HTML has no expected base element");
-  return new Response(html.replace(/<base\b[^>]*>/i, '<base href="/approved-games/cheese/">'), {
+  // The upstream page opens with a joke alert() and reports Unity failures with
+  // alert(). In a sandboxed arcade frame modals are dropped without "allow-modals",
+  // so failures were silent, and at top level the modal blocks the loader script
+  // before it fetches anything. Send both to a visible notice bar instead.
+  const notice = '<script>window.__cheeseNotice=function(message){try{console.warn("[Cheese Rolling]",message);' +
+    'var box=document.getElementById("cheeseNotice");if(!box){box=document.createElement("div");box.id="cheeseNotice";' +
+    'box.setAttribute("role","status");box.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:9;padding:10px 14px;' +
+    'background:#141b24;border-top:1px solid #2c3b4d;color:#e6f6ff;font:13px/1.4 system-ui,sans-serif";' +
+    'document.body.appendChild(box);}box.textContent=String(message);}catch(error){}};<\/script>';
+  let served = html
+    .replace(/<base\b[^>]*>/i, '<base href="/approved-games/cheese/">')
+    .replace(/\balert\s*\(/g, "__cheeseNotice(");
+  served = /<head\b[^>]*>/i.test(served)
+    ? served.replace(/<head\b[^>]*>/i, match => match + notice)
+    : notice + served;
+  return new Response(served, {
     status: 200,
     headers: corsHeaders(request, {
       "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff"
