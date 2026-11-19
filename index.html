@@ -77,7 +77,7 @@ const library=[
 {id:'centipede-arcade',kind:'game',name:'Centipede (Arcade)',desc:'Classic arcade game and EmulatorJS assets from fixed, approved Cloudflare routes.',icon:'🐛',bg:'linear-gradient(130deg,#303030,#7e7e7e)',url:'./games/centipede-arcade/index.html',local:true},
 {id:'fnae',kind:'game',name:"Five Night's at BIG E",desc:'Unity WebGL game loaded inside the Arcade with pinned game files through Cloudflare.',icon:'🌙',bg:'linear-gradient(130deg,#2f2f2f,#7a7a7a)',url:'./games/fnae/index.html',local:true},
 {id:'cheese',kind:'game',name:'Cheese Rolling',desc:'Updated Cheese Rolling Unity WebGL port from SomeRandomFella/portsandrips; split files load through the restricted Cloudflare game route.',icon:'🧀',bg:'linear-gradient(130deg,#5e5e5e,#989898)',url:'./games/cheese/index.html',local:true},
-{id:'peak',kind:'game',name:'PEAK',desc:'Co-op climbing Unity port; the launcher frames the wasm.rip page directly so its 242 MB build downloads from the source instead of through the relay. First open takes a minute.',icon:'⛰️',bg:'linear-gradient(130deg,#444444,#969696)',url:'./games/peak/index.html',local:true},
+{id:'peak',kind:'game',name:'PEAK',desc:'Co-op climbing Unity port; this site loads its 242 MB build in parallel from a verified jsDelivr mirror and caches it, so the first open takes about a minute and later opens are quick.',icon:'⛰️',bg:'linear-gradient(130deg,#444444,#969696)',url:'./games/peak/index.html',local:true},
 {id:'slimerancher',kind:'game',name:'Slime Rancher (Web)',desc:'Unity WebGL port with a local launcher; its 555 MB of split game assets stream from the approved jsDelivr mirror, so the first run takes a few minutes.',icon:'🟢',bg:'linear-gradient(130deg,#4a4a4a,#9c9c9c)',url:'./games/slimeranch/index.html',local:true},
 {id:'lobcorp',kind:'game',name:'Lobotomy Corporation (Web)',desc:'Unity port on a local launcher; 1.1 GB of compressed chunks stream from the approved jsDelivr mirror and decompress in the browser, so the first load is long.',icon:'🧠',bg:'linear-gradient(130deg,#3a3a3a,#8d8d8d)',url:'./games/lobcorp/index.html',local:true},
 {id:'plague-inc',kind:'game',name:'Plague Inc: Evolved (Web)',desc:'Unity port on a local launcher; about 272 MB of split wasm and data parts stream from the approved jsDelivr mirror with per-part retries.',icon:'🦠',bg:'linear-gradient(130deg,#3e3e3e,#949494)',url:'./games/plague-inc/index.html',local:true},
@@ -144,7 +144,7 @@ function updatePlayerProgress(label,percent=null){
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==$('frame').contentWindow)return;
   if(!$('viewer')||$('viewer').classList.contains('hidden'))return;
-  if(!selected?.local||!['zelda-oot','centipede-arcade','run-2','uwu-client','tomb-of-the-mask','snow-rider-3d','btd6','repo-halloween','garten-of-banban','eaglercraft-26-2'].includes(selected.id))return;
+  if(!selected?.local||!['zelda-oot','centipede-arcade','run-2','uwu-client','tomb-of-the-mask','snow-rider-3d','btd6','repo-halloween','garten-of-banban','eaglercraft-26-2','peak'].includes(selected.id))return;
   const data=event.data;
   if(!data||data.type!=='seuss-arcade-progress'||typeof data.stage!=='string')return;
   $('frame').dataset.progressReceived='yes';

@@ -13,6 +13,9 @@ import { connect } from "cloudflare:sockets";
 // Advertised stream buffer depth. 64 packets stalled large responses behind the
 // tunnel handshake; 512 matches the Node relay and keeps downloads flowing.
 const BUFFER_PACKETS = 512;
+// A TCP stream that never opens (blocked host, dead TLS handshake) would leave the
+// player on its start-up banner indefinitely; fail it so the client can report.
+const OPEN_TIMEOUT_MS = 20000;
 const decoder = new TextDecoder();
 const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
 
@@ -103,7 +106,13 @@ function serve(server, env, state) {
     streams.set(id, stream);
 
     try {
-      await socket.opened;
+      // Without a ceiling a stalled TLS handshake leaves the player spinning on
+      // "Starting Scramjet over Wisp…" forever; tell the client instead.
+      await Promise.race([
+        socket.opened,
+        new Promise((_, reject) => setTimeout(
+          () => reject(new Error("connect timed out")), OPEN_TIMEOUT_MS))
+      ]);
     } catch (error) {
       console.warn("wisp open failed", host + ":" + port, String(error));
       streams.delete(id);

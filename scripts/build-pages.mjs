@@ -507,8 +507,18 @@ try{
     "GODOT_THREADS_ENABLED = false",'"buckshot-roulette.pck"',"<head>"])
     if(!buckshotHTML.includes(marker))
       throw new Error("Buckshot Roulette entry changed: "+marker);
+  // main.js stitches the split pck and wasm files one part after another, which is
+  // slow at ~20 MB per part. Warm the same URLs four at a time first: the worker marks
+  // them immutable, so the merge then reads them back from the browser cache.
+  const buckshotParts=[];
+  for(let i=1;i<=17;i++)buckshotParts.push("buckshot-roulette.pck.part"+i);
+  for(let i=1;i<=3;i++)buckshotParts.push("buckshot-roulette.wasm.part"+i);
+  const buckshotPrefetch="<script>(function(){var parts="+JSON.stringify(buckshotParts)+
+    ",i=0;function next(){if(i>=parts.length)return;var url=parts[i++];"+
+    "fetch(url,{cache:\"force-cache\"}).catch(function(){}).then(next);}"+
+    "for(var n=0;n<4;n++)next();})();<\/script>";
   buckshotHTML=buckshotHTML.replace("<head>",
-    '<head>\n    <base href="'+buckshotRoute+'">');
+    '<head>\n    <base href="'+buckshotRoute+'">\n    '+buckshotPrefetch);
   const buckshotOut=path.join(out,"games","buckshot");
   await fs.mkdir(buckshotOut,{recursive:true});
   await fs.writeFile(path.join(buckshotOut,"index.html"),buckshotHTML);
