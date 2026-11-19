@@ -232,7 +232,9 @@ html, body { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden 
                 document.getElementById("seuss-btd6-message").textContent="Unable to start: "+message;
                 document.getElementById("seuss-btd6-start").hidden=false;
                 document.getElementById("seuss-btd6-button").disabled=false;
-                alert(message);
+                // The arcade frame is sandboxed without "allow-modals", so an
+                // alert() here is dropped and the failure would look silent.
+                console.error("[Bloons TD 6]",message);
               });
             };
 

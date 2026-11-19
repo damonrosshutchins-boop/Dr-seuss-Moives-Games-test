@@ -11,6 +11,10 @@ const allowed = new Set(["cdn.jsdelivr.net", "game.azgame.io", "nostaligafun.pag
 const gameEntries = new Set(["https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@7255b72aaae4b572d171a8ff24ace071aa02f3f7/balatro.html","https://mclegacy.pages.dev/", "https://game.azgame.io/wacky-flip/", "https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html", "https://toby.booksforschool.online/index.html","https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://c00lkiddtech.github.io/md-/","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://stg420.github.io/ultrakill/","https://raw.githack.com/web-ports/fish/main/index.html", "https://projection-studios.dogeeats531.workers.dev/", "https://play.blooket.com/play"]);
 const endpoint = "wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/";
 const MAX_STARTUP_MS = 15000;
+const KEEPALIVE_MS = 15000;
+let registration;
+let keepaliveTimer;
+let proxyPrefix;
 
 function timeout(promise, name, ms = MAX_STARTUP_MS) {
   return Promise.race([
@@ -53,9 +57,67 @@ function checkWorker(worker) {
     }
   }), "Service-worker controller handshake", 5000);
 }
+// A browser stops an idle service worker after about 30 seconds, and Scramjet's
+// worker keeps its frame routing table in module scope. The restarted worker
+// has forgotten every prefix, so the next proxied navigation is not intercepted
+// and lands on the static host's 404 page instead of the proxy. Pinging keeps
+// the worker alive; probeRouting() below verifies it before a frame navigates.
+function pingWorker() {
+  try {
+    const worker = navigator.serviceWorker.controller || registration?.active;
+    worker?.postMessage({type: "seuss-sw-keepalive"});
+  } catch (error) {
+    console.warn("[Seuss player] Service-worker ping failed:", error);
+  }
+}
+async function probeRouting(prefix) {
+  try {
+    const response = await fetch(new URL(prefix + "route-check", location.href).href, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(2500)
+    });
+    // A routed request is answered by the worker (500 for an unknown frame); a
+    // 404 comes from the static host, which means the worker is not routing.
+    return response.status !== 404;
+  } catch {
+    return false;
+  }
+}
+async function ensureRouting(controller, prefix, onProgress) {
+  if (await probeRouting(prefix)) return true;
+  report("Waking the proxy route…", onProgress);
+  for (let attempt = 0; attempt < 12; attempt++) {
+    // Re-sending the controller handshake both wakes a stopped worker and
+    // restores this page's frame prefix in its routing table.
+    try {
+      if (typeof controller.setupMessagePort === "function") controller.setupMessagePort();
+      else pingWorker();
+    } catch (error) {
+      console.warn("[Seuss player] Route handshake failed:", error);
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+    if (await probeRouting(prefix)) return true;
+  }
+  return false;
+}
+// A page the archive could not proxy: the static host's 404 page or the worker's
+// own error document. Both are safe to retry once the route is restored.
+async function frameState(iframe) {
+  try {
+    const doc = iframe.contentDocument;
+    if (!doc) return "loading";
+    const text = (doc.body?.textContent || "").slice(0, 400);
+    if (/GitHub Pages/i.test(doc.title || "") || /Page not found/i.test(doc.title || "") ||
+      /Internal Service Worker Error/i.test(text)) return "failed";
+    if (doc.readyState === "complete" && (doc.title || "").trim()) return "loaded";
+    return "loading";
+  } catch {
+    return "loading";
+  }
+}
 async function createController(onProgress) {
   report("Registering service worker…", onProgress);
-  const registration = await timeout(
+  registration = await timeout(
     navigator.serviceWorker.register(asset("sw.js"), {scope: base, updateViaCache: "none"}),
     "Service-worker registration"
   );
@@ -100,6 +162,8 @@ async function createController(onProgress) {
   if (typeof instance.wait === "function")
     await timeout(instance.wait(), "Scramjet controller initialization (worker handshake, WebAssembly or browser storage)", 20000);
   report("Scramjet controller ready", onProgress);
+  proxyPrefix = instance.prefix || (base + "scramjet/");
+  if (!keepaliveTimer) keepaliveTimer = setInterval(pingWorker, KEEPALIVE_MS);
   return instance;
 }
 
@@ -139,6 +203,24 @@ export async function openProxied(iframe, url, onProgress) {
     finally { progressListeners.delete(onProgress); }
   }
   report("Opening selected content…", onProgress);
+  const prefix = controller.prefix || proxyPrefix || (base + "scramjet/");
+  await ensureRouting(controller, prefix, onProgress);
   const frame = controller.createFrame(iframe);
   await timeout(Promise.resolve(frame.go(target.href)), "Starting content");
+  // The route can still be lost between the probe and the navigation; a lost
+  // route shows up as the host's 404 page, which one retry recovers from.
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    const state = await frameState(iframe);
+    if (state === "loaded") return;
+    if (state === "failed") {
+      report("Proxy route was lost · retrying", onProgress);
+      if (!await ensureRouting(controller, prefix, onProgress)) {
+        throw new Error("The proxy route could not be restored. Reload the page and try again.");
+      }
+      await timeout(Promise.resolve(frame.go(target.href)), "Retrying content");
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
 }

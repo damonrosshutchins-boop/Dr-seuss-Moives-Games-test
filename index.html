@@ -267,7 +267,7 @@ async function openItem(x){
       frame.src=path.href;
       return;
     }
-    const {openProxied}=await import('./proxy-client.js?v=4');
+    const {openProxied}=await import('./proxy-client.js?v=5');
     if(session!==playerSession)return;
     frame.addEventListener('load',()=>{
       if(session!==playerSession)return;
@@ -312,5 +312,5 @@ if(requested){
   if(match)requestAnimationFrame(()=>{void openItem(match);});
 }
 // Start the expensive player setup while the user browses the game library.
-import('./proxy-client.js?v=4').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
+import('./proxy-client.js?v=5').then(module=>module.warmupPlayer()).catch(error=>console.warn('Player preload unavailable:',error));
 </script><script defer src="./calls.js"></script><script defer src="./blooket.js"></script></body></html>

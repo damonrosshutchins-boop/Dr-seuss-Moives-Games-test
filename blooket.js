@@ -30,7 +30,7 @@
   }
 
   async function getProxy() {
-    if (!proxy) proxy = await import("./proxy-client.js?v=4");
+    if (!proxy) proxy = await import("./proxy-client.js?v=5");
     return proxy;
   }
 
