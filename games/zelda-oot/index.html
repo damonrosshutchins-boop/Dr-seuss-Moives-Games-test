@@ -75,7 +75,9 @@ function failed(error){
  started=false;
 }
 function request(url,method="HEAD",ms=45000){
- return fetch(url,{method,mode:"cors",signal:AbortSignal.timeout(ms)});
+ // no-store: a cached failed HEAD probe would otherwise block every retry until
+ // the browser's cache expires, which reads as "Failed to fetch" on Start Zelda.
+ return fetch(url,{method,mode:"cors",cache:"no-store",signal:AbortSignal.timeout(ms)});
 }
 window.addEventListener("error",event=>{
  if(started&&event.message)report("Emulator script error: "+event.message);
