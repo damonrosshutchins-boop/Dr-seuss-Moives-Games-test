@@ -72,9 +72,9 @@ let horizonHTML=horizonInput.toString("utf8");
 // Default quick launch skips the 355 MB audio archive.
 for(const [from,to] of [
  ["const SOUND_CDN = \x60https://cdn.jsdelivr.net/gh/AlexBoops/mc-rust-onweb@\x24{SOUND_COMMIT}/\x60;",
-  'const SOUND_CDN = "https://seuss-cinema-arcade.onrender.com/approved-games/horizon/";'],
+  'const SOUND_CDN = "https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/horizon/";'],
  ['const SOUND_FALLBACK = "https://alexboops.github.io/mc-rust-onweb/";',
-  'const SOUND_FALLBACK = "https://seuss-cinema-arcade.onrender.com/approved-games/horizon/";'],
+  'const SOUND_FALLBACK = "https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/horizon/";'],
  ["const files = await downloadSoundArchive();",
   'const files = new URLSearchParams(location.search).get("audio") === "1" ? await downloadSoundArchive() : new Map();']
 ]){
@@ -275,7 +275,7 @@ await addRemoteAssetLauncher("granny3","AlexBoops/granny3rip","a8e59b3d10ff96d54
 // fixed, pinned Render game route, which allows this site's origin by CORS.
 {
   const gambleCommit="d7b3ac61ce6d2cb98e212dfa01ba0df413539a53";
-  const gambleRoute="https://seuss-cinema-arcade.onrender.com/approved-games/gamble-with-your-friends/";
+  const gambleRoute="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/gamble-with-your-friends/";
   const gambleSource="https://raw.githubusercontent.com/Camzzz-vrgt/gamble-with-your-friends-web/"+
     gambleCommit+"/game/index.html";
   const gambleResponse=await fetch(gambleSource);
@@ -496,7 +496,7 @@ try{
 // a document base, so the browser never leaves this site.
 {
   const buckshotCommit="f8a263b4da11c181e02e31086e5a5c8bc2dd1457";
-  const buckshotRoute="https://seuss-cinema-arcade.onrender.com/approved-games/buckshot/";
+  const buckshotRoute="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/buckshot/";
   const buckshotSource="https://raw.githubusercontent.com/Random-Red-Dude-809-4456/buckshot/"+
     buckshotCommit+"/index.html";
   const buckshotResponse=await fetch(buckshotSource);
@@ -512,7 +512,7 @@ try{
   const buckshotOut=path.join(out,"games","buckshot");
   await fs.mkdir(buckshotOut,{recursive:true});
   await fs.writeFile(path.join(buckshotOut,"index.html"),buckshotHTML);
-  console.log("Published Buckshot Roulette entry page; game files stream from Render.");
+  console.log("Published Buckshot Roulette entry page; game files stream from Cloudflare.");
 }
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");

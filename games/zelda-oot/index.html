@@ -20,7 +20,7 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 </style></head><body>
 <section id="setup">
 <h1>The Legend of Zelda: Ocarina of Time</h1>
-<p>Runs inside Seuss Arcade using EmulatorJS. The game file and emulator are delivered through approved Render routes.</p>
+<p>Runs inside Seuss Arcade using EmulatorJS. The game file and emulator are delivered through approved Cloudflare routes.</p>
 <label for="core">Emulator core</label>
 <select id="core"><option value="parallel-n64">Parallel N64 (compatibility)</option><option value="n64">Mupen64Plus Next</option></select>
 <label><input id="legacy" type="checkbox"> Use legacy WebGL 1 (try if video is black)</label>
@@ -37,7 +37,7 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 <div id="loadingNote" role="status" aria-live="polite"></div>
 <script>
 "use strict";
-const ROOT="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
+const ROOT="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/imported/";
 const RUNTIME=ROOT+"emu-stable/";
 const GAME=ROOT+"zelda-oot/rom.n64";
 const playerView=document.getElementById("playerView");

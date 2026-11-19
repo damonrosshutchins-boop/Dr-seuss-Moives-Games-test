@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<base href="https://seuss-cinema-arcade.onrender.com/approved-assets/garten/">
+<base href="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/garten/">
 <style>
   :root { color-scheme: dark; --bg: #000; --panel: rgba(12, 14, 18, 0.86); --ink: #fff; --dim: #8b95a3; --accent: #fff; }
   * { box-sizing: border-box; }
@@ -63,7 +63,7 @@
   <div class="start-row"><button id="play">Play</button><label><input id="multithreading" type="checkbox" disabled> Multithreading</label></div>
   <pre id="startup-log" role="log" aria-live="polite"></pre>
   <div id="loading-text" role="status">Ready. The game downloads a large WebAssembly package after you click Play.</div>
-  <div id="status">Pinned game files load only through the approved Render route. Browser WebAssembly JSPI support is required.</div>
+  <div id="status">Pinned game files load only through the approved Cloudflare route. Browser WebAssembly JSPI support is required.</div>
   <div id="bar"><div></div></div>
 </div></div>
 <script src="split-loader.js"></script>
@@ -309,7 +309,7 @@ const PORT_ENV = {
   });
   $('play').onclick = async () => {
     if (started) return;
-    // Fail visibly if the pinned Render game route is not live yet.
+    // Fail visibly if the pinned Cloudflare game route is not live yet.
     try {
       for (const part of ['split-assets.json','gbb.js','gbb.wasm.part1']) {
         const response=await fetch(new URL(part,document.baseURI),{
@@ -336,7 +336,7 @@ const PORT_ENV = {
       // ?mt=N: N guest threads get a host thread of their own (0 = the threaded module, still cooperative)
       gameBase: q.get('base') || GAME_BASE,
       iniSeed: [{ file: 'C:/Users/Player/AppData/Local/Unreal Engine/Engine/Config/UserEngine.ini', section: 'SystemSettings', values: { 'r.MotionBlurQuality': '0', 'r.DefaultFeature.MotionBlur': '0', 'r.AntiAliasingMethod': '1', 'r.TranslucencyLightingVolumeDim': '32', 'r.ViewDistanceScale': '0.8', 'r.LightMaxDrawDistanceScale': '0.85', 'r.MinScreenRadiusForDepthPrepass': '0.04', 'r.MinScreenRadiusForLights': '0.04', 'r.MinScreenRadiusForCSMDepth': '0.015' } }],
-      preRun: [m => { m.ENV.REXCOMP_MT = threaded ? '1' : '0'; if (threaded) m.ENV.REXCOMP_MTNAMES = 'Render'; m.ENV.REXCOMP_SCREEN = res.join('x'); Object.assign(m.ENV, PORT_ENV); m.ENV.REXCOMP_CORES = threaded ? '2' : '1'; for (const [k, v] of q) if (k.startsWith('REXCOMP_')) m.ENV[k] = v; m.ENV.REXCOMP_MT = '0'; m.ENV.REXCOMP_CORES = '1'; }],
+      preRun: [m => { m.ENV.REXCOMP_MT = threaded ? '1' : '0'; if (threaded) m.ENV.REXCOMP_MTNAMES = 'Cloudflare'; m.ENV.REXCOMP_SCREEN = res.join('x'); Object.assign(m.ENV, PORT_ENV); m.ENV.REXCOMP_CORES = threaded ? '2' : '1'; for (const [k, v] of q) if (k.startsWith('REXCOMP_')) m.ENV[k] = v; m.ENV.REXCOMP_MT = '0'; m.ENV.REXCOMP_CORES = '1'; }],
       print: s => { console.log(s); if (globalThis.__rxcSink) globalThis.__rxcSink.push(s); },
       printErr: s => { console.error(s); if (globalThis.__rxcSink) globalThis.__rxcSink.push(s); },
       // These callbacks consume merged Blobs; their bytes were already counted.

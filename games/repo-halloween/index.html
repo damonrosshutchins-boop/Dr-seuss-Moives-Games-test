@@ -2,7 +2,7 @@
 <html lang="en-us">
 <head>
   <meta charset="utf-8">
-  <base href="https://seuss-cinema-arcade.onrender.com/approved-assets/repo-halloween/">
+  <base href="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/repo-halloween/">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
@@ -162,7 +162,7 @@
 <body>
 <section id="arcadeGameStart" role="region" aria-label="Halloween game launcher"><article>
 <h1>🎃 R.E.P.O. Halloween</h1>
-<p>Unity WebGL Halloween game in Seuss Arcade, with its original split assets served through a fixed approved Render route.</p>
+<p>Unity WebGL Halloween game in Seuss Arcade, with its original split assets served through a fixed approved Cloudflare route.</p>
 <p>The initial game download is approximately 764 MB, plus optional additional resources. Playback depends on browser graphics support and available memory.</p>
 <button type="button" id="arcadeGameButton">Start game</button>
 <p id="arcadeGameState" role="status" aria-live="polite">Ready.</p>
@@ -818,7 +818,7 @@
           if(!response.ok)throw Error(relative+" returned HTTP "+response.status);
         }
       }catch(error){
-        state.textContent="Game assets unavailable: "+(error?.message||String(error))+". Try again after Render updates.";
+        state.textContent="Game assets unavailable: "+(error?.message||String(error))+". Try again after Cloudflare updates.";
         button.disabled=false;
         console.error("R.E.P.O. Halloween asset preflight failed",error);
         return;

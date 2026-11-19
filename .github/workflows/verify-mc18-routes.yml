@@ -16,7 +16,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import urllib.request, json
-          base="https://seuss-cinema-arcade.onrender.com/approved-games/"
+          base="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/"
           def req(path,method="GET",read=10000):
               url=base+path
               request=urllib.request.Request(url,method=method,headers={"User-Agent":"SeussArcadeRouteVerifier/1.0"})

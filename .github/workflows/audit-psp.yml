@@ -45,7 +45,7 @@ jobs:
                   scanned+=1
                   if scanned>=6: break
               print("ALL OBSERVED HOSTS",json.dumps(sorted(found)))
-              render="https://seuss-cinema-arcade.onrender.com/approved-games/gow-sparta/"
+              render="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/gow-sparta/"
               for label,route in (("status","status"),("game-html","index.html")):
                   target=render+route
                   try:

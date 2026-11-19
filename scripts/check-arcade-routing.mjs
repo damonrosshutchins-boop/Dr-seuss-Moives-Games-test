@@ -2,15 +2,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 // Build-time routing audit. Checks that catalogue links cannot accidentally
-// bypass the restricted proxy, and that local launchers were actually built.
+// bypass the restricted proxy, that local launchers were actually built, and
+// that nothing still points at the retired Render service.
 // This is not a browser gameplay test or a remote-server availability test.
-const [html, client, server, searchPage, searchClient, relayWorker] = await Promise.all([
+const [html, client, arcadeWorker, searchPage, searchClient] = await Promise.all([
   fs.readFile("index.html","utf8"),
   fs.readFile("proxy-client.js","utf8"),
-  fs.readFile("server.mjs","utf8"),
+  fs.readFile("cloudflare/arcade/worker.mjs","utf8"),
   fs.readFile("seuss-search.html","utf8"),
-  fs.readFile("search-client.js","utf8"),
-  fs.readFile("cloudflare/wisp-relay/worker.mjs","utf8")
+  fs.readFile("search-client.js","utf8")
 ]);
 const site="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/";
 const base="/Dr-seuss-Moives-Games-test/";
@@ -18,7 +18,7 @@ const rows=html.split(/\r?\n/).filter(row=>row.startsWith("{id:'"));
 const errors=[];
 // The whole catalogue lives in one inline script. A stray comma there leaves the
 // live page with no cards while every row-parsing check above still passes.
-for(const script of html.matchAll(/<script(?![^>]*src=)([^>]*)>([\s\S]*?)<\/script>/g)){
+for(const script of html.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)){
   if(/type\s*=\s*"module"/.test(script[1])||!script[2].trim())continue;
   try{new Function(script[2]);}
   catch(error){errors.push("Arcade inline script does not parse: "+error.message);}
@@ -68,22 +68,33 @@ for(const entry of entries){
 }
 for(const [label,source,required] of [
   ["Viewer restricted remote launcher",html,["await openProxied(frame,x.url","frame.src=path.href","location.assign(localUrl.href)","if(path.origin!==location.origin)"]],
-  ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-cinema-arcade.onrender.com/wisp/","Only approved games and movie destinations"]],
-  ["Render Wisp policy",server,["wisp.options.hostname_whitelist=null","wisp.options.port_whitelist=null","wisp.options.allow_private_ips=","wisp.options.allow_loopback_ips=","const allowedOrigin=new Set","function approvedGameCors"]],
-  ["Seuss Search v2 client",searchClient,["wss://seuss-cinema-arcade.onrender.com/wisp/","frame.go(target.href)","www.bing.com/search?q=","Only http and https pages"]],
+  ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","Only approved games and movie destinations"]],
+  ["Cloudflare relay policy",arcadeWorker,["isPrivateHost","connect({ hostname: host, port })","function denyOrigin","ALLOW_PRIVATE_IPS","const SELF_ORIGIN"]],
+  ["Seuss Search v2 client",searchClient,["wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","frame.go(target.href)","www.bing.com/search?q=","Only http and https pages"]],
   ["Seuss Search v2 page",searchPage,["id=\"field\"","id=\"searchForm\"","id=\"bgOpts\"","id=\"relayOpts\"","id=\"toLibrary\"","search-client.js"]],
-  ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-cinema-arcade.onrender.com/wisp/"]],
-  ["Cloudflare relay worker",relayWorker,["cloudflare:sockets","class WispRelay","wisp-1","ALLOW_PRIVATE_IPS"]],
-  ["Pinned game routes",server,["zelda-oot/rom.n64.part1","centipede/rom.zip","run2/Run2.swf","run2/ruffle.js","run2/4d882486fa9bfce731b9.wasm","run2/f7f28eb60b84863611ca.wasm","uwuclient/cluwuclient.html.part1","uwuclient/cluwuclient.html.part2","/approved-games/uwu-client/index.html","tomb-mask/UnityLoader.js","tomb-mask/totm.json","tomb-mask/totm.data.unityweb","tomb-mask/totm.wasm.code.unityweb","tomb-mask/totm.wasm.framework.unityweb","snow-rider/Build/UnityLoader.js","snow-rider/Build/SnowRider3D-gd-1.json","snow-rider/Build/SnowRider3D-gd-1.data.unityweb","snow-rider/Build/SnowRider3D-gd-1.wasm.code.unityweb","snow-rider/Build/SnowRider3D-gd-1.wasm.framework.unityweb.js","btd6Commit","gartenCommit","gartenFiles","approvedGartenAsset","/approved-assets/garten/*","a82c94ea3e9a2f2cbc2e1d925007947134b4f156","repoHalloweenCommit","approvedRepoHalloweenFile","/approved-assets/repo-halloween/*","edd5e11fae76bfe8966633f19a6e43935874a8b4","btd6ApprovedAsset","/approved-assets/btd6/*","9546494b3052e8e078fb28df7430ac35f42a8787","repoHalloweenCommit","approvedRepoHalloweenFile","/approved-assets/repo-halloween/*","edd5e11fae76bfe8966633f19a6e43935874a8b4"]],
-  ["Gamble With Your Friends pinned Render route",server,["gambleCommit","d7b3ac61ce6d2cb98e212dfa01ba0df413539a53","Camzzz-vrgt/gamble-with-your-friends-web","approvedGambleFile","gambleRoute","gambleLocalRoot"]],
-  ["Buckshot pinned Render route",server,["buckshotCommit","f8a263b4da11c181e02e31086e5a5c8bc2dd1457","Random-Red-Dude-809-4456/buckshot","approvedBuckshotFile","buckshotRoute","buckshotLocalRoot"]]
+  ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/"]],
+  ["Cloudflare relay worker",arcadeWorker,["cloudflare:sockets","class WispRelay","wisp-1","ALLOW_PRIVATE_IPS"]],
+  ["Pinned game routes",arcadeWorker,["zelda-oot/rom.n64.part1","centipede/rom.zip","run2/Run2.swf","run2/ruffle.js","run2/4d882486fa9bfce731b9.wasm","run2/f7f28eb60b84863611ca.wasm","uwuclient/cluwuclient.html.part1","uwuclient/cluwuclient.html.part2","/approved-games/uwu-client/index.html","tomb-mask/UnityLoader.js","tomb-mask/totm.json","tomb-mask/totm.data.unityweb","tomb-mask/totm.wasm.code.unityweb","tomb-mask/totm.wasm.framework.unityweb","snow-rider/Build/UnityLoader.js","snow-rider/Build/SnowRider3D-gd-1.json","snow-rider/Build/SnowRider3D-gd-1.data.unityweb","snow-rider/Build/SnowRider3D-gd-1.wasm.code.unityweb","snow-rider/Build/SnowRider3D-gd-1.wasm.framework.unityweb.js","btd6Commit","gartenCommit","gartenFiles","/approved-assets/garten/","a82c94ea3e9a2f2cbc2e1d925007947134b4f156","repoHalloweenCommit","approvedRepoHalloweenFile","/approved-assets/repo-halloween/","edd5e11fae76bfe8966633f19a6e43935874a8b4","approvedBtd6Asset","/approved-assets/btd6/","9546494b3052e8e078fb28df7430ac35f42a8787"]],
+  ["Gamble With Your Friends pinned Cloudflare route",arcadeWorker,["gambleCommit","d7b3ac61ce6d2cb98e212dfa01ba0df413539a53","Camzzz-vrgt/gamble-with-your-friends-web","approvedGambleFile","gambleRoute"]],
+  ["Buckshot pinned Cloudflare route",arcadeWorker,["buckshotCommit","f8a263b4da11c181e02e31086e5a5c8bc2dd1457","Random-Red-Dude-809-4456/buckshot","approvedBuckshotFile","buckshotRoute"]]
 ]){
   for(const snippet of required)if(!source.includes(snippet))errors.push(label+": missing "+snippet);
+}
+// Every game now loads through the Cloudflare Worker; the Render service is gone.
+for(const [label,source] of [["arcade page",html],["player client",client],["search page",searchPage],["search client",searchClient]]){
+  if(/onrender\.com/.test(source))errors.push(label+": still points at the retired Render service");
+}
+for(const name of await fs.readdir("games")){
+  const file=path.join("games",name,"index.html");
+  let source;
+  try{source=await fs.readFile(file,"utf8");}catch{continue;}
+  if(/onrender\.com/.test(source))errors.push(file+": still points at the retired Render service");
 }
 if(errors.length){
   for(const error of errors)console.error("ROUTING CHECK FAILED:",error);
   process.exitCode=1;
 }else{
   console.log("Routing audit passed: "+entries.length+" entries ("+localCount+" local, "+remoteCount+" via restricted Wisp, "+isolatedCount+" same-origin top-level isolation exceptions).");
+  console.log("Every game asset route resolves to the Cloudflare Worker; no Render host remains.");
   console.log("This checks routing and published files, not emulator gameplay or third-party asset availability.");
 }

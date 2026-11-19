@@ -11,13 +11,13 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 iframe{display:block;flex:1;min-height:65vh;width:100%;border:0;background:#0b1410}
 #help{display:none;padding:12px 15px;background:#352626;color:#ffe3e3}
 </style></head>
-<body><header><strong>⛏ Minecraft 1.8 Wurst</strong><span>The Minecraft offline build runs inside the GitHub Pages player while its HTML is delivered from the restricted Render route.</span>
+<body><header><strong>⛏ Minecraft 1.8 Wurst</strong><span>The Minecraft offline build runs inside the GitHub Pages player while its HTML is delivered from the restricted Cloudflare route.</span>
 <a href="../../index.html">← Back to Arcade</a><button id="reload" type="button">↻ Reload game</button></header>
-<main><p id="status" role="status" aria-live="polite">Loading approved Minecraft game from Render inside GitHub Pages…</p>
+<main><p id="status" role="status" aria-live="polite">Loading approved Minecraft game from Cloudflare inside GitHub Pages…</p>
 <iframe id="game" title="Minecraft 1.8 Wurst" allow="fullscreen; gamepad; autoplay; pointer-lock" allowfullscreen referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-popups-to-escape-sandbox"></iframe>
-<div id="help" role="alert">The Render game could not be confirmed. Use Reload game to retry. The arcade remains on GitHub Pages.</div></main>
+<div id="help" role="alert">The Cloudflare game could not be confirmed. Use Reload game to retry. The arcade remains on GitHub Pages.</div></main>
 <script>
-const GAME_URL="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-wrust/index.html";
+const GAME_URL="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/minecraft-18-wrust/index.html";
 const frame=document.getElementById("game");
 const status=document.getElementById("status");
 const help=document.getElementById("help");
@@ -25,21 +25,21 @@ let loadNumber=0;
 async function load(){
  const n=++loadNumber;
  help.style.display="none";
- status.textContent="Fetching approved Wurst game through Render, keeping GitHub Pages open…";
+ status.textContent="Fetching approved Wurst game through Cloudflare, keeping GitHub Pages open…";
  frame.removeAttribute("src");
  frame.srcdoc="<p style='font:16px system-ui;padding:1em'>Preparing Minecraft…</p>";
  try{
   const response=await fetch(GAME_URL,{cache:"no-store",mode:"cors",signal:AbortSignal.timeout(150000)});
   if(!response.ok)throw Error("Game server returned HTTP "+response.status);
   const contentType=response.headers.get("content-type")||"";
-  if(!contentType.toLowerCase().includes("text/html"))throw Error("Render did not return Minecraft HTML");
+  if(!contentType.toLowerCase().includes("text/html"))throw Error("Cloudflare did not return Minecraft HTML");
   const gameHtml=await response.text();
   if(n!==loadNumber)return;
-  if(!gameHtml.toLowerCase().includes("<html"))throw Error("Render returned an unexpected game document");
+  if(!gameHtml.toLowerCase().includes("<html"))throw Error("Cloudflare returned an unexpected game document");
   // srcdoc keeps the game document on the GitHub Pages origin; external
-  // resources explicitly come from the approved Render asset routes.
+  // resources explicitly come from the approved Cloudflare asset routes.
   // Use a BASE element so assets in the EaglerForge HTML resolve correctly.
-  const base='<base href="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-wrust/">';
+  const base='<base href="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/minecraft-18-wrust/">';
   const patched=/<head[^>]*>/i.test(gameHtml)
     ?gameHtml.replace(/<head[^>]*>/i,match=>match+base)
     :base+gameHtml;
@@ -47,7 +47,7 @@ async function load(){
   status.textContent="Wurst loaded inside the GitHub Pages arcade. Initializing game…";
  }catch(error){
   if(n!==loadNumber)return;
-  status.textContent="Game could not load from Render: "+(error.message||String(error));
+  status.textContent="Game could not load from Cloudflare: "+(error.message||String(error));
   help.style.display="block";
   frame.srcdoc="<p style='font:16px system-ui;padding:1em'>Game unavailable. Check the status above and retry.</p>";
  }

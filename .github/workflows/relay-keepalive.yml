@@ -1,8 +1,8 @@
 name: Keep the Wisp relay warm
 
-# The Render service sleeps after a period of inactivity, and a cold start costs
-# the first searcher 30-60 seconds. Pinging the health endpoint on a schedule
-# keeps the instance resident so search latency is just network latency.
+# The arcade relay (game asset routes plus Wisp) runs on Cloudflare Workers, so
+# there is no idle sleep to defeat; this scheduled probe still reports when the
+# Worker or its pinned upstreams stop answering.
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Warm the relay
         env:
-          RELAY_HEALTH_URL: ${{ vars.RELAY_HEALTH_URL || 'https://seuss-cinema-arcade.onrender.com/health' }}
+          RELAY_HEALTH_URL: ${{ vars.RELAY_HEALTH_URL || 'https://seuss-arcade-relay.damonrosshutchins.workers.dev/health' }}
         run: |
           set -uo pipefail
           for attempt in 1 2 3; do

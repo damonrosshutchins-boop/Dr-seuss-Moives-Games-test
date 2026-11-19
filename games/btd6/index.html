@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-us">
   <head>
-    <base href="https://seuss-cinema-arcade.onrender.com/approved-assets/btd6/" />
+    <base href="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/btd6/" />
 
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -47,7 +47,7 @@ html, body { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden 
   <body>
 <section id="seuss-btd6-start" aria-label="Bloons TD 6 launcher"><article>
 <h1>🎈 Bloons TD 6</h1>
-<p>Play inside Seuss Arcade. The WebGL build streams its fixed, pinned game assets through the approved Render proxy.</p>
+<p>Play inside Seuss Arcade. The WebGL build streams its fixed, pinned game assets through the approved Cloudflare proxy.</p>
 <p><strong>Large download:</strong> the initial game data is approximately 883 MB, with additional maps and resources loaded as needed. Performance and online functions depend on your browser and the game's own services.</p>
 <button id="seuss-btd6-button" type="button">Launch Bloons TD 6</button>
 <p id="seuss-btd6-message" role="status" aria-live="polite">Ready.</p>
@@ -161,7 +161,7 @@ html, body { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden 
 
 
       } else {
-        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
+        // Desktop style: Cloudflare the game canvas in a window that can be maximized to fullscreen:
         fitUnityCanvas();
       }
 
@@ -182,13 +182,13 @@ html, body { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden 
           for(const filename of scripts){
             const url=new URL(filename,assetRoot).href;
             const response=await fetch(url,{method:"HEAD",cache:"no-store",signal:AbortSignal.timeout(45000)});
-            if(!response.ok)throw Error(filename+" unavailable (HTTP "+response.status+"). Update the Seuss Arcade Render service.");
+            if(!response.ok)throw Error(filename+" unavailable (HTTP "+response.status+"). Update the Seuss Arcade Cloudflare service.");
           }
           await new Promise((resolve,reject)=>{
             const helper=document.createElement("script");
             helper.src=new URL("split-loader.js?v=pinned-9546494",assetRoot).href;
             helper.onload=resolve;
-            helper.onerror=()=>reject(Error("Pinned BTD6 split-file helper could not load through Render"));
+            helper.onerror=()=>reject(Error("Pinned BTD6 split-file helper could not load through Cloudflare"));
             document.head.appendChild(helper);
           });
           document.getElementById("seuss-btd6-start").hidden=true;
@@ -202,7 +202,7 @@ html, body { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden 
       var script = document.createElement("script");
       script.src = loaderUrl;
       script.onerror = () => {
-        document.getElementById("seuss-btd6-message").textContent="Unity loader failed to execute through Render.";
+        document.getElementById("seuss-btd6-message").textContent="Unity loader failed to execute through Cloudflare.";
         document.getElementById("seuss-btd6-start").hidden=false;
         document.getElementById("seuss-btd6-button").disabled=false;
       };

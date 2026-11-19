@@ -199,7 +199,7 @@
         <button type="button" class="speed" id="relaySpeed" title="Test this relay's connection speed">Testing relay…</button>
         <button type="button" class="speed" id="cfSpeed" title="Cloudflare relay latency">Cloudflare · checking…</button>
         <span>Searches run on Bing</span>
-        <code id="endpoint">wss://seuss-cinema-arcade.onrender.com/wisp/</code>
+        <code id="endpoint">wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/</code>
       </div>
     </section>
 
@@ -240,19 +240,18 @@
     <section>
       <h3>RELAY</h3>
       <div class="opts" id="relayOpts">
-        <button type="button" data-relay="render">Render</button>
-        <button type="button" data-relay="cloudflare">Cloudflare</button>
+        <button type="button" data-relay="arcade">Cloudflare</button>
         <button type="button" data-relay="custom">Custom</button>
       </div>
       <label>Cloudflare relay URL
-        <input type="url" id="cfUrl" placeholder="wss://seuss-wisp-relay.you.workers.dev/wisp/" spellcheck="false">
+        <input type="url" id="cfUrl" placeholder="wss://seuss-arcade-relay.you.workers.dev/wisp/" spellcheck="false">
       </label>
       <label>Custom relay URL
         <input type="url" id="customUrl" placeholder="wss://your-relay.example.com/wisp/" spellcheck="false">
       </label>
       <p class="hint">Currently in use: <code id="currentRelay">—</code><br>
-        The relay in <code>cloudflare/wisp-relay</code> is deployed at
-        <code>seuss-wisp-relay.damonrosshutchins.workers.dev</code> and is filled in
+        The relay in <code>cloudflare/arcade</code> is deployed at
+        <code>seuss-arcade-relay.damonrosshutchins.workers.dev</code> and is filled in
         above; replace it to use your own, then pick Cloudflare.</p>
     </section>
 
@@ -441,7 +440,7 @@ function markActive(containerId, attribute, value) {
 }
 function syncSettings() {
   markActive("bgOpts", "bg", bgMode);
-  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "render"));
+  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "arcade"));
   $("cfUrl").value = pendingRelay.cloudflare || "";
   $("customUrl").value = pendingRelay.custom || "";
 }

@@ -1,0 +1,12 @@
+{
+  "name": "seuss-arcade-relay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8789",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.18.0"
+  }
+}

@@ -24,10 +24,10 @@ small{color:#aac1b1}
 <p>This is the self-contained Rust/WebGPU game hosted on Seuss Arcade's GitHub Pages. No upload, external game iframe, or general web proxy is required.</p>
 <div class="actions">
 <button id="launch" type="button">Launch game</button>
-<a class="button" href="./index.html?audio=1">Play with sound via Render</a>
+<a class="button" href="./index.html?audio=1">Play with sound via Cloudflare</a>
 <a href="../../index.html" class="button">← Arcade</a>
 </div>
-<p><small>The default launch skips the optional ~355 MB sound archive. Sound mode uses fixed, approved files through the Render service. Your browser needs WebGPU; saves remain in browser storage.</small></p>
+<p><small>The default launch skips the optional ~355 MB sound archive. Sound mode uses fixed, approved files through the Cloudflare service. Your browser needs WebGPU; saves remain in browser storage.</small></p>
 </main>
 <script>
 "use strict";
@@ -59,7 +59,7 @@ async function start(){
  }catch(error){
    console.warn("Horizon service worker not ready; game's own bootstrap may retry:",error);
  }
- status.textContent=withAudio?"Launching local Minecraft with approved Render sound assets…":"Launching local Minecraft…";
+ status.textContent=withAudio?"Launching local Minecraft with approved Cloudflare sound assets…":"Launching local Minecraft…";
  location.replace(target);
 }
 launch.addEventListener("click",()=>{started=false;start();});

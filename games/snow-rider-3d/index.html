@@ -32,14 +32,14 @@ button:disabled{opacity:.55;cursor:wait}
 <div id="hud" role="status" aria-live="polite"><div id="hudText"><span id="message">Ready to launch Snow Rider 3D</span><span id="percent"></span></div><div id="track"><div id="fill"></div></div></div>
 <div id="setup"><div id="card">
 <h1>🏂 Snow Rider 3D</h1>
-<p>3D snowboarding game running inside Seuss Arcade. The original Unity WebGL files are fetched only through this game's approved Render routes.</p>
+<p>3D snowboarding game running inside Seuss Arcade. The original Unity WebGL files are fetched only through this game's approved Cloudflare routes.</p>
 <p>Normal jump handling: the original game proportions are preserved and repeating jump-key events are filtered.</p>
 <button type="button" id="start">Play Snow Rider 3D</button>
 <p id="error" role="alert"></p>
 </div></div>
 <script>
 "use strict";
-const ROOT="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/snow-rider/";
+const ROOT="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/imported/snow-rider/";
 const MANIFEST=ROOT+"Build/SnowRider3D-gd-1.json";
 const LOADER=ROOT+"Build/UnityLoader.js";
 const setup=document.getElementById("setup");
@@ -88,7 +88,7 @@ async function check(url,label){
 function loadScript(url){
  return new Promise((resolve,reject)=>{
   const s=document.createElement("script");s.src=url;
-  s.onload=resolve;s.onerror=()=>reject(Error("The Unity loader did not load from Render"));
+  s.onload=resolve;s.onerror=()=>reject(Error("The Unity loader did not load from Cloudflare"));
   document.head.appendChild(s);
  });
 }

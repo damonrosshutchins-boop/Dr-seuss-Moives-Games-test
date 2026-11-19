@@ -10,14 +10,35 @@ GitHub Actions builds the browser assets into `dist/` and deploys them to GitHub
 2. Check **Actions → Deploy Cinema Arcade to GitHub Pages** to see build/deploy results.
 3. Visit https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/
 
-The static site serves the Scramjet worker under the GitHub Pages repository path. Its Libcurl transport connects to the separately hosted Render endpoint:
-`wss://seuss-cinema-arcade.onrender.com/wisp/`.
+The static site serves the Scramjet worker under the GitHub Pages repository path. Its Libcurl transport connects to the separately hosted Cloudflare endpoint:
+`wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/`.
 
-GitHub Pages cannot run a Wisp server. The Render service must be active for proxied pages to load. Existing origin checks and destination restrictions are enforced server-side.
+GitHub Pages cannot run a Wisp server or stream game files, so proxied pages and every pinned game route depend on the Cloudflare Worker below. Existing origin checks and destination restrictions are enforced inside the Worker.
 
-## Render deployment
+## Cloudflare deployment
 
-Render hosts the Node.js service in `server.mjs` (frontend and Wisp combined). `npm start` starts the service. `/health` reports liveness.
+Everything that used to run on Render now runs on one Cloudflare Worker in
+`cloudflare/arcade/`:
+
+- `worker.mjs` serves `/approved-assets/*` and `/approved-games/*` from the same
+  pinned, path-restricted upstreams the Node service used, plus the Wisp v1 relay
+  on `/wisp/` (Durable Object over `cloudflare:sockets`).
+- `wrangler.jsonc` holds the Durable Object binding and the origin policy
+  (`ALLOWED_ORIGINS`, `ALLOW_PRIVATE_IPS`, `ALLOW_DIRECT_IP`).
+
+```bash
+cd cloudflare/arcade
+npm install
+npx wrangler deploy
+```
+
+The deployed URL is `https://seuss-arcade-relay.damonrosshutchins.workers.dev`;
+`/health` reports liveness and `/wisp/` is the relay endpoint. The Pages workflow
+deploys the Worker too when a `CLOUDFLARE_API_TOKEN` secret is configured.
+`server.mjs` and `render.yaml` stay in the repository as the older local Node
+server, but the published arcade no longer calls Render, and
+`scripts/check-arcade-routing.mjs` fails the build if a `*.onrender.com` URL
+returns.
 
 ## Compatibility
 
@@ -39,20 +60,20 @@ The game uses the browser's WebGPU runtime and local save storage.
 
 Default play skips the game's ~355 MB optional sound archive.
 The optional sound mode requests only pinned `parts.json` and 18 fixed
-numbered sound chunks via the existing Render service:
-`https://seuss-cinema-arcade.onrender.com/approved-games/horizon/`.
+numbered sound chunks via the existing Cloudflare service:
+`https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/horizon/`.
 The server-side restriction does not permit arbitrary URL fetches.
 
 Build success does not guarantee playability on every WebGPU device.
 
 
-## God of War: Ghost of Sparta (approved Surge source via Render)
+## God of War: Ghost of Sparta (approved Surge source via Cloudflare)
 
 The current owner-supplied PSP game source is `https://psp-web-damon.surge.sh/`.
 The Arcade card opens `games/gow-sparta/index.html`, which checks the pinned
-Render endpoint and navigates in the same browser tab to
-`https://seuss-cinema-arcade.onrender.com/approved-games/gow-sparta/`.
-Only game files on this exact Surge hostname are fetched by the new Render
+Cloudflare endpoint and navigates in the same browser tab to
+`https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/gow-sparta/`.
+Only game files on this exact Surge hostname are fetched by the new Cloudflare
 route; request paths are checked and redirects are rejected. The server streams
 ordinary assets, passes through simple byte ranges (important for large game
 files), and rewrites common HTML/CSS root-relative URLs to stay under the
@@ -63,33 +84,33 @@ external CDNs, root-absolute JavaScript paths, special response headers,
 websockets or service workers that cannot be verified without inspecting the
 live upstream page; those dependencies are not automatically proxied.
 The launcher reports an unavailable source instead of silently redirecting.
-The successful Pages build/Render deploy alone does not verify gameplay.
+The successful Pages build/Cloudflare deploy alone does not verify gameplay.
 
 
-The PSP site's first-party root-relative fetch/XHR URLs and first-party absolute asset references are rewritten to stay inside the fixed Render game route. Any dynamic third-party endpoints must be inspected and independently approved; arbitrary domains are not automatically granted proxy access.
+The PSP site's first-party root-relative fetch/XHR URLs and first-party absolute asset references are rewritten to stay inside the fixed Cloudflare game route. Any dynamic third-party endpoints must be inspected and independently approved; arbitrary domains are not automatically granted proxy access.
 
 
 ## Minecraft 1.8 Wrust Mod and Minecraft 1.8 Mods
 
 These two entries are added as separate Minecraft 1.8 Eaglercraft-style games in
-the Arcade. Clicking a card opens a same-site launcher, which checks Render and
-then navigates in the same tab to a **fixed** Render URL. No visitor-provided
+the Arcade. Clicking a card opens a same-site launcher, which checks Cloudflare and
+then navigates in the same tab to a **fixed** Cloudflare URL. No visitor-provided
 proxy destination, arbitrary Google Drive ID, or arbitrary CDN path is accepted.
 
 - **Minecraft 1.8 Wrust Mod:** the public Google Drive file
   `clwurst.html` (27,847,113 bytes), fixed ID
   `1TBtrBMMw9w9lqc3Z3aw4CARG_O04abIM`. The offline HTML is streamed
-  through `/approved-games/minecraft-18-wrust/index.html` on Render.
+  through `/approved-games/minecraft-18-wrust/index.html` on Cloudflare.
 - **Minecraft 1.8 Mods:** the public Google Drive file
   `cleaglerforge.html` (1,035 bytes), fixed ID
   `17mqNnsALl6ZvDVOtarz4EuP5pS8E4-R9`. Its four hardcoded CDN
-  downloads are rewritten to the four Render routes
+  downloads are rewritten to the four Cloudflare routes
   `/approved-games/minecraft-18-mods/assets/forge-part1` to
   `forge-part4`. The server obtains those parts from a pinned GitHub
   revision and does not accept unapproved hostnames. The four files total
   about 79 MB.
 
-The approved game **files** are delivered through Render. The original
+The approved game **files** are delivered through Cloudflare. The original
 EaglercraftX client also contains external multiplayer relay addresses and
 links; these are **not** implicitly proxied or whitelisted. External network
 multiplayer may use direct game server connections or may be unavailable.
@@ -101,7 +122,7 @@ Successful deployment verifies the routes, not gameplay or compatibility.
 The Arcade card opens `games/gamble-with-your-friends/index.html` in the in-site
 player, so the browser stays on this website. The Pages build publishes an ~8 KB
 entry page whose loader, framework, addressables and all 69 split parts are
-absolute URLs on the fixed Render route; the bytes come from Render while the
+absolute URLs on the fixed Cloudflare route; the bytes come from Cloudflare while the
 page itself stays on the Pages origin. The game is a
 Unity WebGL build of about 1.2 GB, committed upstream as 69 fixed parts
 (50 `chunks/build.data.partNNN` and 19 `chunks/build.wasm.partNNN`) plus its
@@ -117,7 +138,7 @@ reachable.
 
 Network audit: a live run of the published page requests nothing outside this
 route — all 69 parts, the loader, the framework and the addressables files come
-from Render. The compiled game data still contains dormant Mirror multiplayer
+from Cloudflare. The compiled game data still contains dormant Mirror multiplayer
 client strings (`api.diabolical.studio` REST and `wss`, plus
 `api.edgegap.com/v1/lobbies`), but they are baked into the C# bundle, unused by
 this solo port, and that REST host returns no CORS headers, so online play is not
@@ -125,8 +146,8 @@ proxied and not available here.
 
 None of the game's own files are copied into the GitHub Pages artifact: the split
 parts exceed GitHub's per-file and repository limits, so only the entry page is
-published. Render must be redeployed for the new route to exist on
-`seuss-cinema-arcade.onrender.com`; the build fails loudly if the upstream entry
+published. The Cloudflare Worker must be redeployed for the new route to exist on
+`seuss-arcade-relay.damonrosshutchins.workers.dev`; the build fails loudly if the upstream entry
 page no longer matches the expected 69-part layout.
 
 ### Local hosting
@@ -144,8 +165,8 @@ Unity build plays on a given device.
 
 The Arcade card opens `games/buckshot/index.html` in the in-site player. The
 Pages build publishes the upstream Godot entry page with a document `<base>`
-pointing at the fixed Render game route, so the page stays on the Pages origin
-while all 20 game files come from Render: 17 `buckshot-roulette.pck.partN` parts,
+pointing at the fixed Cloudflare game route, so the page stays on the Pages origin
+while all 20 game files come from Cloudflare: 17 `buckshot-roulette.pck.partN` parts,
 3 `buckshot-roulette.wasm.partN` parts, the engine script, the two audio
 worklets, `main.js`, `style.css` and the icons.
 
@@ -161,9 +182,9 @@ first play.
 Local hosting: `local-games/buckshot/` (or `BUCKSHOT_LOCAL_DIR`) serves the same
 files from disk at `http://localhost:10000/approved-games/buckshot/index.html`.
 
-## Render deploys
+## Cloudflare deploys
 
-GitHub Pages deploys on push, but the Render service does not, so
+GitHub Pages deploys on push, but the Cloudflare service does not, so
 `.github/workflows/pages.yml` ends with a `render-deploy` job that POSTs the
 service's deploy hook once the Pages build and its published-asset checks pass.
 Every push to `main` therefore ships the site and the proxy routes together, and
@@ -171,7 +192,7 @@ the job is skipped on other branches.
 
 It needs one repository secret:
 
-1. Render dashboard -> the `seuss-cinema-arcade` service -> **Settings** ->
+1. Cloudflare dashboard -> the `seuss-cinema-arcade` service -> **Settings** ->
    **Deploy Hook** -> copy the URL.
 2. GitHub repository -> **Settings** -> **Secrets and variables** -> **Actions**
    -> **New repository secret**.
@@ -180,7 +201,7 @@ It needs one repository secret:
 Until that secret exists the job fails with an explicit
 `RENDER_DEPLOY_HOOK_URL is not set` error, on purpose: a green Pages deploy with
 an undeployed proxy route is the failure this job prevents. The hook only starts
-a Render build; `/approved-games/.../status` on the live service remains the way
+a Cloudflare build; `/approved-games/.../status` on the live service remains the way
 to confirm the new routes are actually serving.
 
 ## Seuss Search v2
@@ -198,12 +219,12 @@ Relay policy in `server.mjs`:
   wisp-js tests these for truthiness, so an empty array blocks everything.
 - TCP and UDP streams and direct-IP destinations are allowed.
 - Private, loopback and reserved ranges stay blocked, so an open relay cannot be
-  used to reach Render's internal network or a self-hoster's LAN. Opt in with
+  used to reach Cloudflare's internal network or a self-hoster's LAN. Opt in with
   `WISP_ALLOW_PRIVATE_IPS=1` (and/or `WISP_ALLOW_LOOPBACK_IPS=1`).
 - Browsers are still Origin-checked before the `/wisp/` socket is accepted.
 - `/health` reports `restricted:false` and `relayOriginPolicy:"any-public-host"`.
 
-An open relay spends the service's bandwidth for whoever knows the URL; the Render
+An open relay spends the service's bandwidth for whoever knows the URL; the Cloudflare
 plan limits are the practical ceiling.
 
 ### Settings, backgrounds and relay choice
@@ -212,7 +233,7 @@ The ⚙ button opens Settings on `seuss-search.html`:
 
 - **Background**: dot matrix (default), grid, rings, or plain. Stored in
   `localStorage` as `seuss-bg` and swapped live, without a reload.
-- **Relay**: Render (default), Cloudflare, or a custom `wss://…/wisp/` URL.
+- **Relay**: Cloudflare (default), Cloudflare, or a custom `wss://…/wisp/` URL.
   Stored as `seuss-relay`; applying reloads the page because the transport is
   bound to one endpoint at startup. On `localhost` the page defaults to the relay
   `server.mjs` serves on the same origin.
@@ -226,7 +247,7 @@ Durable Object per client websocket, TCP through `cloudflare:sockets`, same
 policy as the Node relay (any public host, private ranges blocked). Deploy with
 `npm install && npx wrangler deploy` inside that folder, then paste the printed
 `wss://…workers.dev/wisp/` URL into Settings → Relay → Cloudflare (both relays
-are pre-filled, so the speed pills measure Render and Cloudflare out of the box). See
+are pre-filled, so the speed pills measure Cloudflare and Cloudflare out of the box). See
 `cloudflare/wisp-relay/README.md` for the binding and origin details.
 
 Note the platform trade-off: a websocket is one long-lived connection per tab,
@@ -242,7 +263,7 @@ for 10 minutes instead of 2, since search traffic hits the same handful of hosts
 Override with `WISP_SEND_BUFFER`, `WISP_DNS_TTL` and `WISP_DNS_CACHE`.
 
 `.github/workflows/relay-keepalive.yml` pings `/health` every five minutes so the
-Render instance never cold-starts; point it at another relay with the repository
+Cloudflare instance never cold-starts; point it at another relay with the repository
 variable `RELAY_HEALTH_URL`. Cold starts, not bandwidth, are the largest single
 cost in a first search.
 

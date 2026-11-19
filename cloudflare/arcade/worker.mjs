@@ -1,0 +1,1105 @@
+// Seuss Arcade relay for Cloudflare Workers.
+//
+// Serves the pinned, path-restricted game asset routes that used to run on
+// Render, and speaks Wisp v1 on /wisp/ for the Scramjet/libcurl player. Every
+// game file is fetched from one fixed upstream (or an ordered list of fixed
+// mirrors); a visitor can never choose a host, URL or redirect target.
+//
+// Deploy:  npx wrangler deploy      (from this folder)
+import { connect } from "cloudflare:sockets";
+
+/* ---------------------------------------------------------------- relay --- */
+
+// Advertised stream buffer depth. 64 packets stalled large responses behind the
+// tunnel handshake; 512 matches the Node relay and keeps downloads flowing.
+const BUFFER_PACKETS = 512;
+const decoder = new TextDecoder();
+const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+
+const OPEN = 0x01, DATA = 0x02, CONTINUE = 0x03, CLOSE = 0x04;
+const REASON = {
+  unspecified: 0x01, voluntary: 0x02, network: 0x03,
+  invalid: 0x41, unreachable: 0x42, timeout: 0x43, refused: 0x44,
+  blocked: 0x48, throttled: 0x49
+};
+
+function isIpLiteral(host) {
+  return IPV4.test(host) || (host.includes(":") && /^[0-9a-f:.]+$/i.test(host));
+}
+
+// Mirrors the Node relay's defaults: any public destination, never the private
+// ranges, so an open Worker relay cannot be aimed at Cloudflare-internal or LAN
+// addresses.
+function isPrivateHost(host) {
+  if (IPV4.test(host)) {
+    const [a, b] = host.split(".").map(Number);
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a >= 224) return true;
+  }
+  if (host.includes(":")) {
+    const h = host.toLowerCase();
+    if (h === "::" || h === "::1") return true;
+    if (h.startsWith("fe80") || h.startsWith("fc") || h.startsWith("fd")) return true;
+  }
+  return false;
+}
+
+function frame(type, id, payload = new Uint8Array(0)) {
+  const out = new Uint8Array(5 + payload.length);
+  out[0] = type;
+  new DataView(out.buffer).setUint32(1, id, true);
+  out.set(payload, 5);
+  return out;
+}
+function continueFrame(id, remaining) {
+  const payload = new Uint8Array(4);
+  new DataView(payload.buffer).setUint32(0, remaining, true);
+  return frame(CONTINUE, id, payload);
+}
+function closeFrame(id, reason) {
+  return frame(CLOSE, id, new Uint8Array([reason]));
+}
+
+function serve(server, env, state) {
+  const streams = new Map();
+  const allowDirectIp = env.ALLOW_DIRECT_IP === "1";
+  const allowPrivate = env.ALLOW_PRIVATE_IPS === "1";
+
+  const send = data => {
+    try { server.send(data); } catch { /* socket already gone */ }
+  };
+
+  function shutdown(id, reason) {
+    const stream = streams.get(id);
+    if (!stream) return;
+    streams.delete(id);
+    try { stream.writer.abort().catch?.(() => {}); } catch {}
+    try { stream.writer.close().catch?.(() => {}); } catch {}
+    try { stream.socket.close(); } catch {}
+    if (!stream.announced) send(closeFrame(id, reason));
+    stream.announced = true;
+  }
+
+  async function open(id, payload) {
+    if (payload.length < 3) return send(closeFrame(id, REASON.invalid));
+    const streamType = payload[0];
+    const port = new DataView(payload.buffer, payload.byteOffset).getUint16(1, true);
+    const host = decoder.decode(payload.subarray(3)).trim().toLowerCase();
+    if (streamType !== 0x01) return send(closeFrame(id, REASON.invalid)); // TCP only
+    if (!host || port === 0) return send(closeFrame(id, REASON.invalid));
+    if (isIpLiteral(host) && !allowDirectIp) return send(closeFrame(id, REASON.blocked));
+    if (isPrivateHost(host) && !allowPrivate) return send(closeFrame(id, REASON.blocked));
+
+    let socket;
+    try {
+      socket = connect({ hostname: host, port });
+    } catch {
+      return send(closeFrame(id, REASON.unreachable));
+    }
+    const stream = { socket, writer: socket.writable.getWriter(), announced: false };
+    streams.set(id, stream);
+
+    try {
+      await socket.opened;
+    } catch (error) {
+      console.warn("wisp open failed", host + ":" + port, String(error));
+      streams.delete(id);
+      send(closeFrame(id, REASON.unreachable));
+      return;
+    }
+    if (!streams.has(id)) return;
+
+    // Stream-open confirmation plus the initial flow-control window.
+    send(continueFrame(id, BUFFER_PACKETS));
+
+    const pump = socket.readable.pipeTo(new WritableStream({
+      write(chunk) {
+        if (!streams.has(id)) return;
+        send(frame(DATA, id, new Uint8Array(chunk)));
+      },
+      close() { shutdown(id, REASON.voluntary); },
+      abort() { shutdown(id, REASON.network); }
+    })).catch(error => { console.warn("wisp read failed", String(error)); shutdown(id, REASON.network); });
+    // Durable Object I/O is cancelled when the triggering handler returns, so the
+    // read pump is registered with waitUntil to keep the stream alive.
+    state?.waitUntil?.(pump.catch(() => {}));
+  }
+
+  server.addEventListener("message", event => {
+    if (typeof event.data === "string") return;
+    const bytes = new Uint8Array(event.data);
+    if (bytes.length < 5) return;
+    const type = bytes[0];
+    const id = new DataView(bytes.buffer, bytes.byteOffset).getUint32(1, true);
+    const payload = bytes.subarray(5);
+
+    if (type === OPEN) { open(id, payload); return; }
+    if (type === DATA) {
+      const stream = streams.get(id);
+      if (!stream) { send(closeFrame(id, REASON.invalid)); return; }
+      stream.writer.write(payload.slice()).catch(error => { console.warn("wisp write failed", String(error)); shutdown(id, REASON.network); })
+        .finally(() => { if (streams.has(id)) send(continueFrame(id, BUFFER_PACKETS)); });
+      return;
+    }
+    if (type === CLOSE) shutdown(id, payload[0] || REASON.voluntary);
+    // CONTINUE from the client only matters for server-side flow control, which
+    // this relay does not throttle.
+  });
+
+  server.addEventListener("close", () => {
+    for (const id of [...streams.keys()]) shutdown(id, REASON.voluntary);
+  });
+
+  // Wisp v1: the server opens with a CONTINUE on stream 0 carrying the buffer size.
+  send(continueFrame(0, BUFFER_PACKETS));
+}
+
+export class WispRelay {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+  async fetch(request) {
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    server.accept();
+    serve(server, this.env, this.state);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+}
+
+/* --------------------------------------------------------------- policy --- */
+
+const PAGES_ORIGIN = "https://damonrosshutchins-boop.github.io";
+const SELF_ORIGIN = "https://seuss-arcade-relay.damonrosshutchins.workers.dev";
+
+function isAllowedOrigin(origin, env) {
+  if (!origin) return true; // same-origin requests carry no Origin header
+  if (origin === PAGES_ORIGIN || origin === SELF_ORIGIN) return true;
+  const configured = (env.ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
+  if (configured.includes(origin)) return true;
+  // Local preview servers only, never a public host.
+  return /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin);
+}
+
+function denyOrigin(request, env) {
+  if (isAllowedOrigin(request.headers.get("Origin"), env)) return null;
+  return new Response("Unapproved arcade origin\n", {
+    status: 403,
+    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
+  });
+}
+
+function corsHeaders(request, extra = {}) {
+  const headers = new Headers(extra);
+  const origin = request.headers.get("Origin");
+  if (origin) {
+    headers.set("access-control-allow-origin", origin);
+    headers.set("vary", "Origin");
+  }
+  headers.set("cross-origin-resource-policy", "cross-origin");
+  return headers;
+}
+
+// Every /approved-* answer needs the arcade Origin echoed back, including JSON
+// status replies and error bodies: the launchers check those with fetch().
+function withCors(request, response) {
+  const origin = request.headers.get("Origin");
+  if (!origin) return response;
+  const headers = new Headers(response.headers);
+  headers.set("access-control-allow-origin", origin);
+  headers.set("vary", "Origin");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
+function preflight(request) {
+  const headers = corsHeaders(request, {
+    "access-control-allow-methods": "GET, HEAD, OPTIONS",
+    "access-control-allow-headers": "Range, Content-Type",
+    "access-control-max-age": "3600"
+  });
+  headers.set("cache-control", "no-store");
+  return new Response(null, { status: 204, headers });
+}
+
+function textError(status, message) {
+  return new Response(message + "\n", {
+    status,
+    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
+  });
+}
+
+function json(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
+  });
+}
+
+function mimeFor(file, fallback = "application/octet-stream") {
+  const lower = String(file).toLowerCase();
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "text/html; charset=utf-8";
+  if (lower.endsWith(".js") || lower.endsWith(".mjs")) return "application/javascript; charset=utf-8";
+  if (lower.endsWith(".css")) return "text/css; charset=utf-8";
+  if (lower.endsWith(".json") || lower.endsWith(".webmanifest")) return "application/json; charset=utf-8";
+  if (lower.endsWith(".wasm")) return "application/wasm";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".ico")) return "image/x-icon";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".xml")) return "application/xml; charset=utf-8";
+  if (lower.endsWith(".ogg")) return "audio/ogg";
+  if (lower.endsWith(".mp3")) return "audio/mpeg";
+  if (lower.endsWith(".webm")) return "video/webm";
+  if (lower.endsWith(".unityweb") || lower.endsWith(".data") || lower.endsWith(".pck")) return "application/octet-stream";
+  return fallback;
+}
+
+/* ------------------------------------------------------------- fetching --- */
+
+const RANGE = /^bytes=\d*-\d*$/;
+
+// One pinned upstream file, streamed back through the Worker. Returns null only
+// when the transport itself failed, so the caller can try its next fixed mirror.
+// Workers only implement "follow" and "manual"; "manual" plus a status check keeps
+// the no-redirect rule the Node service had with redirect: "manual".
+async function attemptPinned(request, upstreamUrl, options = {}) {
+  const {
+    mime, cache = "public, max-age=3600", timeout = 30000,
+    forwardRange = true, headers: extraHeaders = {}, statusIfMissing = 502
+  } = options;
+  const headers = new Headers(extraHeaders);
+  headers.set("accept-encoding", "identity");
+  const range = request.headers.get("Range");
+  if (range && forwardRange) {
+    if (!RANGE.test(range)) return textError(416, "Unsupported byte range");
+    headers.set("range", range);
+  }
+
+  let upstream;
+  try {
+    upstream = await fetch(upstreamUrl, {
+      method: request.method === "HEAD" ? "HEAD" : "GET",
+      headers,
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeout)
+    });
+  } catch (error) {
+    console.warn("pinned fetch failed", new URL(upstreamUrl).hostname, new URL(upstreamUrl).pathname, String(error));
+    return null;
+  }
+
+  if (upstream.status >= 300 && upstream.status < 400) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "The approved game source redirected; redirects are not followed.");
+  }
+
+  if (!upstream.ok) {
+    try { await upstream.body?.cancel(); } catch {}
+    console.warn("pinned upstream status", upstream.status, new URL(upstreamUrl).hostname, new URL(upstreamUrl).pathname);
+    return textError(statusIfMissing, "Approved game file unavailable at its source (" + upstream.status + ")");
+  }
+
+  const out = corsHeaders(request, {
+    "content-type": mime || upstream.headers.get("content-type") || "application/octet-stream",
+    "cache-control": cache,
+    "x-content-type-options": "nosniff"
+  });
+  const contentRange = upstream.headers.get("content-range");
+  if (contentRange) out.set("content-range", contentRange);
+  const acceptRanges = upstream.headers.get("accept-ranges");
+  if (acceptRanges) out.set("accept-ranges", acceptRanges);
+  // Only a byte-range reply has a body whose length we can safely restate.
+  if (upstream.status === 206) {
+    const length = upstream.headers.get("content-length");
+    if (length) out.set("content-length", length);
+  }
+  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+  return new Response(upstream.body, { status: upstream.status, headers: out });
+}
+
+// Always answers with a Response: a transport failure becomes a 502.
+async function fetchPinned(request, upstreamUrl, options = {}) {
+  const response = await attemptPinned(request, upstreamUrl, options);
+  return response || textError(502, "The approved game's source server could not be reached.");
+}
+
+// Try each fixed mirror in order; the last failure is reported.
+async function fetchPinnedWithFallback(request, sources, options = {}) {
+  let last = null;
+  for (const source of sources) {
+    const response = await attemptPinned(request, source, options);
+    if (!response) continue;
+    if (response.status !== 502 && response.status !== 416) return response;
+    last = response;
+  }
+  return last || textError(502, "The approved game's source server could not be reached.");
+}
+
+// Concatenate several pinned bodies into one response, as the Ocarina ROM and
+// the UwU Client HTML both need.
+function concatBodies(bodies) {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for (const body of bodies) {
+          const reader = body.getReader();
+          try {
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } finally {
+            reader.releaseLock();
+          }
+        }
+        controller.close();
+      } catch (error) {
+        controller.error(error);
+      }
+    }
+  });
+}
+
+async function streamSequence(request, urls, options = {}) {
+  const bodies = [];
+  if (request.method === "HEAD") {
+    // Probe every part without downloading them, so a broken source still
+    // reports 502 rather than a convincing 200.
+    const checks = await checkUrls(request, urls, options.timeout || 120000);
+    if (checks.some(check => !check.ok)) return textError(502, "Approved game source unavailable");
+    const headHeaders = corsHeaders(request, {
+      "content-type": options.mime || "application/octet-stream",
+      "cache-control": options.cache || "public, max-age=3600",
+      "x-content-type-options": "nosniff"
+    });
+    if (options.acceptRanges === false) headHeaders.set("accept-ranges", "none");
+    return new Response(null, { status: 200, headers: headHeaders });
+  }
+  for (const url of urls) {
+    let upstream;
+    try {
+      upstream = await fetch(url, {
+        headers: { "accept-encoding": "identity" },
+        redirect: "manual",
+        signal: AbortSignal.timeout(options.timeout || 120000)
+      });
+    } catch (error) {
+      for (const body of bodies) { try { await body.cancel(); } catch {} }
+      return textError(502, "Approved game source unavailable (network error)");
+    }
+    if (!upstream.ok || !upstream.body) {
+      for (const body of bodies) { try { await body.cancel(); } catch {} }
+      return textError(502, "Approved game source unavailable (" + upstream.status + ")");
+    }
+    bodies.push(upstream.body);
+  }
+  const headers = corsHeaders(request, {
+    "content-type": options.mime || "application/octet-stream",
+    "cache-control": options.cache || "public, max-age=3600",
+    "x-content-type-options": "nosniff"
+  });
+  if (options.acceptRanges === false) headers.set("accept-ranges", "none");
+  return new Response(concatBodies(bodies), { status: 200, headers });
+}
+
+async function checkUrls(request, urls, timeout = 30000) {
+  const checks = await Promise.all(urls.map(async url => {
+    try {
+      const response = await fetch(url, {
+        method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(timeout)
+      });
+      try { await response.body?.cancel(); } catch {}
+      return { file: url.split("/").slice(-1)[0], ok: response.ok, status: response.status };
+    } catch {
+      return { file: url.split("/").slice(-1)[0], ok: false, status: 0 };
+    }
+  }));
+  return checks;
+}
+
+function safeAssetPath(raw) {
+  let file;
+  try { file = decodeURIComponent(raw || ""); } catch { return null; }
+  if (!file || file.length > 400 || file.startsWith("/") || file.includes("//") ||
+      file.includes("\\") || file.split("/").some(part => !part || part === "." || part === "..")) return null;
+  if (!/^[A-Za-z0-9._/()# %-]+$/.test(file)) return null;
+  return file;
+}
+
+function encodePath(file) {
+  return file.split("/").map(encodeURIComponent).join("/");
+}
+
+/* --------------------------------------------------------- pinned sources --- */
+
+const balatroAssets = new Set([
+  "manifest.json", "love.js", "love.wasm", "game.js",
+  ...Array.from({ length: 7 }, (_, i) => "game-" + String(i).padStart(2, "0") + ".bin")
+]);
+const balatroRoot = "https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@cb01302a4ee9d3712676daa7a8bf58e04f9e8fa8/";
+
+const cheeseRoot = "https://raw.githubusercontent.com/SomeRandomFella/portsandrips/9546494b3052e8e078fb28df7430ac35f42a8787/CheeseRollingWeb/";
+const cheeseAllowedFiles = new Set([
+  "index.html",
+  "manifest.webmanifest",
+  "ServiceWorker.js",
+  "Build/CheeseRollingWeb.loader.js",
+  "Build/CheeseRollingWeb.framework.js",
+  "Build/CheeseRollingWeb.data.part001",
+  "Build/CheeseRollingWeb.data.part002",
+  "Build/CheeseRollingWeb.data.part003",
+  "Build/CheeseRollingWeb.data.part004",
+  "Build/CheeseRollingWeb.data.part005",
+  "Build/CheeseRollingWeb.wasm.part001",
+  "Build/CheeseRollingWeb.wasm.part002",
+  "TemplateData/favicon.ico",
+  "TemplateData/style.css",
+  "TemplateData/progress-bar-empty-dark.png",
+  "TemplateData/progress-bar-empty-light.png",
+  "TemplateData/progress-bar-full-dark.png",
+  "TemplateData/progress-bar-full-light.png",
+  "TemplateData/unity-logo-dark.png",
+  "TemplateData/unity-logo-light.png",
+  "TemplateData/icons/unity-logo-dark.png",
+  "TemplateData/icons/unity-logo-light.png"
+]);
+const cheeseCheckFiles = ["index.html", "Build/CheeseRollingWeb.loader.js", "Build/CheeseRollingWeb.data.part001"];
+
+const horizonRoot = "https://raw.githubusercontent.com/AlexBoops/mc-rust-onweb/b21a7ae704b415182631429a7e71c797287661df/";
+
+const spartaUpstream = "https://psp-web-damon.surge.sh/";
+const spartaRoute = "/approved-games/gow-sparta/";
+const SPARTA_ORIGIN = "https://seuss-arcade-relay.damonrosshutchins.workers.dev";
+
+const mc18Sources = new Map([
+  ["minecraft-18-wrust", {
+    id: "1TBtrBMMw9w9lqc3Z3aw4CARG_O04abIM",
+    filename: "clwurst.html",
+    expectedSize: 27847113
+  }],
+  ["minecraft-18-mods", {
+    id: "17mqNnsALl6ZvDVOtarz4EuP5pS8E4-R9",
+    filename: "cleaglerforge.html",
+    expectedSize: 1035
+  }]
+]);
+const mc18ForgeCommit = "ba062f533d86966ff2bcddec4f5859aab7c23346";
+const mc18ForgeBase = "https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@" + mc18ForgeCommit + "/PineTools.com_files/cleaglerforge.html.part";
+const mc18ForgeRoute = "/approved-games/minecraft-18-mods/assets/forge-part";
+function mc18DriveURL(item) {
+  const url = new URL("https://drive.usercontent.google.com/download");
+  url.searchParams.set("id", item.id);
+  url.searchParams.set("export", "download");
+  url.searchParams.set("confirm", "t");
+  return url.href;
+}
+
+const importedAssetRoots = Object.freeze({
+  "emu": "https://cdn.jsdelivr.net/gh/bubblfan/emu@main/",
+  "emu-stable": "https://cdn.emulatorjs.org/stable/data/",
+  "1v1": "https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
+});
+const importedExactAssets=Object.freeze({
+  "tomb-mask/UnityLoader.js":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/UnityLoader.js",
+  "tomb-mask/totm.json":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/totm.json",
+  "tomb-mask/totm.data.unityweb":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/totm.data.unityweb",
+  "tomb-mask/totm.wasm.code.unityweb":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/totm.wasm.code.unityweb",
+  "tomb-mask/totm.wasm.framework.unityweb":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/totm.wasm.framework.unityweb",
+  "tomb-mask/UnityProgress.js":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/UnityProgress.js",
+  "tomb-mask/style.css":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/style.css",
+  "snow-rider/Build/UnityLoader.js":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/UnityLoader.js",
+  "snow-rider/Build/SnowRider3D-gd-1.json":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.json",
+  "snow-rider/Build/SnowRider3D-gd-1.data.unityweb":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.data.unityweb",
+  "snow-rider/Build/SnowRider3D-gd-1.wasm.code.unityweb":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.wasm.code.unityweb",
+  "snow-rider/Build/SnowRider3D-gd-1.wasm.framework.unityweb.js":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.wasm.framework.unityweb.js",
+  "snow-rider/Build/SnowRider3D-gd-1.wasm.framework.unityweb":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/Build/SnowRider3D-gd-1.wasm.framework.unityweb",
+  "snow-rider/TemplateData/UnityProgress.js":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/TemplateData/UnityProgress.js",
+  "snow-rider/TemplateData/style.css":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/TemplateData/style.css",
+  "snow-rider/TemplateData/logo.png":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/TemplateData/logo.png",
+  "snow-rider/TemplateData/gears.gif":"https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/TemplateData/gears.gif",
+  "run2/Run2.swf":"https://cdn.jsdelivr.net/gh/bubbls/UGS-file-encryption@f69cc42a2ca577ff18acdf1158d3dc6940afd3d3/Run2.swf",
+  "run2/ruffle.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/ruffle.js",
+  "run2/core.ruffle.9085ee9763de4e85853c.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/core.ruffle.9085ee9763de4e85853c.js",
+  "run2/core.ruffle.ae1054522f49580946c0.js":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/core.ruffle.ae1054522f49580946c0.js",
+  "run2/4d882486fa9bfce731b9.wasm":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/4d882486fa9bfce731b9.wasm",
+  "run2/f7f28eb60b84863611ca.wasm":"https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2025.10.2/f7f28eb60b84863611ca.wasm",
+  "zelda-oot/rom.n64.part1":"https://cdn.jsdelivr.net/gh/bubbls/ugss@ffa46738ce21236742f4a44db08d87160fed6c7d/ocarinaoftime/Legend%20of%20Zelda%2C%20The%20-%20Ocarina%20of%20Time%20(USA).n64.part1",
+  "zelda-oot/rom.n64.part2":"https://cdn.jsdelivr.net/gh/bubbls/ugss@ffa46738ce21236742f4a44db08d87160fed6c7d/ocarinaoftime/Legend%20of%20Zelda%2C%20The%20-%20Ocarina%20of%20Time%20(USA).n64.part2",
+  "centipede/rom.zip":"https://cdn.jsdelivr.net/gh/ap-math-class/exams@main/mame/centiped.zip",
+  "fnae/Build/fnae.loader.js":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/Build/fnae.loader.js",
+  "fnae/Build/fnae.framework.js":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/Build/fnae.framework.js",
+  "fnae/TemplateData/style.css":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/style.css",
+  "fnae/TemplateData/favicon.ico":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/favicon.ico",
+  "fnae/TemplateData/progress-bar-empty-dark.png":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/progress-bar-empty-dark.png",
+  "fnae/TemplateData/progress-bar-empty-light.png":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/progress-bar-empty-light.png",
+  "fnae/TemplateData/progress-bar-full-dark.png":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/progress-bar-full-dark.png",
+  "fnae/TemplateData/progress-bar-full-light.png":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/progress-bar-full-light.png",
+  "fnae/TemplateData/unity-logo-dark.png":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/unity-logo-dark.png",
+  "fnae/TemplateData/unity-logo-light.png":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/unity-logo-light.png",
+  "fnae/TemplateData/webmemd-icon.png":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/TemplateData/webmemd-icon.png",
+  "fnae/StreamingAssets/UnityServicesProjectConfiguration.json":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/StreamingAssets/UnityServicesProjectConfiguration.json",
+  "fnae/Build/fnae.data.part1":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/Build/fnae.data.part1",
+  "fnae/Build/fnae.data.part2":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/Build/fnae.data.part2",
+  "fnae/Build/fnae.data.part3":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/Build/fnae.data.part3",
+  "fnae/Build/fnae.wasm.part1":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/Build/fnae.wasm.part1",
+  "fnae/Build/fnae.wasm.part2":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/Build/fnae.wasm.part2",
+  "fnae/StreamingAssets/202512191935.webm.part1":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/StreamingAssets/202512191935.webm.part1",
+  "fnae/StreamingAssets/202512191935.webm.part2":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/StreamingAssets/202512191935.webm.part2",
+  "fnae/StreamingAssets/202512191935.webm.part3":"https://cdn.jsdelivr.net/gh/web-ports/fnae@afd4e5071add297d6169665a4f999d62f312532e/StreamingAssets/202512191935.webm.part3",
+  "mario-kart/rom.zip":"https://cdn.jsdelivr.net/gh/a456pur/seraph@ae2fcc6d6a9cd051654fcc0519080db1f79cf2a7/games/mariokart64/mariokart64.zip",
+});
+
+const uwuClientParts = [
+  "https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/uwuclient/cluwuclient.html.part1",
+  "https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/uwuclient/cluwuclient.html.part2"
+];
+
+const btd6Commit = "9546494b3052e8e078fb28df7430ac35f42a8787";
+const btd6Primary = "https://cdn.jsdelivr.net/gh/SomeRandomFella/portsandrips@" + btd6Commit + "/btd6/";
+const btd6Fallback = "https://raw.githubusercontent.com/SomeRandomFella/portsandrips/" + btd6Commit + "/btd6/";
+
+const repoHalloweenCommit = "edd5e11fae76bfe8966633f19a6e43935874a8b4";
+const repoHalloweenCdn = "https://cdn.jsdelivr.net/gh/Vanta-git/repo-halloween-v1@" + repoHalloweenCommit + "/";
+const repoHalloweenRaw = "https://raw.githubusercontent.com/Vanta-git/repo-halloween-v1/" + repoHalloweenCommit + "/";
+
+const gartenCommit = "a82c94ea3e9a2f2cbc2e1d925007947134b4f156";
+const gartenCdn = "https://cdn.jsdelivr.net/gh/web-ports/garten-of-banban@" + gartenCommit + "/";
+const gartenRaw = "https://raw.githubusercontent.com/web-ports/garten-of-banban/" + gartenCommit + "/";
+const gartenFiles=new Set(["game/clay/content/paks/clay-windows.pak.0","game/clay/content/paks/clay-windows.pak.1","game/clay/content/paks/clay-windows.ucas.0","game/clay/content/paks/clay-windows.ucas.1","game/clay/content/paks/clay-windows.ucas.10","game/clay/content/paks/clay-windows.ucas.11","game/clay/content/paks/clay-windows.ucas.12","game/clay/content/paks/clay-windows.ucas.13","game/clay/content/paks/clay-windows.ucas.2","game/clay/content/paks/clay-windows.ucas.3","game/clay/content/paks/clay-windows.ucas.4","game/clay/content/paks/clay-windows.ucas.5","game/clay/content/paks/clay-windows.ucas.6","game/clay/content/paks/clay-windows.ucas.7","game/clay/content/paks/clay-windows.ucas.8","game/clay/content/paks/clay-windows.ucas.9","game/clay/content/paks/clay-windows.utoc.0","game/clay/content/paks/global.ucas.0","game/clay/content/paks/global.utoc.0","game/clay/content/paks/zzz_breadbb_p.pak.0","game/clay/content/paks/zzz_breadbb_p.ucas.0","game/clay/content/paks/zzz_breadbb_p.utoc.0","game/engine/content/slate/cursor/invisible.cur.0","gbb.js","gbb.wasm.part1","gbb.wasm.part10","gbb.wasm.part11","gbb.wasm.part12","gbb.wasm.part13","gbb.wasm.part14","gbb.wasm.part15","gbb.wasm.part16","gbb.wasm.part17","gbb.wasm.part18","gbb.wasm.part19","gbb.wasm.part2","gbb.wasm.part20","gbb.wasm.part21","gbb.wasm.part3","gbb.wasm.part4","gbb.wasm.part5","gbb.wasm.part6","gbb.wasm.part7","gbb.wasm.part8","gbb.wasm.part9","gbb_fflean.1.wasm.part1","gbb_fflean.1.wasm.part2","gbb_fflean.1.wasm.part3","gbb_fflean.1.wasm.part4","gbb_fflean.2.wasm.part1","gbb_fflean.2.wasm.part2","gbb_fflean.2.wasm.part3","gbb_fflean.2.wasm.part4","gbb_fflean.3.wasm.part1","gbb_fflean.3.wasm.part2","gbb_fflean.3.wasm.part3","gbb_fflean.3.wasm.part4","gbb_fflean.4.wasm.part1","gbb_fflean.4.wasm.part2","gbb_fflean.4.wasm.part3","gbb_fflean.4.wasm.part4","gbb_fflean.5.wasm.part1","gbb_fflean.5.wasm.part2","gbb_fflean.5.wasm.part3","gbb_fflean.5.wasm.part4","gbb_fflean.js","gbb_fflean.wasm.part1","gbb_fflean.wasm.part2","gbb_fflean.wasm.part3","gbb_fflean.wasm.part4","gbb_gfx.js","gbb_gfx.wasm","gfx_worker.js","image.bin.part1","image.bin.part2","image.bin.part3","image.bin.part4","image.bin.part5","image.bin.part6","image.bin.part7","image.bin.part8","image.bin.part9","manifest.json","preload.json","programs.json","range_cache.js","seed.json","shadow_store.js","split-assets.json","split-loader.js"]);
+
+const gambleCommit = "d7b3ac61ce6d2cb98e212dfa01ba0df413539a53";
+const gambleCdn = "https://cdn.jsdelivr.net/gh/Camzzz-vrgt/gamble-with-your-friends-web@" + gambleCommit + "/game/";
+const gambleRaw = "https://raw.githubusercontent.com/Camzzz-vrgt/gamble-with-your-friends-web/" + gambleCommit + "/game/";
+const gambleRoute = "/approved-games/gamble-with-your-friends/";
+
+const buckshotCommit = "f8a263b4da11c181e02e31086e5a5c8bc2dd1457";
+const buckshotCdn = "https://cdn.jsdelivr.net/gh/Random-Red-Dude-809-4456/buckshot@" + buckshotCommit + "/";
+const buckshotRaw = "https://raw.githubusercontent.com/Random-Red-Dude-809-4456/buckshot/" + buckshotCommit + "/";
+const buckshotRoute = "/approved-games/buckshot/";
+const buckshotFiles = new Set([
+  "index.html", "main.js", "style.css", "buckshot-roulette.js",
+  "buckshot-roulette.icon.png", "buckshot-roulette.apple-touch-icon.png",
+  "buckshot-roulette.png", "buckshot-roulette.audio.worklet.js",
+  "buckshot-roulette.audio.position.worklet.js"
+]);
+
+/* ------------------------------------------------------------- rewrites --- */
+
+function spartaRewriteRootPaths(source) {
+  return source
+    .replaceAll(spartaUpstream, SPARTA_ORIGIN + spartaRoute)
+    .replace(/\b(src|href|poster|data|action|srcset)\s*=\s*(["'])\/(?!\/)/gi,
+      (_full, attr, quote) => attr + "=" + quote + spartaRoute)
+    .replace(/url\(\s*(["']?)\/(?!\/)/gi,
+      (_full, quote) => "url(" + quote + spartaRoute);
+}
+
+function spartaRewriteHtml(html) {
+  let page = spartaRewriteRootPaths(html);
+  page = page.replace(/\b(fetch|Worker|SharedWorker|register)\s*\(\s*(["'])\/(?!\/)/g,
+    (_full, fn, quote) => fn + "(" + quote + spartaRoute);
+  const bridge = "<script>(()=>{" +
+    "const upstream=\"" + spartaUpstream.replace(/\/$/, "") + "\";" +
+    "const route=\"" + spartaRoute + "\";" +
+    "const reroute=(input)=>{try{const value=String(input);" +
+    "if(value.startsWith(route))return value;" +
+    "if(value.startsWith(\"/\")&&!value.startsWith(\"//\"))return route+value.slice(1);" +
+    "const u=new URL(value,location.href);" +
+    "if(u.origin===upstream)return route+u.pathname.replace(/^\\//,\"\")+u.search+u.hash;" +
+    "}catch(e){}return input;};" +
+    "const nativeFetch=window.fetch;window.fetch=function(resource,options){" +
+    "if(typeof resource===\"string\"||resource instanceof URL)" +
+    "return nativeFetch.call(this,reroute(resource),options);" +
+    "if(resource instanceof Request){const rewritten=reroute(resource.url);" +
+    "if(rewritten!==resource.url)return nativeFetch.call(this,new Request(rewritten,resource),options);}" +
+    "return nativeFetch.call(this,resource,options);};" +
+    "const originalOpen=XMLHttpRequest.prototype.open;" +
+    "XMLHttpRequest.prototype.open=function(method,url,...rest){return originalOpen.call(this,method,reroute(url),...rest);};" +
+    "})();</script>";
+  const base = "<base href=\"" + spartaRoute + "\">" + bridge;
+  if (/<head\b[^>]*>/i.test(page)) page = page.replace(/<head\b[^>]*>/i, match => match + "\n" + base);
+  else page = base + page;
+  const back = "<nav id=\"seuss-sparta-back\" style=\"position:fixed;z-index:2147483646;top:8px;left:8px\">" +
+    "<a href=\"" + PAGES_ORIGIN + "/Dr-seuss-Moives-Games-test/\" " +
+    "style=\"display:inline-block;padding:8px 11px;background:#152821ef;color:#fff;" +
+    "border:1px solid #82c9a1;border-radius:8px;font:13px system-ui;text-decoration:none\">" +
+    "← Back to Seuss Arcade</a></nav>";
+  if (/<body\b[^>]*>/i.test(page)) page = page.replace(/<body\b[^>]*>/i, match => match + "\n" + back);
+  return page;
+}
+
+/* -------------------------------------------------------------- routing --- */
+
+function approvedGambleFile(raw) {
+  const file = safeAssetPath(raw || "index.html") || null;
+  if (!file) return null;
+  if (["index.html", "Build/build.loader.js", "Build/build.framework.js",
+    "assets/port-by-camzzz.png", "StreamingAssets/aa/catalog.bin",
+    "StreamingAssets/aa/catalog.hash", "StreamingAssets/aa/settings.json"].includes(file)) return file;
+  const chunk = file.match(/^chunks\/build\.(data|wasm)\.part(\d{3})$/);
+  if (chunk) {
+    const lastPart = chunk[1] === "data" ? 50 : 19;
+    if (Number(chunk[2]) >= 1 && Number(chunk[2]) <= lastPart) return file;
+  }
+  if (/^StreamingAssets\/aa\/StandaloneWindows64\/[A-Za-z0-9._() -]+\.bundle$/.test(file)) return file;
+  return null;
+}
+
+function approvedBuckshotFile(raw) {
+  const file = raw === "" || raw === undefined ? "index.html" : raw;
+  if (!file || file.length > 120 || file.includes("/") || file.includes("\\") ||
+      !/^[A-Za-z0-9._-]+$/.test(file)) return null;
+  if (buckshotFiles.has(file)) return file;
+  const part = file.match(/^buckshot-roulette\.(pck|wasm)\.part(\d{1,2})$/);
+  if (part) {
+    const lastPart = part[1] === "pck" ? 17 : 3;
+    if (Number(part[2]) >= 1 && Number(part[2]) <= lastPart) return file;
+  }
+  return null;
+}
+
+function approvedRepoHalloweenFile(raw) {
+  const file = safeAssetPath(raw || "");
+  if (!file) return null;
+  if (file === "split-manifest.json" || file === "Build/1234.loader.js" ||
+      file === "Build/1234.framework.js.unityweb") return file;
+  const data = file.match(/^Build\/1234\.data\.unityweb\.part(\d{3})$/);
+  if (data && Number(data[1]) < 237) return file;
+  const wasm = file.match(/^Build\/1234\.wasm\.unityweb\.part(\d{2})$/);
+  if (wasm && Number(wasm[1]) < 7) return file;
+  if (file.startsWith("StreamingAssets/")) return file;
+  return null;
+}
+
+function approvedBtd6Asset(raw) {
+  const file = safeAssetPath(raw || "");
+  if (!file) return null;
+  if (!(file.startsWith("Build/") || file.startsWith("StreamingAssets/") ||
+    file.startsWith("TemplateData/") || file === "split-loader.js" || file === "manifest.json")) return null;
+  return file;
+}
+
+function importedAssetUrl(raw) {
+  const asset = safeAssetPath(raw || "");
+  if (!asset) return null;
+  if (importedExactAssets[asset]) return importedExactAssets[asset];
+  if (/^pvz\/rom\.nds\.part[1-4]$/.test(asset))
+    return "https://cdn.jsdelivr.net/gh/greeniYT/ROM-s@main/pvz/5495%20-%20Plants%20vs.%20Zombies%20(U).nds" + asset.slice("pvz/rom.nds".length);
+  const slash = asset.indexOf("/");
+  if (slash < 0) return null;
+  const category = asset.slice(0, slash), file = asset.slice(slash + 1);
+  const root = importedAssetRoots[category];
+  if (!root || !file) return null;
+  return root + encodePath(file);
+}
+
+const pinnedUnitySources = [
+  ["tomb-mask/", "https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/", "https://raw.githubusercontent.com/bubbls/UGS-Assets/9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/"],
+  ["snow-rider/", "https://cdn.jsdelivr.net/gh/Vrkids2009/snowrider3d@6b7c2b9167b592528b221428414e63f06c4640b9/", "https://raw.githubusercontent.com/Vrkids2009/snowrider3d/6b7c2b9167b592528b221428414e63f06c4640b9/"]
+];
+
+async function handleApproved(request, env, url) {
+  const pathname = url.pathname;
+
+  /* ------------------------------------------------------------- statuses --- */
+  if (pathname === "/approved-games/cheese/status") {
+    const checks = await checkUrls(request, cheeseCheckFiles.map(file => cheeseRoot + file));
+    const ok = checks.every(check => check.ok);
+    return json({
+      ok, source: "SomeRandomFella/portsandrips/CheeseRollingWeb",
+      revision: "9546494b3052e8e078fb28df7430ac35f42a8787", checks,
+      note: ok ? "Pinned Unity game entry, loader and first data part reachable" : "One or more pinned game files are unavailable"
+    }, ok ? 200 : 502);
+  }
+  if (pathname === "/approved-games/gow-sparta/status") {
+    try {
+      const response = await fetch(spartaUpstream, { redirect: "manual", signal: AbortSignal.timeout(12000) });
+      try { await response.body?.cancel(); } catch {}
+      return json({
+        ok: response.ok, upstreamStatus: response.status, source: "fixed Surge game host",
+        note: response.ok ? "Surge source reachable" : "Surge source returned an error"
+      }, response.ok ? 200 : 502);
+    } catch (error) {
+      console.warn("sparta status failed", String(error));
+      return json({ ok: false, note: "The approved Surge game source is not reachable from Cloudflare" }, 502);
+    }
+  }
+  for (const [slug, item] of mc18Sources) {
+    if (pathname === "/approved-games/" + slug + "/status") {
+      try {
+        const upstream = await fetch(mc18DriveURL(item), {
+          redirect: "manual", signal: AbortSignal.timeout(20000), headers: { "user-agent": "Mozilla/5.0" }
+        });
+        const disposition = upstream.headers.get("content-disposition") || "";
+        const size = Number(upstream.headers.get("content-length") || 0);
+        const ok = upstream.ok && disposition.toLowerCase().includes(item.filename.toLowerCase()) &&
+          (!size || size === item.expectedSize);
+        try { await upstream.body?.cancel(); } catch {}
+        return json({
+          ok, file: item.filename, source: "fixed Google Drive file ID",
+          message: ok ? "Approved game file reachable" : "Approved game file unavailable or changed"
+        }, ok ? 200 : 502);
+      } catch {
+        return json({ ok: false, message: "The approved game file could not be reached" }, 502);
+      }
+    }
+  }
+  if (pathname === gambleRoute + "status") {
+    try {
+      const probe = await fetch(gambleCdn + "index.html", {
+        method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(15000)
+      });
+      try { await probe.body?.cancel(); } catch {}
+      if (!probe.ok) return json({ ok: false, note: "Pinned game entry unavailable (HTTP " + probe.status + ")" }, 502);
+      return json({ ok: true, source: "pinned GitHub upstream", commit: gambleCommit, parts: 69 });
+    } catch {
+      return json({ ok: false, note: "The approved game source could not be reached" }, 502);
+    }
+  }
+  if (pathname === buckshotRoute + "status") {
+    try {
+      const probe = await fetch(buckshotCdn + "index.html", {
+        method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(15000)
+      });
+      try { await probe.body?.cancel(); } catch {}
+      if (!probe.ok) return json({ ok: false, note: "Pinned game entry unavailable (HTTP " + probe.status + ")" }, 502);
+      return json({ ok: true, source: "pinned GitHub upstream", commit: buckshotCommit, parts: 20 });
+    } catch {
+      return json({ ok: false, note: "The approved game source could not be reached" }, 502);
+    }
+  }
+
+  /* ---------------------------------------------------------------- games --- */
+
+  if (pathname === "/approved-games/gow-sparta" || pathname === "/approved-games/gow-sparta/") {
+    if (pathname === "/approved-games/gow-sparta") return Response.redirect(url.origin + spartaRoute, 308);
+    // Fall through to the wildcard handler with an empty remainder.
+    return serveSparta(request, url, "");
+  }
+  if (pathname.startsWith(spartaRoute) && !pathname.startsWith(spartaRoute + "status")) {
+    return serveSparta(request, url, pathname.slice(spartaRoute.length));
+  }
+
+  if (pathname.startsWith("/approved-games/cheese/")) {
+    const file = pathname.slice("/approved-games/cheese/".length);
+    if (!cheeseAllowedFiles.has(file)) return textError(404, "Not an approved Cheese Rolling file");
+    if (file === "index.html") return serveCheeseIndex(request);
+    return fetchPinned(request, cheeseRoot + file, {
+      mime: file.endsWith(".js") ? "application/javascript; charset=utf-8" :
+        file.endsWith(".css") ? "text/css; charset=utf-8" :
+        file.endsWith(".webmanifest") ? "application/manifest+json" :
+        file.endsWith(".png") ? "image/png" :
+        file.endsWith(".ico") ? "image/x-icon" : undefined,
+      timeout: 120000
+    });
+  }
+
+  if (pathname === "/approved-games/horizon/parts.json") {
+    return fetchPinned(request, horizonRoot + "parts.json", { mime: "application/json; charset=utf-8" });
+  }
+  if (pathname.startsWith("/approved-games/horizon/fs/res/assets/minecraft/")) {
+    const file = pathname.slice("/approved-games/horizon/fs/res/assets/minecraft/".length);
+    if (!/^sound[.]tar[.]gz[.]part(0|[1-9]|1[0-7])$/.test(file)) return textError(404, "Not an approved Horizon sound part");
+    return fetchPinned(request, horizonRoot + "fs/res/assets/minecraft/" + file, { timeout: 120000 });
+  }
+
+  for (const [slug, item] of mc18Sources) {
+    if (pathname === "/approved-games/" + slug + "/index.html") return serveMc18Html(request, item);
+  }
+  if (pathname.startsWith(mc18ForgeRoute)) {
+    const tail = pathname.slice(mc18ForgeRoute.length);
+    if (!/^[1-4]$/.test(tail)) return textError(404, "Not an approved Forge part");
+    return fetchPinned(request, mc18ForgeBase + tail, {
+      mime: "text/plain; charset=utf-8", cache: "public, max-age=86400, immutable", timeout: 150000
+    });
+  }
+
+  if (pathname === "/approved-games/uwu-client/index.html") {
+    return streamSequence(request, uwuClientParts, {
+      mime: "text/html; charset=utf-8", cache: "public, max-age=300", timeout: 120000
+    });
+  }
+
+  if (pathname.startsWith(gambleRoute)) {
+    const file = approvedGambleFile(pathname.slice(gambleRoute.length));
+    if (!file) return textError(404, "Not an approved Gamble With Your Friends file");
+    const cache = file === "index.html" ? "public, max-age=300" : "public, max-age=86400, immutable";
+    // jsDelivr answers a byte-range request with an empty 206 body, so ranged
+    // reads go straight to GitHub raw, which honours ranges correctly.
+    const sources = request.headers.get("Range")
+      ? [gambleRaw + encodePath(file)]
+      : [gambleCdn + encodePath(file), gambleRaw + encodePath(file)];
+    return fetchPinnedWithFallback(request, sources, { mime: mimeFor(file), cache, timeout: 120000 });
+  }
+
+  if (pathname.startsWith(buckshotRoute)) {
+    const file = approvedBuckshotFile(pathname.slice(buckshotRoute.length));
+    if (!file) return textError(404, "Not an approved Buckshot Roulette file");
+    const cache = file === "index.html" ? "public, max-age=300" : "public, max-age=86400, immutable";
+    const sources = request.headers.get("Range")
+      ? [buckshotRaw + file]
+      : [buckshotCdn + file, buckshotRaw + file];
+    return fetchPinnedWithFallback(request, sources, { mime: mimeFor(file), cache, timeout: 180000 });
+  }
+
+  /* -------------------------------------------------------------- assets --- */
+
+  if (pathname.startsWith("/approved-assets/balatro/")) {
+    const file = pathname.slice("/approved-assets/balatro/".length);
+    if (!balatroAssets.has(file)) return textError(404, "Not an approved Balatro file");
+    return fetchPinned(request, balatroRoot + file, { mime: mimeFor(file) });
+  }
+
+  if (pathname === "/approved-assets/imported/zelda-oot/rom.n64") {
+    return streamSequence(request, [
+      importedExactAssets["zelda-oot/rom.n64.part1"],
+      importedExactAssets["zelda-oot/rom.n64.part2"]
+    ], { mime: "application/octet-stream", cache: "public, max-age=3600", timeout: 90000, acceptRanges: false });
+  }
+
+  if (pathname.startsWith("/approved-assets/imported/")) {
+    const asset = safeAssetPath(pathname.slice("/approved-assets/imported/".length));
+    if (!asset) return textError(404, "Not an approved imported asset");
+    const target = importedAssetUrl(asset);
+    if (!target) return textError(404, "Not an approved imported asset");
+    for (const [prefix, primaryBase, fallbackBase] of pinnedUnitySources) {
+      if (asset.startsWith(prefix) && Object.hasOwn(importedExactAssets, asset) && target.startsWith(primaryBase)) {
+        return fetchPinnedWithFallback(request, [target, fallbackBase + target.slice(primaryBase.length)], {
+          mime: mimeFor(asset), timeout: 45000
+        });
+      }
+    }
+    return fetchPinned(request, target, { mime: mimeFor(asset), timeout: 45000 });
+  }
+
+  if (pathname.startsWith("/approved-assets/repo-halloween/")) {
+    const asset = approvedRepoHalloweenFile(pathname.slice("/approved-assets/repo-halloween/".length));
+    if (!asset) return textError(404, "Not an approved R.E.P.O. game file");
+    return fetchPinnedWithFallback(request, [repoHalloweenCdn + encodePath(asset), repoHalloweenRaw + encodePath(asset)], {
+      mime: mimeFor(asset), cache: "public, max-age=86400, immutable", timeout: 120000
+    });
+  }
+
+  if (pathname.startsWith("/approved-assets/btd6/")) {
+    const asset = approvedBtd6Asset(pathname.slice("/approved-assets/btd6/".length));
+    if (!asset) return textError(404, "Unapproved Bloons TD 6 file");
+    return fetchPinnedWithFallback(request, [btd6Primary + encodePath(asset), btd6Fallback + encodePath(asset)], {
+      mime: mimeFor(asset), cache: "public, max-age=86400, immutable", timeout: 120000
+    });
+  }
+
+  if (pathname.startsWith("/approved-assets/garten/")) {
+    const asset = gartenFiles.has(pathname.slice("/approved-assets/garten/".length))
+      ? pathname.slice("/approved-assets/garten/".length) : null;
+    if (!asset) return textError(404, "Not an approved Garten of Banban asset");
+    return fetchPinnedWithFallback(request, [gartenCdn + encodePath(asset), gartenRaw + encodePath(asset)], {
+      mime: mimeFor(asset), cache: "public, max-age=86400, immutable", timeout: 120000
+    });
+  }
+
+  return textError(404, "Not an approved arcade route");
+}
+
+function spartaFileUrl(raw, search) {
+  if (!safeAssetPath(raw || "index.html")) return null;
+  const file = raw || "index.html";
+  const target = new URL(file, spartaUpstream);
+  if (target.origin !== new URL(spartaUpstream).origin) return null;
+  target.search = search; // a query may select an asset version, never a hostname
+  return target.href;
+}
+
+async function serveSparta(request, url, remainder) {
+  const upstreamUrl = spartaFileUrl(remainder, url.search);
+  if (!upstreamUrl) return textError(404, "Not an approved PSP game file");
+  const headers = new Headers({ "accept-encoding": "identity" });
+  const range = request.headers.get("Range");
+  if (range) {
+    if (!RANGE.test(range)) return textError(416, "Unsupported byte range");
+    headers.set("range", range);
+  }
+  let upstream;
+  try {
+    upstream = await fetch(upstreamUrl, {
+      method: request.method === "HEAD" ? "HEAD" : "GET",
+      headers, redirect: "manual", signal: AbortSignal.timeout(120000)
+    });
+  } catch (error) {
+    console.warn("sparta fetch failed", upstreamUrl, String(error));
+    return textError(502, "The approved Surge game file could not be fetched");
+  }
+  if (!upstream.ok) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "The approved Surge game file is unavailable (" + upstream.status + ")");
+  }
+  const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+  const contentLength = Number(upstream.headers.get("content-length") || 0);
+  if (/text\/html/i.test(contentType) && (!contentLength || contentLength <= 8000000)) {
+    const html = await upstream.text();
+    if (html.length > 8000000) return textError(502, "Game HTML exceeds safe rewrite size");
+    return new Response(spartaRewriteHtml(html), {
+      status: 200,
+      headers: corsHeaders(request, {
+        "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff"
+      })
+    });
+  }
+  if (/text\/css/i.test(contentType) && (!contentLength || contentLength <= 2000000)) {
+    const css = await upstream.text();
+    if (css.length > 2000000) return textError(502, "Game CSS exceeds safe rewrite size");
+    return new Response(spartaRewriteRootPaths(css), {
+      status: 200,
+      headers: corsHeaders(request, {
+        "content-type": "text/css; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff"
+      })
+    });
+  }
+  const out = corsHeaders(request, {
+    "content-type": contentType, "cache-control": "public, max-age=300", "x-content-type-options": "nosniff"
+  });
+  const contentRange = upstream.headers.get("content-range");
+  if (contentRange) out.set("content-range", contentRange);
+  const acceptRanges = upstream.headers.get("accept-ranges");
+  if (acceptRanges) out.set("accept-ranges", acceptRanges);
+  if (upstream.status === 206) {
+    const length = upstream.headers.get("content-length");
+    if (length) out.set("content-length", length);
+  }
+  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+  return new Response(upstream.body, { status: upstream.status, headers: out });
+}
+
+async function serveCheeseIndex(request) {
+  let upstream;
+  try {
+    upstream = await fetch(cheeseRoot + "index.html", { redirect: "manual", signal: AbortSignal.timeout(30000) });
+  } catch {
+    return textError(502, "The pinned Cheese Rolling entry cannot be loaded through Cloudflare.");
+  }
+  if (!upstream.ok) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "Approved Cheese Rolling entry unavailable (" + upstream.status + ")");
+  }
+  const html = await upstream.text();
+  if (!/<base\b[^>]*>/i.test(html)) return textError(502, "Pinned Cheese Rolling HTML has no expected base element");
+  return new Response(html.replace(/<base\b[^>]*>/i, '<base href="/approved-games/cheese/">'), {
+    status: 200,
+    headers: corsHeaders(request, {
+      "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff"
+    })
+  });
+}
+
+async function serveMc18Html(request, item) {
+  const headers = new Headers({ "accept-encoding": "identity", "user-agent": "Mozilla/5.0" });
+  let upstream;
+  try {
+    upstream = await fetch(mc18DriveURL(item), { redirect: "manual", signal: AbortSignal.timeout(150000), headers });
+  } catch (error) {
+    console.warn("drive fetch failed", item.filename, String(error));
+    return textError(502, "Minecraft game source is temporarily unavailable");
+  }
+  if (!upstream.ok) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "Approved Drive file is unavailable (" + upstream.status + ")");
+  }
+  const disposition = upstream.headers.get("content-disposition") || "";
+  const size = Number(upstream.headers.get("content-length") || 0);
+  // Google may return an HTML login or quota notice with status 200.
+  if (!disposition.toLowerCase().includes(item.filename.toLowerCase()) ||
+      (size && size !== item.expectedSize)) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "The approved Google Drive game file is unavailable or changed. Check its public sharing and version.");
+  }
+  const out = corsHeaders(request, {
+    "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff"
+  });
+  if (request.method === "HEAD") {
+    try { await upstream.body?.cancel(); } catch {}
+    return new Response(null, { status: 200, headers: out });
+  }
+  if (item.id === "17mqNnsALl6ZvDVOtarz4EuP5pS8E4-R9") {
+    const html = await upstream.text();
+    if (html.length > 10000) return textError(502, "The mod launcher changed format");
+    let modified = html;
+    for (let i = 1; i <= 4; i++) {
+      const source = "https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@main/PineTools.com_files/cleaglerforge.html.part" + i;
+      if (!modified.includes(source)) return textError(502, "Expected Forge launcher asset is missing");
+      modified = modified.replaceAll(source, mc18ForgeRoute + i);
+    }
+    return new Response(modified, { status: 200, headers: out });
+  }
+  return new Response(upstream.body, { status: 200, headers: out });
+}
+
+/* ------------------------------------------------------------- entrypoint --- */
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+
+    if (pathname === "/health") {
+      return json({
+        ok: true,
+        service: "seuss-arcade-relay-cloudflare",
+        protocol: "wisp-1",
+        transport: "cloudflare:sockets",
+        restricted: false,
+        relayOriginPolicy: "any-public-host",
+        privateRanges: env.ALLOW_PRIVATE_IPS === "1" ? "allowed" : "blocked",
+        search: true,
+        games: "cloudflare"
+      });
+    }
+    if (pathname === "/speedtest") {
+      const bytes = Math.min(Math.max(Number(url.searchParams.get("bytes")) || 1500000, 1000), 8000000);
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          "content-type": "application/octet-stream",
+          "cache-control": "no-store",
+          "access-control-allow-origin": "*"
+        }
+      });
+    }
+    if (pathname === "/wisp/" || pathname === "/wisp") {
+      if ((request.headers.get("Upgrade") || "").toLowerCase() !== "websocket") {
+        return new Response("Expected a websocket upgrade\n", { status: 426 });
+      }
+      const denied = denyOrigin(request, env);
+      if (denied) return denied;
+      return env.WISP_RELAY.get(env.WISP_RELAY.idFromName("seuss")).fetch(request);
+    }
+    if (pathname === "/") {
+      return new Response("Seuss Arcade relay: game routes under /approved-games/ and /approved-assets/, Wisp on /wisp/\n", {
+        headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
+      });
+    }
+    if (!pathname.startsWith("/approved-")) {
+      return textError(404, "Not an approved arcade route");
+    }
+
+    const denied = denyOrigin(request, env);
+    if (denied) return denied;
+    if (request.method === "OPTIONS") return preflight(request);
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return withCors(request, textError(405, "Only GET, HEAD and OPTIONS are supported"));
+    }
+    try {
+      return withCors(request, await handleApproved(request, env, url));
+    } catch (error) {
+      console.error("arcade route failed", pathname, String(error));
+      return withCors(request, textError(502, "The approved game route failed"));
+    }
+  }
+};

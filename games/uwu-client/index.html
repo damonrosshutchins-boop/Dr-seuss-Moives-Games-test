@@ -23,7 +23,7 @@ button:disabled{opacity:.5;cursor:wait}
 <body>
 <header>
   <strong>UwU Client</strong>
-  <small>Minecraft-style web client · approved Render game route · in-site player</small>
+  <small>Minecraft-style web client · approved Cloudflare game route · in-site player</small>
   <button type="button" id="reload">↻ Reload</button>
 </header>
 <div id="status" role="status" aria-live="polite">Ready to load UwU Client.</div>
@@ -31,7 +31,7 @@ button:disabled{opacity:.5;cursor:wait}
 <div id="notice" role="alert"><strong>UwU Client could not be loaded.</strong><span id="errorText"></span></div>
 <script>
 "use strict";
-const GAME_URL="https://seuss-cinema-arcade.onrender.com/approved-games/uwu-client/index.html";
+const GAME_URL="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/uwu-client/index.html";
 const frame=document.getElementById("game");
 const label=document.getElementById("status");
 const reload=document.getElementById("reload");
@@ -48,13 +48,13 @@ async function launch(){
  const current=++session;
  reload.disabled=true;notice.style.display="none";
  frame.removeAttribute("src");
- progress("Checking the approved Render UwU Client route…");
+ progress("Checking the approved Cloudflare UwU Client route…");
  try{
   const response=await fetch(GAME_URL,{method:"HEAD",mode:"cors",cache:"no-store",signal:AbortSignal.timeout(60000)});
   if(!response.ok)throw new Error("Approved game route returned HTTP "+response.status);
   if(current!==session)return;
-  progress("Loading UwU Client (about 39 MB) from Render…");
-  // Keep the game isolated on Render's origin, inside the arcade frame.
+  progress("Loading UwU Client (about 39 MB) from Cloudflare…");
+  // Keep the game isolated on Cloudflare's origin, inside the arcade frame.
   // It is not sent to the original CDN and cannot navigate the parent frame.
   frame.addEventListener("load",()=>{
    if(current!==session)return;

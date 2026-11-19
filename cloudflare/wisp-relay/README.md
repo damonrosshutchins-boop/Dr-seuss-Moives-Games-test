@@ -46,7 +46,8 @@ curl https://seuss-wisp-relay.<your-subdomain>.workers.dev/health
 3. Pick **Cloudflare** under Relay → **Apply & reload**.
 
 The choice is stored in `localStorage` (`seuss-relay`), so it survives reloads on
-that browser only; other visitors keep using the Render relay.
+that browser only. This standalone relay is now optional: `cloudflare/arcade`
+serves the same `/wisp/` endpoint (and every game asset route) by default.
 
 ## Policy
 

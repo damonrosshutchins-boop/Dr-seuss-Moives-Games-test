@@ -9,7 +9,7 @@
     <script>
       window.gameconfig = {
         name: "Plants vs. Zombies (U)",
-        url: "https://seuss-cinema-arcade.onrender.com/approved-assets/imported/pvz/rom.nds",
+        url: "https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/imported/pvz/rom.nds",
         core: "nds",
         min: 1,
         max: 4
@@ -109,11 +109,11 @@ getParts("asd.js", 0, 100)
           EJS_gameName = window.gameconfig.name;
           EJS_color = "#0064ff";
           EJS_startOnLoaded = true;
-          EJS_pathtodata = "https://seuss-cinema-arcade.onrender.com/approved-assets/imported/emu/";
+          EJS_pathtodata = "https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/imported/emu/";
           EJS_gameUrl = gameUrl;
           const script = document.createElement("script");
           script.src =
-            "https://seuss-cinema-arcade.onrender.com/approved-assets/imported/emu/loader.js";
+            "https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/imported/emu/loader.js";
           document.body.appendChild(script);
         })
         .catch((error) => {
