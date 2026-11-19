@@ -34,7 +34,8 @@ const entries=rows.map(line=>({
   id:line.match(/^\{id:'([^']+)'/)?.[1],
   url:line.match(/url:'([^']+)'/)?.[1],
   local:line.includes("local:true"),
-  isolated:line.includes("needsIsolation:true")
+  isolated:line.includes("needsIsolation:true"),
+  direct:line.includes("direct:true")
 }));
 let localCount=0,remoteCount=0,isolatedCount=0;
 for(const entry of entries){
@@ -59,6 +60,9 @@ for(const entry of entries){
   }else{
     remoteCount++;
     const host=url.hostname.toLowerCase();
+    // Direct entries open in a new tab and never touch the proxy, so the proxy
+    // allowlist and exact-entry rules do not apply to them.
+    if(entry.direct)continue;
     if(url.protocol!=="https:" ||
        ![...allowed].some(candidate=>host===candidate||host.endsWith("."+candidate)))
       errors.push(entry.id+": remote destination is not on proxy host allowlist");
