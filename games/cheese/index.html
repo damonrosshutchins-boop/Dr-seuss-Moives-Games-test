@@ -24,13 +24,18 @@ button:focus-visible{outline:3px solid #ffe3a2;outline-offset:3px}
  sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock" referrerpolicy="no-referrer"></iframe>
 <div id="status" role="status" aria-live="polite"><div class="panel">
 <h1>Cheese Rolling</h1>
-<p id="message">Checking the updated Cheese Rolling game through Render…</p>
+<p id="message">Checking the Cheese Rolling build on jsDelivr…</p>
 <button type="button" id="retry" hidden>Try again</button>
 </div></div>
 </main>
 <script>
 "use strict";
-const base="https://raw.githubusercontent.com/SomeRandomFella/portsandrips@9546494b3052e8e078fb28df7430ac35f42a8787/CheeseRollingWeb/";
+// The game document is served by jsDelivr, pinned to one commit. jsDelivr sends
+// the Unity loader with a real JavaScript MIME type and CORS headers, whereas
+// raw.githubusercontent.com refuses to be framed at all (X-Frame-Options: deny)
+// and marks its scripts text/plain. So fetch the document and inline it here,
+// keeping a <base> on jsDelivr for its split Build parts.
+const cdn="https://cdn.jsdelivr.net/gh/SomeRandomFella/portsandrips@9546494b3052e8e078fb28df7430ac35f42a8787/CheeseRollingWeb/";
 const game=document.getElementById("game");
 const status=document.getElementById("status");
 const message=document.getElementById("message");
@@ -39,13 +44,25 @@ async function launch(){
   status.hidden=false;
   retry.hidden=true;
   game.removeAttribute("src");
-  message.textContent="Checking the GitHub game source…";
+  game.removeAttribute("srcdoc");
+  message.textContent="Downloading the Cheese Rolling launcher from jsDelivr…";
   try{
-    message.textContent="Loading the Cheese Rolling Unity build from GitHub…";
+    const response=await fetch(cdn+"index.html",{cache:"no-store"});
+    if(!response.ok)throw new Error("jsDelivr returned "+response.status+" for index.html");
+    let html=await response.text();
+    // The upstream document points its own <base> at the moving @master branch.
+    // Replace it so every split part comes from this exact pinned build.
+    html=html.replace(/<base\b[^>]*>/gi,"");
+    if(!/<head[^>]*>/i.test(html))throw new Error("The upstream game document has no <head> element.");
+    html=html.replace(/<head([^>]*)>/i,'<head$1><base href="'+cdn+'">');
+    // Unity's loader resolves this against document.URL, which is about:srcdoc
+    // here, so it must already be absolute or the loader throws before starting.
+    html=html.replace(/(streamingAssetsUrl\s*:\s*)(["'])StreamingAssets\2/, '$1$2'+cdn+'StreamingAssets$2');
+    message.textContent="Loading the split Unity build through jsDelivr…";
     game.onload=()=>{status.hidden=true;};
-    game.src=base+"index.html";
+    game.srcdoc=html;
   }catch(error){
-    message.textContent="Cheese Rolling could not load from GitHub. "+
+    message.textContent="Cheese Rolling could not load from jsDelivr. "+
       (error.message||String(error))+
       " The pinned game source may be temporarily unavailable.";
     retry.hidden=false;

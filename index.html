@@ -74,7 +74,7 @@ const library=[
 {id:'run-2',kind:'game',name:'Run 2 (Flash)',desc:'Classic Run 2 Flash game in the Arcade, using Ruffle and pinned Render assets.',icon:'🏃',bg:'linear-gradient(130deg,#3f3f3f,#a3a3a3)',url:'./games/run-2/index.html',local:true},
 {id:'centipede-arcade',kind:'game',name:'Centipede (Arcade)',desc:'Classic arcade game and EmulatorJS assets from fixed, approved Render routes.',icon:'🐛',bg:'linear-gradient(130deg,#303030,#7e7e7e)',url:'./games/centipede-arcade/index.html',local:true},
 {id:'fnae',kind:'game',name:"Five Night's at BIG E",desc:'Unity WebGL game loaded inside the Arcade with pinned game files through Render.',icon:'🌙',bg:'linear-gradient(130deg,#2f2f2f,#7a7a7a)',url:'./games/fnae/index.html',local:true},
-{id:'cheese',kind:'game',name:'Cheese Rolling',desc:'Updated Cheese Rolling Unity WebGL port from SomeRandomFella/portsandrips; split files load through the restricted Render game route.',icon:'🧀',bg:'linear-gradient(130deg,#5e5e5e,#989898)',url:'./games/cheese/index.html',local:true},
+{id:'cheese',kind:'game',name:'Cheese Rolling',desc:'Updated Cheese Rolling Unity WebGL port from SomeRandomFella/portsandrips; its split build parts stream from the pinned jsDelivr mirror.',icon:'🧀',bg:'linear-gradient(130deg,#5e5e5e,#989898)',url:'./games/cheese/index.html',local:true},
 {id:'peak',kind:'game',name:'PEAK',desc:'Browser game from the WASM.RIP collection.',icon:'⛰️',bg:'linear-gradient(130deg,#444444,#969696)',url:'https://wasm.rip/files/peak/PEAK.html'},
 {id:'slimerancher',kind:'game',name:'Slime Rancher (Web)',desc:'Unity WebGL port with a local launcher; its 555 MB of split game assets stream from the approved jsDelivr mirror, so the first run takes a few minutes.',icon:'🟢',bg:'linear-gradient(130deg,#4a4a4a,#9c9c9c)',url:'./games/slimeranch/index.html',local:true},
 {id:'lobcorp',kind:'game',name:'Lobotomy Corporation (Web)',desc:'Unity port on a local launcher; 1.1 GB of compressed chunks stream from the approved jsDelivr mirror and decompress in the browser, so the first load is long.',icon:'🧠',bg:'linear-gradient(130deg,#3a3a3a,#8d8d8d)',url:'./games/lobcorp/index.html',local:true},
@@ -237,7 +237,7 @@ async function openItem(x){
   $('viewerTitle').textContent=x.name;
   $('viewerStatus').textContent=x.local?'Preparing local game…':'Starting Scramjet over Wisp…';
   $('playerProgress').classList.remove('hidden');
-  updatePlayerProgress(x.local?'Opening game page…':'Connecting through Render…');
+  updatePlayerProgress(x.local?'Opening game page…':'Connecting through the player…');
   $('viewerAlert').classList.add('hidden');
   $('viewer').classList.remove('hidden');
   $('closeViewer').focus();

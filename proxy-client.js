@@ -139,6 +139,55 @@ export async function openProxied(iframe, url, onProgress) {
     finally { progressListeners.delete(onProgress); }
   }
   report("Opening selected content…", onProgress);
+  // GitHub Pages answers 404 for a player URL that nobody intercepts, which is
+  // what a freshly activated service worker looks like before it claims frames.
+  await waitForServiceWorkerControl();
   const frame = controller.createFrame(iframe);
-  await timeout(Promise.resolve(frame.go(target.href)), "Starting content");
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await timeout(Promise.resolve(frame.go(target.href)), "Starting content");
+    if (await frameTookControl(iframe)) return;
+    if (attempt === 1) {
+      report("Waiting for the player service worker…", onProgress);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+  }
+  throw new Error("The player service worker did not take control of the page, so GitHub Pages answered 404. Reload the arcade and try again.");
+}
+
+// An activated worker only intercepts frames once it is claiming clients. Until
+// then the player prefix URL goes to the static host, whose 404 page is a
+// perfectly ordinary 200 document.
+function waitForServiceWorkerControl(timeoutMs = 6000) {
+  if (!navigator.serviceWorker || navigator.serviceWorker.controller) return Promise.resolve();
+  return new Promise(resolve => {
+    const finish = () => {
+      clearTimeout(timer);
+      navigator.serviceWorker.removeEventListener("controllerchange", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    navigator.serviceWorker.addEventListener("controllerchange", finish);
+  });
+}
+
+// The player frame is same-origin with the arcade, so its document is readable:
+// recognise the static host's "File not found" page and report it as a miss.
+// A page that loaded but crashed shows its own error, which a retry cannot fix.
+function frameTookControl(iframe, timeoutMs = 20000) {
+  return new Promise(resolve => {
+    const started = Date.now();
+    const check = () => {
+      let doc = null;
+      try { doc = iframe.contentDocument; } catch (error) { doc = null; }
+      if (doc && doc.readyState !== "loading") {
+        const text = (doc.body?.innerText || "").slice(0, 4000);
+        if (/does not contain the requested file/i.test(text) ||
+          /^404\b|Page not found/i.test(doc.title || "")) return resolve(false);
+        if (text.trim().length) return resolve(true);
+      }
+      if (Date.now() - started > timeoutMs) return resolve(true);
+      setTimeout(check, 400);
+    };
+    check();
+  });
 }
