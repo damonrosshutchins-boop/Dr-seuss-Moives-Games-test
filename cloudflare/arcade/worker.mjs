@@ -513,10 +513,13 @@ function mc18DriveURL(item) {
   return url.href;
 }
 
+// Pinned by commit: the branch moves, so `@main` would let the upstream repo
+// swap the game's files (and its manifest) without any change here.
+const oneVOneCommit = "af28b6e4c6ac08827a3404d33defd626cd236f74";
 const importedAssetRoots = Object.freeze({
   "emu": "https://cdn.jsdelivr.net/gh/bubblfan/emu@main/",
-  "emu-stable": "https://cdn.emulatorjs.org/stable/data/",
-  "1v1": "https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
+  "emu-stable": "https://cdn.emulatorjs.com/stable/data/",
+  "1v1": "https://cdn.jsdelivr.net/gh/n-101-1/1@" + oneVOneCommit + "/"
 });
 const importedExactAssets=Object.freeze({
   "tomb-mask/UnityLoader.js":"https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@9cf433220236bb0471ab3a68ec8fe3e0a2799e36/tomb/UnityLoader.js",
@@ -1010,15 +1013,18 @@ async function serve11Manifest(request, target) {
   } catch {
     return textError(502, "The 1v1.LOL manifest is not valid JSON");
   }
+  // Built against the origin this request arrived on, so the game's files come
+  // back through the same host (workers.dev, a custom domain, a local dev port).
+  const base = new URL("/approved-assets/imported/1v1/", request.url);
   for (const key of ["dataUrl", "wasmCodeUrl", "wasmFrameworkUrl", "asmCodeUrl", "asmFrameworkUrl"]) {
     const value = manifest[key];
     if (typeof value !== "string" || !value) continue;
     if (!/^https:\/\//.test(value)) continue;
     const file = value.slice(value.lastIndexOf("/") + 1);
     if (!/^[A-Za-z0-9._-]+$/.test(file)) return textError(502, "Unexpected 1v1.LOL build file name");
-    manifest[key] = SELF_ORIGIN + "/approved-assets/imported/1v1/" + file;
+    manifest[key] = new URL(file, base).href;
   }
-  return new Response(JSON.stringify(manifest), {
+  return new Response(request.method === "HEAD" ? null : JSON.stringify(manifest), {
     status: 200,
     headers: corsHeaders(request, {
       "content-type": "application/json; charset=utf-8",
