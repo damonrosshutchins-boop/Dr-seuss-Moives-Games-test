@@ -11,13 +11,13 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 iframe{display:block;flex:1;min-height:65vh;width:100%;border:0;background:#0b1410}
 #help{display:none;padding:12px 15px;background:#352626;color:#ffe3e3}
 </style></head>
-<body><header><strong>⛏ Minecraft 1.8 Wurst</strong><span>The Minecraft offline build runs inside the GitHub Pages player while its HTML is delivered from the GitHub CDN.</span>
+<body><header><strong>⛏ Minecraft 1.8 Wurst</strong><span>The Minecraft offline build runs inside the GitHub Pages player while its HTML is delivered from the restricted Render route.</span>
 <a href="../../index.html">← Back to Arcade</a><button id="reload" type="button">↻ Reload game</button></header>
-<main><p id="status" role="status" aria-live="polite">Loading Minecraft from the GitHub CDN inside GitHub Pages…</p>
+<main><p id="status" role="status" aria-live="polite">Loading approved Minecraft game from Render inside GitHub Pages…</p>
 <iframe id="game" title="Minecraft 1.8 Wurst" allow="fullscreen; gamepad; autoplay; pointer-lock" allowfullscreen referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-popups-to-escape-sandbox"></iframe>
-<div id="help" role="alert">The game could not be confirmed. Use Reload game to retry. The arcade remains on GitHub Pages.</div></main>
+<div id="help" role="alert">The Render game could not be confirmed. Use Reload game to retry. The arcade remains on GitHub Pages.</div></main>
 <script>
-const GAME_HTML="<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>eaglercraft mod launcher</title></head>\n<body><p style=\"font:16px system-ui;padding:1em\">Loading EaglerForge from the GitHub CDN…</p>\n<script>\nasync function run(){\n  const urls=[\n    \"https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/PineTools.com_files/cleaglerforge.html.part1\",\n    \"https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/PineTools.com_files/cleaglerforge.html.part2\",\n    \"https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/PineTools.com_files/cleaglerforge.html.part3\",\n    \"https://cdn.jsdelivr.net/gh/shayderrr/eaglercraft@ba062f533d86966ff2bcddec4f5859aab7c23346/PineTools.com_files/cleaglerforge.html.part4\"\n  ];\n  let fullHtml=\"\";\n  for(const url of urls){\n    const response=await fetch(url,{cache:\"no-store\"});\n    if(!response.ok)throw new Error(\"EaglerForge part unavailable (HTTP \"+response.status+\")\");\n    fullHtml+=await response.text();\n  }\n  document.open();document.write(fullHtml);document.close();\n}\nrun().catch(error=>{document.body.textContent=\"EaglerForge could not load: \"+error.message;});\n</script></body></html>";
+const GAME_URL="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-wrust/index.html";
 const frame=document.getElementById("game");
 const status=document.getElementById("status");
 const help=document.getElementById("help");
@@ -25,15 +25,29 @@ let loadNumber=0;
 async function load(){
  const n=++loadNumber;
  help.style.display="none";
- status.textContent="Loading Wurst from the GitHub CDN, keeping GitHub Pages open…";
+ status.textContent="Fetching approved Wurst game through Render, keeping GitHub Pages open…";
  frame.removeAttribute("src");
  frame.srcdoc="<p style='font:16px system-ui;padding:1em'>Preparing Minecraft…</p>";
  try{
-  frame.srcdoc=GAME_HTML;
+  const response=await fetch(GAME_URL,{cache:"no-store",mode:"cors",signal:AbortSignal.timeout(150000)});
+  if(!response.ok)throw Error("Game server returned HTTP "+response.status);
+  const contentType=response.headers.get("content-type")||"";
+  if(!contentType.toLowerCase().includes("text/html"))throw Error("Render did not return Minecraft HTML");
+  const gameHtml=await response.text();
+  if(n!==loadNumber)return;
+  if(!gameHtml.toLowerCase().includes("<html"))throw Error("Render returned an unexpected game document");
+  // srcdoc keeps the game document on the GitHub Pages origin; external
+  // resources explicitly come from the approved Render asset routes.
+  // Use a BASE element so assets in the EaglerForge HTML resolve correctly.
+  const base='<base href="https://seuss-cinema-arcade.onrender.com/approved-games/minecraft-18-wrust/">';
+  const patched=/<head[^>]*>/i.test(gameHtml)
+    ?gameHtml.replace(/<head[^>]*>/i,match=>match+base)
+    :base+gameHtml;
+  frame.srcdoc=patched;
   status.textContent="Wurst loaded inside the GitHub Pages arcade. Initializing game…";
  }catch(error){
   if(n!==loadNumber)return;
-  status.textContent="Game could not load from the GitHub CDN: "+(error.message||String(error));
+  status.textContent="Game could not load from Render: "+(error.message||String(error));
   help.style.display="block";
   frame.srcdoc="<p style='font:16px system-ui;padding:1em'>Game unavailable. Check the status above and retry.</p>";
  }

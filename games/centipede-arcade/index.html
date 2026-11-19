@@ -20,7 +20,7 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 </style></head><body>
 <section id="setup">
 <h1>Centipede (Arcade)</h1>
-<p>Runs inside Seuss Arcade using EmulatorJS. The game file and emulator are delivered from the GitHub CDN.</p>
+<p>Runs inside Seuss Arcade using EmulatorJS. The game file and emulator are delivered through approved Render routes.</p>
 <label for="core">Emulator core</label>
 <select id="core"><option value="arcade">FinalBurn Neo</option><option value="mame2003">MAME 2003</option></select>
 <label><input id="legacy" type="checkbox"> Use legacy WebGL 1 (try if video is black)</label>
@@ -37,9 +37,9 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 <div id="loadingNote" role="status" aria-live="polite"></div>
 <script>
 "use strict";
-const ROOT="https://cdn.jsdelivr.net/gh/bubblfan/emu@main/";
-const RUNTIME="https://cdn.emulatorjs.org/stable/data/";
-const GAME="https://cdn.jsdelivr.net/gh/ap-math-class/exams@main/mame/centiped.zip";
+const ROOT="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
+const RUNTIME=ROOT+"emu-stable/";
+const GAME=ROOT+"centipede/rom.zip";
 const playerView=document.getElementById("playerView");
 const setup=document.getElementById("setup");
 const start=document.getElementById("start");

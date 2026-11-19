@@ -34,8 +34,7 @@ const entries=rows.map(line=>({
   id:line.match(/^\{id:'([^']+)'/)?.[1],
   url:line.match(/url:'([^']+)'/)?.[1],
   local:line.includes("local:true"),
-  isolated:line.includes("needsIsolation:true"),
-  direct:line.includes("direct:true")
+  isolated:line.includes("needsIsolation:true")
 }));
 let localCount=0,remoteCount=0,isolatedCount=0;
 for(const entry of entries){
@@ -60,23 +59,20 @@ for(const entry of entries){
   }else{
     remoteCount++;
     const host=url.hostname.toLowerCase();
-    // Direct entries open in a new tab and never touch the proxy, so the proxy
-    // allowlist and exact-entry rules do not apply to them.
-    if(entry.direct)continue;
     if(url.protocol!=="https:" ||
        ![...allowed].some(candidate=>host===candidate||host.endsWith("."+candidate)))
       errors.push(entry.id+": remote destination is not on proxy host allowlist");
-    if(!["wasm.rip","shuttletv.pk","youshows.org"].includes(host)&&!approved.has(url.href))
+    if(host!=="wasm.rip"&&host!=="shuttletv.pk"&&!approved.has(url.href))
       errors.push(entry.id+": missing exact approved proxy entry");
   }
 }
 for(const [label,source,required] of [
   ["Viewer restricted remote launcher",html,["await openProxied(frame,x.url","frame.src=path.href","location.assign(localUrl.href)","if(path.origin!==location.origin)"]],
-  ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/","Only approved games and movie destinations"]],
+  ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-cinema-arcade.onrender.com/wisp/","Only approved games and movie destinations"]],
   ["Render Wisp policy",server,["wisp.options.hostname_whitelist=null","wisp.options.port_whitelist=null","wisp.options.allow_private_ips=","wisp.options.allow_loopback_ips=","const allowedOrigin=new Set","function approvedGameCors"]],
-  ["Seuss Search v2 client",searchClient,["wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/","frame.go(target.href)","www.bing.com/search?q=","Only http and https pages"]],
+  ["Seuss Search v2 client",searchClient,["wss://seuss-cinema-arcade.onrender.com/wisp/","frame.go(target.href)","www.bing.com/search?q=","Only http and https pages"]],
   ["Seuss Search v2 page",searchPage,["id=\"field\"","id=\"searchForm\"","id=\"bgOpts\"","id=\"relayOpts\"","id=\"toLibrary\"","search-client.js"]],
-  ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/"]],
+  ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-cinema-arcade.onrender.com/wisp/"]],
   ["Cloudflare relay worker",relayWorker,["cloudflare:sockets","class WispRelay","wisp-1","ALLOW_PRIVATE_IPS"]],
   ["Pinned game routes",server,["zelda-oot/rom.n64.part1","centipede/rom.zip","run2/Run2.swf","run2/ruffle.js","run2/4d882486fa9bfce731b9.wasm","run2/f7f28eb60b84863611ca.wasm","uwuclient/cluwuclient.html.part1","uwuclient/cluwuclient.html.part2","/approved-games/uwu-client/index.html","tomb-mask/UnityLoader.js","tomb-mask/totm.json","tomb-mask/totm.data.unityweb","tomb-mask/totm.wasm.code.unityweb","tomb-mask/totm.wasm.framework.unityweb","snow-rider/Build/UnityLoader.js","snow-rider/Build/SnowRider3D-gd-1.json","snow-rider/Build/SnowRider3D-gd-1.data.unityweb","snow-rider/Build/SnowRider3D-gd-1.wasm.code.unityweb","snow-rider/Build/SnowRider3D-gd-1.wasm.framework.unityweb.js","btd6Commit","gartenCommit","gartenFiles","approvedGartenAsset","/approved-assets/garten/*","a82c94ea3e9a2f2cbc2e1d925007947134b4f156","repoHalloweenCommit","approvedRepoHalloweenFile","/approved-assets/repo-halloween/*","edd5e11fae76bfe8966633f19a6e43935874a8b4","btd6ApprovedAsset","/approved-assets/btd6/*","9546494b3052e8e078fb28df7430ac35f42a8787","repoHalloweenCommit","approvedRepoHalloweenFile","/approved-assets/repo-halloween/*","edd5e11fae76bfe8966633f19a6e43935874a8b4"]],
   ["Gamble With Your Friends pinned Render route",server,["gambleCommit","d7b3ac61ce6d2cb98e212dfa01ba0df413539a53","Camzzz-vrgt/gamble-with-your-friends-web","approvedGambleFile","gambleRoute","gambleLocalRoot"]],

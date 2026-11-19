@@ -199,7 +199,7 @@
         <button type="button" class="speed" id="relaySpeed" title="Test this relay's connection speed">Testing relay…</button>
         <button type="button" class="speed" id="cfSpeed" title="Cloudflare relay latency">Cloudflare · checking…</button>
         <span>Searches run on Bing</span>
-        <code id="endpoint">wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/</code>
+        <code id="endpoint">wss://seuss-cinema-arcade.onrender.com/wisp/</code>
       </div>
     </section>
 
@@ -240,6 +240,7 @@
     <section>
       <h3>RELAY</h3>
       <div class="opts" id="relayOpts">
+        <button type="button" data-relay="render">Render</button>
         <button type="button" data-relay="cloudflare">Cloudflare</button>
         <button type="button" data-relay="custom">Custom</button>
       </div>
@@ -270,7 +271,7 @@
 </div>
 
 <script type="module">
-import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings } from "./search-client.js?v=2";
+import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=5";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");
@@ -387,6 +388,14 @@ async function open(raw) {
   }
 }
 
+// Warm the tunnel before the first search: on idle, and as soon as someone
+// starts typing, so the controller handshake overlaps with their input.
+const warmRelay = () => { primeRelay(); };
+if (typeof requestIdleCallback === "function") requestIdleCallback(warmRelay, { timeout: 1500 });
+else setTimeout(warmRelay, 1200);
+for (const input of [q, addr]) input.addEventListener("pointerdown", warmRelay, { once: true });
+for (const input of [q, addr]) input.addEventListener("keydown", warmRelay, { once: true });
+
 $("searchForm").addEventListener("submit", event => { event.preventDefault(); if (q.value.trim()) open(q.value); });
 $("addrForm").addEventListener("submit", event => { event.preventDefault(); if (addr.value.trim()) open(addr.value); });
 $("chips").addEventListener("click", event => {
@@ -432,7 +441,7 @@ function markActive(containerId, attribute, value) {
 }
 function syncSettings() {
   markActive("bgOpts", "bg", bgMode);
-  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "cloudflare"));
+  markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "render"));
   $("cfUrl").value = pendingRelay.cloudflare || "";
   $("customUrl").value = pendingRelay.custom || "";
 }

@@ -20,7 +20,7 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 </style></head><body>
 <section id="setup">
 <h1>The Legend of Zelda: Ocarina of Time</h1>
-<p>Runs inside Seuss Arcade using EmulatorJS. The game file and emulator are delivered from the GitHub CDN.</p>
+<p>Runs inside Seuss Arcade using EmulatorJS. The game file and emulator are delivered through approved Render routes.</p>
 <label for="core">Emulator core</label>
 <select id="core"><option value="parallel-n64">Parallel N64 (compatibility)</option><option value="n64">Mupen64Plus Next</option></select>
 <label><input id="legacy" type="checkbox"> Use legacy WebGL 1 (try if video is black)</label>
@@ -37,10 +37,9 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 <div id="loadingNote" role="status" aria-live="polite"></div>
 <script>
 "use strict";
-const ROOT="https://cdn.jsdelivr.net/gh/bubblfan/emu@main/";
-const RUNTIME="https://cdn.emulatorjs.org/stable/data/";
-const ZELDA_PARTS="https://cdn.jsdelivr.net/gh/bubbls/ugss@ffa46738ce21236742f4a44db08d87160fed6c7d/ocarinaoftime/Legend%20of%20Zelda%2C%20The%20-%20Ocarina%20of%20Time%20(USA).n64.part";
-const GAME=ZELDA_PARTS+"1";
+const ROOT="https://seuss-cinema-arcade.onrender.com/approved-assets/imported/";
+const RUNTIME=ROOT+"emu-stable/";
+const GAME=ROOT+"zelda-oot/rom.n64";
 const playerView=document.getElementById("playerView");
 const setup=document.getElementById("setup");
 const start=document.getElementById("start");
@@ -97,12 +96,12 @@ async function launch(){
   }
   if(!loader.ok)throw Error("EmulatorJS runtime unavailable (HTTP "+loader.status+")");
   let gameUrl=GAME;
-  let gameCheck={ok:false};
-  {
+  let gameCheck=await request(GAME);
+  if(!gameCheck.ok){
    const pieces=[];
    report("Loading two approved Ocarina of Time parts…",0);
    for(let i=1;i<=2;i++){
-    const response=await request(ZELDA_PARTS+i,"GET",120000);
+    const response=await request(ROOT+"zelda-oot/rom.n64.part"+i,"GET",120000);
     if(!response.ok)throw Error("Approved game part "+i+" unavailable (HTTP "+response.status+")");
     pieces.push(await response.arrayBuffer());
     report("Downloading Ocarina of Time: part "+i+" of 2",i*50);

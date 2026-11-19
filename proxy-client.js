@@ -1,17 +1,15 @@
 // Curated game/movie player. Static assets run on GitHub Pages.
-// Its configured transport connects to the Cloudflare-hosted Wisp relay.
+// Its configured transport connects to the separately hosted Render Wisp service.
 let controller;
 let initialization;
 let currentStage = "Not started";
 const progressListeners = new Set();
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
-const allowed = new Set(["cdn.jsdelivr.net", "game.azgame.io", "nostaligafun.pages.dev", "toby.booksforschool.online", "mclegacy.pages.dev", "wasm.rip", "shuttletv.pk", "youshows.org", "raw.githack.com", "ripjaw1219.github.io", "c00lkiddtech.github.io", "mollomm1.github.io", "sagaofowlz.github.io"]);
-// Whole-site destinations, so they are not limited to one exact entry URL.
-const openHosts = new Set(["wasm.rip", "shuttletv.pk", "youshows.org"]);
+const allowed = new Set(["cdn.jsdelivr.net", "game.azgame.io", "nostaligafun.pages.dev", "toby.booksforschool.online", "mclegacy.pages.dev", "wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "c00lkiddtech.github.io", "mollomm1.github.io", "sagaofowlz.github.io", "stg420.github.io", "projection-studios.dogeeats531.workers.dev", "play.blooket.com"]);
 // Exact entry points on shared hosting domains prevent arbitrary navigation.
-const gameEntries = new Set(["https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@7255b72aaae4b572d171a8ff24ace071aa02f3f7/balatro.html","https://mclegacy.pages.dev/", "https://game.azgame.io/wacky-flip/", "https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html", "https://toby.booksforschool.online/index.html","https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://c00lkiddtech.github.io/md-/","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://raw.githack.com/web-ports/fish/main/index.html"]);
-const endpoint = "wss://seuss-wisp-relay.damonrosshutchins.workers.dev/wisp/";
+const gameEntries = new Set(["https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@7255b72aaae4b572d171a8ff24ace071aa02f3f7/balatro.html","https://mclegacy.pages.dev/", "https://game.azgame.io/wacky-flip/", "https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html", "https://toby.booksforschool.online/index.html","https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://c00lkiddtech.github.io/md-/","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://stg420.github.io/ultrakill/","https://raw.githack.com/web-ports/fish/main/index.html", "https://projection-studios.dogeeats531.workers.dev/", "https://play.blooket.com/play"]);
+const endpoint = "wss://seuss-cinema-arcade.onrender.com/wisp/";
 const MAX_STARTUP_MS = 15000;
 
 function timeout(promise, name, ms = MAX_STARTUP_MS) {
@@ -122,7 +120,7 @@ export async function openProxied(iframe, url, onProgress) {
     ![...allowed].some(host => target.hostname === host || target.hostname.endsWith("." + host))) {
     throw new Error("Only approved games and movie destinations can be opened.");
   }
-  if (!openHosts.has(target.hostname) && !gameEntries.has(target.href)) {
+  if (target.hostname !== "wasm.rip" && target.hostname !== "shuttletv.pk" && !gameEntries.has(target.href)) {
     throw new Error("Only the approved game entry points can be opened here.");
   }
   if (!navigator.serviceWorker)
@@ -141,55 +139,6 @@ export async function openProxied(iframe, url, onProgress) {
     finally { progressListeners.delete(onProgress); }
   }
   report("Opening selected content…", onProgress);
-  // GitHub Pages answers 404 for a player URL that nobody intercepts, which is
-  // what a freshly activated service worker looks like before it claims frames.
-  await waitForServiceWorkerControl();
   const frame = controller.createFrame(iframe);
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    await timeout(Promise.resolve(frame.go(target.href)), "Starting content");
-    if (await frameTookControl(iframe)) return;
-    if (attempt === 1) {
-      report("Waiting for the player service worker…", onProgress);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-    }
-  }
-  throw new Error("The player service worker did not take control of the page, so GitHub Pages answered 404. Reload the arcade and try again.");
-}
-
-// An activated worker only intercepts frames once it is claiming clients. Until
-// then the player prefix URL goes to the static host, whose 404 page is a
-// perfectly ordinary 200 document.
-function waitForServiceWorkerControl(timeoutMs = 6000) {
-  if (!navigator.serviceWorker || navigator.serviceWorker.controller) return Promise.resolve();
-  return new Promise(resolve => {
-    const finish = () => {
-      clearTimeout(timer);
-      navigator.serviceWorker.removeEventListener("controllerchange", finish);
-      resolve();
-    };
-    const timer = setTimeout(finish, timeoutMs);
-    navigator.serviceWorker.addEventListener("controllerchange", finish);
-  });
-}
-
-// The player frame is same-origin with the arcade, so its document is readable:
-// recognise the static host's "File not found" page and report it as a miss.
-// A page that loaded but crashed shows its own error, which a retry cannot fix.
-function frameTookControl(iframe, timeoutMs = 20000) {
-  return new Promise(resolve => {
-    const started = Date.now();
-    const check = () => {
-      let doc = null;
-      try { doc = iframe.contentDocument; } catch (error) { doc = null; }
-      if (doc && doc.readyState !== "loading") {
-        const text = (doc.body?.innerText || "").slice(0, 4000);
-        if (/does not contain the requested file/i.test(text) ||
-          /^404\b|Page not found/i.test(doc.title || "")) return resolve(false);
-        if (text.trim().length) return resolve(true);
-      }
-      if (Date.now() - started > timeoutMs) return resolve(true);
-      setTimeout(check, 400);
-    };
-    check();
-  });
+  await timeout(Promise.resolve(frame.go(target.href)), "Starting content");
 }

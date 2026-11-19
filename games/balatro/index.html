@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Balatro</title><link rel="icon" href="data:,"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101818;color:#eee}canvas{display:block;width:100vw;height:100vh;border:0;padding:0}#status{position:fixed;inset:0;display:grid;place-items:center;font:18px monospace;background:#101818;z-index:2;text-align:center;white-space:pre-wrap;padding:24px;box-sizing:border-box}</style></head>
 <body><canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas><div id="status" role="status">Loading Balatro through Render…</div><script>
 // Fetch only the pinned, approved game files through our restricted Render route.
-const CDN_BASE="https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@cb01302a4ee9d3712676daa7a8bf58e04f9e8fa8/";
+const CDN_BASE="https://seuss-cinema-arcade.onrender.com/approved-assets/balatro/";
 const status=document.getElementById('status');
 const canvas=document.getElementById('canvas');
 let started=false;

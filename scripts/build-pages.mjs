@@ -36,13 +36,13 @@ async function copyRuntime(name,root,entry){
 }
 await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
-for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","seuss-search.html","search-client.js"])
+for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","blooket.js","blooket.css","seuss-search.html","search-client.js"])
  await fs.copyFile(file,path.join(out,file));
 // Ghost of Sparta is proxied only by Render's fixed-origin route.
 // Publish a same-site launcher, never a direct iframe of the Surge source.
 await fs.mkdir(path.join(out,"games","gow-sparta"),{recursive:true});
 await fs.copyFile(path.join("games","gow-sparta","index.html"),path.join(out,"games","gow-sparta","index.html"));
-// Two EaglerForge launchers; their parts come from the GitHub CDN.
+// Two fixed-route Minecraft 1.8 launchers; game files are served by Render.
 for(const slug of ["minecraft-18-wrust","minecraft-18-mods"]){
   const dir=path.join(out,"games",slug);
   await fs.mkdir(dir,{recursive:true});
@@ -72,9 +72,9 @@ let horizonHTML=horizonInput.toString("utf8");
 // Default quick launch skips the 355 MB audio archive.
 for(const [from,to] of [
  ["const SOUND_CDN = \x60https://cdn.jsdelivr.net/gh/AlexBoops/mc-rust-onweb@\x24{SOUND_COMMIT}/\x60;",
-  'const SOUND_CDN = "https://cdn.jsdelivr.net/gh/AlexBoops/mc-rust-onweb@b21a7ae704b415182631429a7e71c797287661df/";'],
+  'const SOUND_CDN = "https://seuss-cinema-arcade.onrender.com/approved-games/horizon/";'],
  ['const SOUND_FALLBACK = "https://alexboops.github.io/mc-rust-onweb/";',
-  'const SOUND_FALLBACK = "https://cdn.jsdelivr.net/gh/AlexBoops/mc-rust-onweb@b21a7ae704b415182631429a7e71c797287661df/";'],
+  'const SOUND_FALLBACK = "https://seuss-cinema-arcade.onrender.com/approved-games/horizon/";'],
  ["const files = await downloadSoundArchive();",
   'const files = new URLSearchParams(location.search).get("audio") === "1" ? await downloadSoundArchive() : new Map();']
 ]){
@@ -104,6 +104,10 @@ for(const slug of ["balatro","cheese"]){
 
 
 
+// PEAK ships as a 3 KB launcher that frames the upstream wasm.rip page, so its
+// 242 MB Unity build downloads from the source rather than the Wisp relay.
+await fs.mkdir(path.join(out,"games","peak"),{recursive:true});
+await fs.copyFile(path.join("games","peak","index.html"),path.join(out,"games","peak","index.html"));
 // Publish the four imported game launchers on GitHub Pages. The browser
 // stays inside the arcade; large game binaries are fetched from pinned
 // approved Render routes rather than copied into the Pages artifact.
@@ -271,7 +275,7 @@ await addRemoteAssetLauncher("granny3","AlexBoops/granny3rip","a8e59b3d10ff96d54
 // fixed, pinned Render game route, which allows this site's origin by CORS.
 {
   const gambleCommit="d7b3ac61ce6d2cb98e212dfa01ba0df413539a53";
-  const gambleRoute="https://cdn.jsdelivr.net/gh/Camzzz-vrgt/gamble-with-your-friends-web@d7b3ac61ce6d2cb98e212dfa01ba0df413539a53/game/";
+  const gambleRoute="https://seuss-cinema-arcade.onrender.com/approved-games/gamble-with-your-friends/";
   const gambleSource="https://raw.githubusercontent.com/Camzzz-vrgt/gamble-with-your-friends-web/"+
     gambleCommit+"/game/index.html";
   const gambleResponse=await fetch(gambleSource);
@@ -296,13 +300,6 @@ await addRemoteAssetLauncher("granny3","AlexBoops/granny3rip","a8e59b3d10ff96d54
       throw new Error("Gamble With Your Friends entry changed: "+find.slice(0,60));
     gambleHTML=gambleHTML.replace(find,replacement);
   }
-  // 69 parts downloaded one at a time through the old relay never finished.
-  // Fetch six at a time from the GitHub CDN, retrying timed-out parts on raw.
-  const gambleSequential=" const parts=[];\n for(let i=0;i<asset.parts.length;i++){\n  const response=await fetch(asset.parts[i]);\n  if(!response.ok)throw new Error('Could not load '+asset.parts[i]+' (HTTP '+response.status+')');\n  parts.push(await response.blob());\n  document.getElementById('status').textContent='Loading '+asset.label+'… '+Math.round((i+1)/asset.parts.length*100)+'%';\n }";
-  const gambleParallel=" const parts=new Array(asset.parts.length);\n const rawGuard=\"https://raw.githubusercontent.com/Camzzz-vrgt/gamble-with-your-friends-web/d7b3ac61ce6d2cb98e212dfa01ba0df413539a53/game/\";\n let done=0;\n const fetchPart=async(index)=>{\n  const source=asset.parts[index];\n  const fallback=rawGuard+source.split('/game/')[1];\n  for(let attempt=1;attempt<=3;attempt++){\n   for(const url of [source,fallback]){\n    try{\n     const response=await fetch(url,{cache:'force-cache',signal:AbortSignal.timeout(30000)});\n     if(!response.ok)continue;\n     parts[index]=await response.blob();\n     done+=1;\n     document.getElementById('status').textContent='Loading '+asset.label+'… '+Math.round(done/asset.parts.length*100)+'%';\n     return;\n    }catch(error){/* try the other GitHub source */}\n   }\n   await new Promise(resolve=>setTimeout(resolve,900*attempt));\n  }\n  throw new Error('Could not load part '+(index+1)+' of '+asset.parts.length);\n };\n let cursor=0;\n const workers=Array.from({length:6},async()=>{\n  while(cursor<asset.parts.length){const index=cursor++;await fetchPart(index);}\n });\n await Promise.all(workers);";
-  if(!gambleHTML.includes(gambleSequential))
-    throw new Error("Gamble With Your Friends loader changed");
-  gambleHTML=gambleHTML.split(gambleSequential).join(gambleParallel);
   const gambleParts=(gambleHTML.match(/"chunks\//g)||[]).length;
   if(gambleParts!==69)
     throw new Error("Gamble With Your Friends expects 69 split parts, found "+gambleParts);
@@ -310,7 +307,7 @@ await addRemoteAssetLauncher("granny3","AlexBoops/granny3rip","a8e59b3d10ff96d54
   const gambleOut=path.join(out,"games","gamble-with-your-friends");
   await fs.mkdir(gambleOut,{recursive:true});
   await fs.writeFile(path.join(gambleOut,"index.html"),gambleHTML);
-  console.log("Published Gamble With Your Friends entry page; game parts stream from the GitHub CDN.");
+  console.log("Published Gamble With Your Friends entry page; game parts stream from Render.");
 }
 // Half-Life 2 remains source-hosted in an iframe, with no local game asset copy.
 for(const [slug,title,source] of [
@@ -499,7 +496,7 @@ try{
 // a document base, so the browser never leaves this site.
 {
   const buckshotCommit="f8a263b4da11c181e02e31086e5a5c8bc2dd1457";
-  const buckshotRoute="https://cdn.jsdelivr.net/gh/Random-Red-Dude-809-4456/buckshot@f8a263b4da11c181e02e31086e5a5c8bc2dd1457/";
+  const buckshotRoute="https://seuss-cinema-arcade.onrender.com/approved-games/buckshot/";
   const buckshotSource="https://raw.githubusercontent.com/Random-Red-Dude-809-4456/buckshot/"+
     buckshotCommit+"/index.html";
   const buckshotResponse=await fetch(buckshotSource);
