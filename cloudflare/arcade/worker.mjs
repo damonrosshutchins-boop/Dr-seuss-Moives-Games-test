@@ -1106,6 +1106,63 @@ async function serveMc18Html(request, item) {
   return new Response(upstream.body, { status: 200, headers: out });
 }
 
+/* ------------------------------------------------- legacy Minecraft site --- */
+
+// The MCTM legacy-console Minecraft launcher only exists on a Cloudflare-hosted
+// Pages site that sends X-Frame-Options: DENY plus frame-ancestors 'none', so
+// neither an iframe nor the Wisp relay (Cloudflare refuses sockets to its own
+// addresses) can open it. Serve that one site from this origin instead: the
+// page keeps its own absolute paths, so paths are passed through unchanged and
+// only the framing and CSP headers are dropped.
+const LEGACY_ORIGIN = "https://mclegacy.pages.dev";
+const LEGACY_TIMEOUT_MS = 120000;
+// Body metadata only. content-length and content-encoding are left out because
+// the runtime decompresses the upstream body before it reaches us.
+const LEGACY_HEADERS = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges", "content-disposition"];
+
+async function handleLegacyMirror(request, url) {
+  if (request.method === "OPTIONS") return preflight(request);
+  if (request.method !== "GET" && request.method !== "HEAD" && request.method !== "POST") {
+    return textError(405, "Only GET, HEAD and POST are supported here");
+  }
+  const target = LEGACY_ORIGIN + url.pathname + url.search;
+  const headers = new Headers();
+  const range = request.headers.get("Range");
+  if (range && RANGE.test(range)) headers.set("Range", range);
+  for (const name of ["Content-Type", "Accept"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  let upstream;
+  try {
+    upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body: request.method === "POST" ? request.body : undefined,
+      redirect: "follow",
+      signal: AbortSignal.timeout(LEGACY_TIMEOUT_MS)
+    });
+  } catch (error) {
+    console.warn("legacy mirror failed", url.pathname, String(error));
+    return textError(502, "The legacy Minecraft site could not be reached");
+  }
+  const out = new Headers();
+  for (const name of LEGACY_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  const isHtml = (out.get("content-type") || "").includes("text/html");
+  // Launcher pages change between releases; the game's own files are named by
+  // content hash, so they can be cached hard.
+  out.set("cache-control", isHtml ? "no-store" : "public, max-age=86400");
+  out.set("access-control-allow-origin", "*");
+  out.set("x-robots-tag", "noindex");
+  return new Response(request.method === "HEAD" ? null : upstream.body, {
+    status: upstream.status,
+    headers: out
+  });
+}
+
 /* ------------------------------------------------------------- entrypoint --- */
 
 export default {
@@ -1144,13 +1201,11 @@ export default {
       if (denied) return denied;
       return env.WISP_RELAY.get(env.WISP_RELAY.idFromName("seuss")).fetch(request);
     }
-    if (pathname === "/") {
-      return new Response("Seuss Arcade relay: game routes under /approved-games/ and /approved-assets/, Wisp on /wisp/\n", {
-        headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
-      });
-    }
+    // Everything outside the pinned routes is the mirrored legacy Minecraft
+    // site, whose launcher, game page and hashed asset paths all need this
+    // origin's root.
     if (!pathname.startsWith("/approved-")) {
-      return textError(404, "Not an approved arcade route");
+      return handleLegacyMirror(request, url);
     }
 
     const denied = denyOrigin(request, env);

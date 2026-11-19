@@ -99,6 +99,6 @@ if(errors.length){
 }else{
   console.log("Routing audit passed: "+entries.length+" entries ("+localCount+" local, "+remoteCount+" via restricted Wisp, "+directCount+" direct Cloudflare-hosted pages, "+isolatedCount+" same-origin top-level isolation exceptions).");
   console.log("Every proxied game asset route resolves to the Cloudflare Worker; no Render host remains.");
-  if(directCount)console.log(directCount+" entries load their pinned publisher page directly because Cloudflare refuses the relay's sockets to its own addresses.");
+  if(directCount)console.log(directCount+" entries load their pinned page directly because Cloudflare refuses the relay's sockets to its own addresses, or because the relay mirrors the site itself.");
   console.log("This checks routing and published files, not emulator gameplay or third-party asset availability.");
 }
