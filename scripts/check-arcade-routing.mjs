@@ -62,7 +62,7 @@ for(const entry of entries){
     if(url.protocol!=="https:" ||
        ![...allowed].some(candidate=>host===candidate||host.endsWith("."+candidate)))
       errors.push(entry.id+": remote destination is not on proxy host allowlist");
-    if(host!=="wasm.rip"&&host!=="shuttletv.pk"&&!approved.has(url.href))
+    if(!["wasm.rip","shuttletv.pk","youshows.org"].includes(host)&&!approved.has(url.href))
       errors.push(entry.id+": missing exact approved proxy entry");
   }
 }
