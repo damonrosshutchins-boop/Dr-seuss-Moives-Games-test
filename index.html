@@ -101,7 +101,7 @@ const library=[
 {id:'hollowknight',kind:'game',name:'Hollow Knight Webport',desc:'Opens inside the site; downloads a large Unity build from your fork (around 1 GB).',icon:'🦋',bg:'linear-gradient(130deg,#303030,#878787)',url:'./games/hollow-knight/index.html',local:true},
 {id:'fish',kind:'game',name:'FISH (Unity web port)',desc:'Run bundled Unity game files from this site.',icon:'🐟',bg:'linear-gradient(130deg,#404040,#888888)',url:'./games/fish/index.html',local:true},
 {id:'shuttle',kind:'movie',name:'ShuttleTV',desc:'Browse the external entertainment site.',icon:'🎬',bg:'linear-gradient(130deg,#4a4a4a,#a4a4a4)',url:'https://shuttletv.pk/'},
-{id:'youshows',kind:'movie',name:'Youshows',desc:'Watch movies and TV shows on the external entertainment site.',icon:'📺',bg:'linear-gradient(130deg,#4a4a4a,#9c9c9c)',url:'https://youshows.org/'}
+{id:'youshows',kind:'movie',name:'Youshows',desc:'Watch movies and TV shows on the external entertainment site; opens in a new tab because Cloudflare-hosted sites cannot be relayed.',icon:'📺',bg:'linear-gradient(130deg,#4a4a4a,#9c9c9c)',url:'https://youshows.org/',direct:true}
 ];
 const $=id=>document.getElementById(id);let filter='all',selected=null;
 const favorites=new Set(JSON.parse(localStorage.getItem('seussFavorites')||'[]'));
@@ -222,6 +222,13 @@ function closePlayer(){
   $('explore').focus();
 }
 async function openItem(x){
+  if(x.direct){
+    // The Wisp relay runs on Cloudflare, and a Worker may not open a TCP socket
+    // to Cloudflare's own edge, so Cloudflare-fronted sites open on their own.
+    const opened=window.open(x.url,'_blank','noopener');
+    if(!opened)location.assign(x.url);
+    return;
+  }
   if(x.local&&x.needsIsolation){
     // GitHub Pages cannot set COOP/COEP headers directly. The game's scoped
     // service worker adds them after its top-level page reloads. An iframe
