@@ -209,7 +209,8 @@
             fatal = "Blooket did not accept code " + code + " — check the code on the host screen.";
           } else if (UNREACHABLE.test(line.textContent)) {
             // Every bot would fail the same way, so stop instead of retrying.
-            fatal = "Blooket is served through Cloudflare, which this arcade's relay cannot open a socket to, so bots cannot join automatically. Use “Open join page ↗” and enter code " + code + " there.";
+            line.textContent = "Bot " + name + ": Blooket cannot be proxied — its host blocks the relay.";
+            fatal = "Blooket is served through Cloudflare, which this arcade's relay cannot open a socket to, so bots cannot join automatically. Use “Open join page ↗” with code " + code + " and any of these names: " + names.join(", ") + ".";
           }
         } finally {
           finished += 1;

@@ -881,6 +881,7 @@ async function handleApproved(request, env, url) {
     if (!asset) return textError(404, "Not an approved imported asset");
     const target = importedAssetUrl(asset);
     if (!target) return textError(404, "Not an approved imported asset");
+    if (asset === "1v1/2.7.json") return serve11Manifest(request, target);
     for (const [prefix, primaryBase, fallbackBase] of pinnedUnitySources) {
       if (asset.startsWith(prefix) && Object.hasOwn(importedExactAssets, asset) && target.startsWith(primaryBase)) {
         return fetchPinnedWithFallback(request, [target, fallbackBase + target.slice(primaryBase.length)], {
@@ -986,6 +987,45 @@ async function serveSparta(request, url, remainder) {
   }
   if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
   return new Response(upstream.body, { status: upstream.status, headers: out });
+}
+
+// 1v1.LOL's Unity manifest points its own build files straight at the CDN, so
+// the game pulled its data and wasm around the Worker. Rewrite them onto this
+// route so every file the game needs is served through Cloudflare.
+async function serve11Manifest(request, target) {
+  let upstream;
+  try {
+    upstream = await fetch(target, { signal: AbortSignal.timeout(30000) });
+  } catch (error) {
+    console.warn("1v1 manifest fetch failed", String(error));
+    return textError(502, "The 1v1.LOL manifest is unavailable");
+  }
+  if (!upstream.ok) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "The 1v1.LOL manifest is unavailable (" + upstream.status + ")");
+  }
+  let manifest;
+  try {
+    manifest = await upstream.json();
+  } catch {
+    return textError(502, "The 1v1.LOL manifest is not valid JSON");
+  }
+  for (const key of ["dataUrl", "wasmCodeUrl", "wasmFrameworkUrl", "asmCodeUrl", "asmFrameworkUrl"]) {
+    const value = manifest[key];
+    if (typeof value !== "string" || !value) continue;
+    if (!/^https:\/\//.test(value)) continue;
+    const file = value.slice(value.lastIndexOf("/") + 1);
+    if (!/^[A-Za-z0-9._-]+$/.test(file)) return textError(502, "Unexpected 1v1.LOL build file name");
+    manifest[key] = SELF_ORIGIN + "/approved-assets/imported/1v1/" + file;
+  }
+  return new Response(JSON.stringify(manifest), {
+    status: 200,
+    headers: corsHeaders(request, {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "x-content-type-options": "nosniff"
+    })
+  });
 }
 
 async function serveCheeseIndex(request) {
