@@ -33,6 +33,9 @@
   // progress back here. Only Blooket's own origin is believed, and the rows
   // show one line per bot instead of making you hunt through tabs.
   const BLOOKET_ORIGIN = "https://play.blooket.com";
+  // The self-hosted runner posts to this Worker, so a run on the home machine
+  // can be watched from any device that opens this panel.
+  const RELAY = "https://seuss-arcade-relay.damonrosshutchins.workers.dev";
   const botRows = new Map();
 
   function botList() {
@@ -87,6 +90,52 @@
     if (!data || data.type !== "seuss-arcade-bots") return;
     renderBots(data);
   });
+
+  // --- Watching the home runner --------------------------------------------
+  let watchTimer = null;
+
+  function stopWatch() {
+    if (watchTimer) clearInterval(watchTimer);
+    watchTimer = null;
+  }
+
+  function applyBoard(board) {
+    const bots = board && board.bots;
+    if (!bots || typeof bots !== "object") return false;
+    let seen = false;
+    for (const [name, state] of Object.entries(bots)) {
+      if (!state || !state.state) continue;
+      seen = true;
+      renderBots({ event: "bot", name, state: state.state, detail: state.detail });
+    }
+    return seen;
+  }
+
+  async function pollBoard(code) {
+    try {
+      const response = await fetch(RELAY + "/bots/status?code=" + encodeURIComponent(code), { cache: "no-store" });
+      if (!response.ok) return;
+      const board = await response.json();
+      applyBoard(board);
+      if (board && board.done) {
+        stopWatch();
+        setState("The home runner finished game " + code + ". Rows above are its final states.");
+      }
+    } catch (error) { /* the relay is unreachable; local tabs still report */ }
+  }
+
+  function watchRunner(code) {
+    stopWatch();
+    if (!code) {
+      setState("Enter the game code first, then press Watch runner.");
+      $("blooketCode").focus();
+      return;
+    }
+    clearBots(true);
+    setState("Watching game " + code + " on the home runner — its bots appear here as they join.");
+    pollBoard(code);
+    watchTimer = setInterval(() => pollBoard(code), 3000);
+  }
 
   function generatedNames(count) {
     const names = [];
@@ -203,7 +252,8 @@
       setState("The browser blocked the tab. Allow popups for this site, then press Arm & launch again.");
       return;
     }
-    setState("Blooket opened with " + names.length + (names.length === 1 ? " bot" : " bots") + " armed for game " + code + ". Install the userscript first if you have not — the tab then shows a Start button. Allow popups for play.blooket.com so the bot tabs can open.");
+    setState("Blooket opened with " + names.length + (names.length === 1 ? " bot" : " bots") + " armed for game " + code + ". Install the userscript first if you have not — the tab then shows a Start button. Allow popups for play.blooket.com so the bot tabs can open. A runner on another machine reports into the same list.");
+    watchRunner(code);
   }
 
   function setNameMode() {
@@ -223,6 +273,10 @@
   $("blooketOpen").addEventListener("click", open);
   $("blooketClose").addEventListener("click", close);
   $("blooketArm").addEventListener("click", armAndLaunch);
+  $("blooketWatch").addEventListener("click", () => {
+    const typed = ($("blooketCode").value || "").trim();
+    watchRunner(/^\d{4,8}$/.test(typed) ? typed : "");
+  });
   $("blooketInstall").addEventListener("click", installScript);
   $("blooketCopy").addEventListener("click", copyScript);
   $("blooketModeRandom").addEventListener("change", setNameMode);

@@ -180,6 +180,87 @@ export class WispRelay {
   }
 }
 
+// Remote bot board: the self-hosted runner posts each bot's state here, so the
+// arcade panel can watch a run from any device instead of only the machine
+// that is driving the browsers. Holds one game at a time, in Durable Object
+// storage, and forgets a board that has not moved for six hours.
+const BOT_CODE = /^\d{4,8}$/;
+const BOT_STATES = new Set(["armed", "joining", "joined", "failed"]);
+const BOT_PRUNE_MS = 6 * 60 * 60 * 1000;
+
+const emptyBoard = () => ({ code: "", total: 0, done: false, startedAt: 0, updatedAt: 0, bots: {} });
+
+function botText(value, max) {
+  return String(value == null ? "" : value).replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+export class BotBoard {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  async read() {
+    const stored = await this.state.storage.get("board");
+    if (!stored) return emptyBoard();
+    if (stored.updatedAt && Date.now() - stored.updatedAt > BOT_PRUNE_MS) return emptyBoard();
+    return stored;
+  }
+
+  async fetch(request) {
+    if (request.method === "POST") {
+      let body;
+      try { body = await request.json(); } catch { return json({ ok: false, error: "Expected a JSON body" }, 400); }
+      const code = botText(body && body.code, 8);
+      if (!BOT_CODE.test(code)) return json({ ok: false, error: "code must be 4-8 digits" }, 400);
+
+      const board = await this.read();
+      const now = Date.now();
+      // A different game code starts a fresh board; a repeat of the same code
+      // keeps its rows so a restarted runner only replaces what it reports.
+      if (board.code !== code) {
+        board.code = code;
+        board.bots = {};
+        board.done = false;
+        board.startedAt = now;
+        board.total = 0;
+      }
+
+      const event = botText(body.event, 12) || "bot";
+      if (event === "start") {
+        board.bots = {};
+        board.done = false;
+        board.startedAt = now;
+        board.total = Math.min(Math.max(Number(body.total) || 0, 0), 25);
+        for (const raw of (Array.isArray(body.names) ? body.names : []).slice(0, 25)) {
+          const name = botText(raw, 25);
+          if (name) board.bots[name] = { state: "armed", detail: "", at: now };
+        }
+      } else if (event === "bot") {
+        const name = botText(body.name, 25);
+        const state = botText(body.state, 12);
+        if (!name || !BOT_STATES.has(state)) return json({ ok: false, error: "name and a known state are required" }, 400);
+        board.bots[name] = { state, detail: botText(body.detail, 120), at: now };
+      } else if (event === "done") {
+        board.done = true;
+      } else {
+        return json({ ok: false, error: "event must be start, bot or done" }, 400);
+      }
+
+      board.updatedAt = now;
+      await this.state.storage.put("board", board);
+      return json({ ok: true, code: board.code, done: board.done, updatedAt: now });
+    }
+
+    const board = await this.read();
+    const wanted = botText(new URL(request.url).searchParams.get("code"), 8);
+    if (wanted && wanted !== board.code) {
+      return json({ ...emptyBoard(), asked: wanted, note: "no run reported for that code" });
+    }
+    return json(board);
+  }
+}
+
 /* --------------------------------------------------------------- policy --- */
 
 const PAGES_ORIGIN = "https://damonrosshutchins-boop.github.io";
@@ -2057,6 +2138,28 @@ export default {
       } catch (error) {
         console.error("movie route failed", pathname, String(error));
         return withCors(request, textError(502, "The movie route failed"));
+      }
+    }
+
+    // Remote bot board: the home runner writes here, the panel reads here.
+    // The runner is not a browser, so its POSTs carry no Origin and pass the
+    // same origin check that protects every other write.
+    if (pathname === "/bots/report" || pathname === "/bots/status") {
+      const denied = denyOrigin(request, env);
+      if (denied) return denied;
+      if (request.method === "OPTIONS") return preflight(request);
+      if (pathname === "/bots/report" && request.method !== "POST") {
+        return withCors(request, textError(405, "Post a bot report to this route"));
+      }
+      if (pathname === "/bots/status" && request.method !== "GET") {
+        return withCors(request, textError(405, "Get the bot board from this route"));
+      }
+      try {
+        const answer = await env.BOT_BOARD.get(env.BOT_BOARD.idFromName("bot-board")).fetch(request);
+        return withCors(request, answer);
+      } catch (error) {
+        console.error("bot board failed", pathname, String(error));
+        return withCors(request, textError(502, "The bot board route failed"));
       }
     }
 

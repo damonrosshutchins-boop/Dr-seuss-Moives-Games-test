@@ -5,9 +5,15 @@
   "compatibility_date": "2025-03-10",
   "observability": { "enabled": true },
   "durable_objects": {
-    "bindings": [{ "name": "WISP_RELAY", "class_name": "WispRelay" }]
+    "bindings": [
+      { "name": "WISP_RELAY", "class_name": "WispRelay" },
+      { "name": "BOT_BOARD", "class_name": "BotBoard" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WispRelay"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["WispRelay"] },
+    { "tag": "v2", "new_sqlite_classes": ["BotBoard"] }
+  ],
   "vars": {
     "ALLOWED_ORIGINS": "https://damonrosshutchins-boop.github.io,http://localhost:8080,http://127.0.0.1:8080",
     "ALLOW_PRIVATE_IPS": "0",
