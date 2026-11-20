@@ -1749,6 +1749,78 @@ async function serveMovieSocket(request) {
   return new Response(null, { status: 101, webSocket: client });
 }
 
+/* -------------------------------------------------------- Toby Web mirror --- */
+
+// The Toby Web hub is a Cloudflare-hosted single page whose files are all
+// relative, so the relay's sockets cannot reach it and it was framed straight
+// from its own host. Mirroring it moves the page, every file and its API onto
+// this origin; relative paths then resolve under the mirror by themselves.
+const TOBY_ROOT = "/approved-games/toby";
+const TOBY_ROUTE = TOBY_ROOT + "/";
+const TOBY_API_ROUTE = TOBY_ROUTE + "themes-api/";
+const TOBY_ORIGIN = "https://toby.booksforschool.online";
+const TOBY_API_ORIGIN = "https://themes-api.booksforschool.online";
+const TOBY_FORWARD_HEADERS = ["accept", "accept-language", "authorization", "content-type", "range"];
+const TOBY_COPY_HEADERS = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges", "content-disposition"];
+
+function tobyRewrite(source) {
+  return source
+    .replaceAll(TOBY_ORIGIN + "/", TOBY_ROUTE)
+    .replaceAll('"' + TOBY_ORIGIN, '"' + TOBY_ROOT)
+    .replaceAll(TOBY_API_ORIGIN, TOBY_API_ROUTE.slice(0, -1))
+    // Nothing on the mirrored page should talk to a third-party host, so the
+    // analytics loader is swapped for an empty file: their snippet defines its
+    // own gtag stub, so the page behaves the same without the beacon.
+    .replaceAll("https://www.googletagmanager.com/gtag/js", TOBY_ROUTE + "__gtm.js");
+}
+
+async function serveToby(request, url) {
+  if (request.method === "OPTIONS") return preflight(request);
+  const rest = url.pathname.slice(TOBY_ROOT.length) || "/";
+  if (rest === "/__gtm.js") {
+    return new Response("/* analytics disabled on the mirrored page */\n", {
+      headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=86400" }
+    });
+  }
+  const isApi = rest === "/themes-api" || rest.startsWith("/themes-api/");
+  const target = isApi
+    ? TOBY_API_ORIGIN + (rest.slice("/themes-api".length) || "/") + url.search
+    : TOBY_ORIGIN + (rest.startsWith("/") ? rest : "/" + rest) + url.search;
+  const headers = new Headers();
+  for (const name of TOBY_FORWARD_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  const init = { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(60000) };
+  if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+  let upstream;
+  try {
+    upstream = await fetch(target, init);
+  } catch (error) {
+    console.warn("toby mirror failed", url.pathname, String(error));
+    return textError(502, "Toby Web could not be reached");
+  }
+  const out = new Headers();
+  for (const name of TOBY_COPY_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  const type = (out.get("content-type") || "").toLowerCase();
+  const textual = type.includes("text/") || type.includes("javascript") || type.includes("json");
+  out.set("cache-control", type.includes("text/html") ? "public, max-age=300" : "public, max-age=14400");
+  out.set("x-content-type-options", "nosniff");
+  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+  if (!textual) return new Response(upstream.body, { status: upstream.status, headers: out });
+  let source;
+  try {
+    source = await upstream.text();
+  } catch (error) {
+    console.warn("toby mirror read failed", url.pathname, String(error));
+    return textError(502, "Toby Web returned an unreadable page");
+  }
+  return new Response(tobyRewrite(source), { status: upstream.status, headers: out });
+}
+
 /* ------------------------------------------------------------- entrypoint --- */
 
 export default {
@@ -1795,6 +1867,15 @@ export default {
       } catch (error) {
         console.error("firebase route failed", pathname, String(error));
         return withCors(request, textError(502, "The Firebase route failed"));
+      }
+    }
+
+    if (pathname === TOBY_ROOT || pathname.startsWith(TOBY_ROUTE)) {
+      try {
+        return withCors(request, await serveToby(request, url));
+      } catch (error) {
+        console.error("toby route failed", pathname, String(error));
+        return withCors(request, textError(502, "The Toby Web route failed"));
       }
     }
 
