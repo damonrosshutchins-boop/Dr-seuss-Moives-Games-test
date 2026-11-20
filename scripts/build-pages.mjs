@@ -521,10 +521,10 @@ try{
   const buckshotLoader="<script>(function(){"+
     "var pck=[],wasm=[];for(var i=1;i<=17;i++)pck.push(\"buckshot-roulette.pck.part\"+i);"+
     "for(var j=1;j<=3;j++)wasm.push(\"buckshot-roulette.wasm.part\"+j);"+
-    "function load(parts,limit){return new Promise(function(resolve,reject){"+
+    "function load(parts,limit,type){return new Promise(function(resolve,reject){"+
     "var out=new Array(parts.length),next=0,active=0,failed=false;"+
     "function pump(){if(failed)return;"+
-    "if(next>=parts.length&&active===0){resolve(new Blob(out));return;}"+
+    "if(next>=parts.length&&active===0){resolve(new Blob(out,{type:type}));return;}"+
     "while(active<limit&&next<parts.length){(function(index){active++;"+
     "fetch(parts[index]).then(function(r){if(!r.ok)throw new Error(\"Missing part: \"+parts[index]);"+
     "return r.arrayBuffer();}).then(function(buffer){out[index]=buffer;"+
@@ -532,7 +532,7 @@ try{
     "})(next++);}}"+
     "pump();});}"+
     "var nativeFetch=window.fetch;"+
-    "Promise.all([load(pck,5),load(wasm,3)]).then(function(files){"+
+    "Promise.all([load(pck,5,\"application/octet-stream\"),load(wasm,3,\"application/wasm\")]).then(function(files){"+
     "var pckUrl=URL.createObjectURL(files[0]),wasmUrl=URL.createObjectURL(files[1]);"+
     "window.fetch=function(url){var value=String(url);"+
     "if(value.indexOf(\"buckshot-roulette.pck\")>=0)return nativeFetch.call(this,pckUrl);"+
