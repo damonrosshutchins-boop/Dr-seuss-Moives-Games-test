@@ -80,6 +80,7 @@
     if (data.event === "bot") {
       if (data.state === "joined") return setBot(data.name, "joined", "ok");
       if (data.state === "failed") return setBot(data.name, "failed — " + (data.detail || "unknown reason"), "err");
+      if (data.state === "armed") return setBot(data.name, "armed", "wait");
       return setBot(data.name, "joining…", "wait");
     }
   }
