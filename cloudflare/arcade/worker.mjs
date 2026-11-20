@@ -1840,26 +1840,33 @@ const TWOV2_CSP = [
   "img-src 'self' data: blob:",
   "media-src 'self' data: blob:",
   "font-src 'self' data: blob:",
-  "connect-src 'self' data: blob: ws: wss:",
+  // files.2v2.io is the game's own asset CDN, and its addressables catalogue
+  // refers to it by absolute URL, so it is the one outside host allowed here.
+  "connect-src 'self' data: blob: ws: wss: https://files.2v2.io",
   "frame-src 'self' blob:",
   "worker-src 'self' blob:",
   "base-uri 'self'",
   "form-action 'self'"
 ].join("; ");
 // The game's SDK bundles its adinplay/CPMStar/local banner engine, so the CSP only
-// stops the network half of it; this also silences the banner calls themselves.
+// stops the network half of it. This silences the engine too: the provider table
+// it looks banners up in always reads empty, and any banner element that still
+// reaches the page is hidden.
 const TWOV2_AD_BLOCK = "<script>(function(){" +
   "try{Object.defineProperty(window,\"ENABLE_ADS\",{configurable:false,get:function(){return false;},set:function(){}});}catch(error){window.ENABLE_ADS=false;}" +
   "window.adsbygoogle=window.adsbygoogle||{loaded:true,push:function(){}};" +
   "window.googletag=window.googletag||{cmd:[],apiReady:true,enableServices:function(){},pubads:function(){return{addEventListener:function(){},refresh:function(){},setTargeting:function(){}};}," +
   "defineSlot:function(){return{addService:function(){return this;}};},display:function(){},destroySlots:function(){}};" +
-  "var adApi=[\"SetBanner\",\"setBanner\",\"showMidroll\",\"showRewarded\",\"_displayBannerWithProviders\",\"_processQueuedBanners\",\"_debouncedSetBannerPerType\",\"_startTrackingShowtime\"];" +
-  "var sdkValue=null;" +
-  "function wrapSdk(sdk){if(!sdk||sdk.__adBlocked)return sdk;try{sdk.__adBlocked=true;var noop=function(){};" +
-  "for(var i=0;i<adApi.length;i++){try{if(adApi[i] in sdk)sdk[adApi[i]]=noop;}catch(error){}}sdk._bannerAds=[];sdk._pendingBannerQueue=[];" +
-  "}catch(error){}return sdk;}" +
-  "try{Object.defineProperty(window,\"SDK\",{configurable:true,enumerable:true,get:function(){return sdkValue;},set:function(value){sdkValue=wrapSdk(value);}});}catch(error){}" +
-  "window.videoAdProviders={};})();</script>";
+  "var noProviders=new Proxy({},{get:function(){return undefined;},set:function(){return true;},has:function(){return false;},deleteProperty:function(){return true;}," +
+  "ownKeys:function(){return [];},getOwnPropertyDescriptor:function(){return undefined;}});" +
+  "try{Object.defineProperty(window,\"videoAdProviders\",{configurable:true,get:function(){return noProviders;},set:function(){}});}" +
+  "catch(error){window.videoAdProviders=noProviders;}" +
+  "var AD_HINT=/\\/ads\\/|fallzone\\.io|veck\\.io|cpmstar|adinplay/i;" +
+  "function sweepBanners(){try{var nodes=document.querySelectorAll(\"img,iframe,a\");" +
+  "for(var i=0;i<nodes.length;i++){var node=nodes[i];var url=node.getAttribute(\"src\")||node.getAttribute(\"href\")||\"\";" +
+  "if(!AD_HINT.test(url))continue;var slot=node.closest(\"[class*=banner],[id*=banner],[class*=ad-],[id*=ad-]\")||node;" +
+  "slot.style.setProperty(\"display\",\"none\",\"important\");}}catch(error){}}" +
+  "setInterval(sweepBanners,400);document.addEventListener(\"DOMContentLoaded\",sweepBanners);})();</script>";
 
 // A 1x1 transparent PNG, served wherever the page asks for banner artwork.
 const TRANSPARENT_PIXEL = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="), char => char.charCodeAt(0));
@@ -1872,7 +1879,8 @@ function twoVTwoRewrite(source) {
     .replaceAll('"' + TWOV2_ORIGIN + '"', '"' + TWOV2_ROOT + '"')
     .replaceAll('<link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>', "")
     .replaceAll("https://www.googletagmanager.com/ns.html", TWOV2_ROUTE + "__adblock.html")
-    .replaceAll("https://www.googletagmanager.com/", TWOV2_ROUTE + "__adblock.js")
+    .replaceAll("https://www.googletagmanager.com/gtag/js", TWOV2_ROUTE + "__adblock.js")
+    .replaceAll("https://www.googletagmanager.com/gtm.js", TWOV2_ROUTE + "__adblock.js")
     .replaceAll("//www.google-analytics.com", TWOV2_ROUTE + "__adblock.js")
     .replace("</head>", TWOV2_AD_BLOCK + "</head>");
 }
@@ -1881,8 +1889,13 @@ async function serveTwoVTwo(request, url) {
   if (request.method === "OPTIONS") return preflight(request);
   const rest = url.pathname.slice(TWOV2_ROOT.length) || "/";
   if (rest.startsWith("/ads/")) {
-    // Cross-promo banners live on the game's own host, so the CSP cannot stop
-    // them; serve a transparent pixel instead of the artwork.
+    // The game's own ad adapters and banner artwork live on its host, so the CSP
+    // cannot stop them: adapters become empty scripts and art a blank pixel.
+    if (rest.endsWith(".js")) {
+      return new Response("/* ads are disabled on the mirrored page */\n", {
+        headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=86400" }
+      });
+    }
     return new Response(TRANSPARENT_PIXEL, {
       headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" }
     });
@@ -1993,6 +2006,12 @@ export default {
         console.error("firebase route failed", pathname, String(error));
         return withCors(request, textError(502, "The Firebase route failed"));
       }
+    }
+
+    // Unity asks for its addressables catalogue at the origin root, which would
+    // leave the mirror and hit this worker's fallback instead.
+    if (pathname.startsWith("/StreamingAssets/")) {
+      return withCors(request, await serveTwoVTwo(request, new URL(TWOV2_ROOT + pathname + url.search, url.origin)));
     }
 
     if (pathname === TWOV2_ROOT || pathname.startsWith(TWOV2_ROUTE)) {
