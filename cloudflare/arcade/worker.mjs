@@ -1557,7 +1557,16 @@ async function serveHappyWheelsConfig(request) {
 // Dispatch rewrites its own Git LFS paths to a hard-coded media host; send that
 // prefix to the relayed route instead.
 function dispatchHtml(html, origin) {
-  return html.replaceAll(DISPATCH_LFS_ROOT, origin + DISPATCH_ROUTE + "lfs/");
+  const page = html.replaceAll(DISPATCH_LFS_ROOT, origin + DISPATCH_ROUTE + "lfs/");
+  // The port is built with JSPI. Without it the engine throws while wiring its
+  // wasm imports and the page would sit on "Loading…" with no explanation.
+  const notice = '<script>(function(){' +
+    'if(typeof WebAssembly.Suspending==="function"&&typeof WebAssembly.promising==="function")return;' +
+    'var status=document.getElementById("status");if(!status)return;' +
+    'status.textContent="Dispatch needs WebAssembly JSPI, which this browser does not offer. ' +
+    'Enable chrome://flags/#enable-experimental-webassembly-features, restart the browser, then reload.";' +
+    '})();<\/script>';
+  return page.replace(/<\/body>/i, notice + "</body>");
 }
 
 // The game's backend is a Cloudflare Workers host the relay cannot open sockets
