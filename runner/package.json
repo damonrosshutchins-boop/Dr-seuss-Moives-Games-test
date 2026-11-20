@@ -6,7 +6,8 @@
   "description": "Self-hosted Blooket bot runner for the Seuss Arcade panel.",
   "engines": { "node": ">=20" },
   "scripts": {
-    "start": "node runner.mjs"
+    "start": "node runner.mjs",
+    "test": "node --test test/"
   },
   "dependencies": {
     "playwright": "^1.49.0"

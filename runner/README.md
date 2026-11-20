@@ -162,6 +162,31 @@ board in a Durable Object and the panel reads it back with
 `GET /bots/status?code=1234567`, so any device that can open the arcade sees the
 same rows. Boards untouched for six hours are forgotten.
 
+## Tests
+
+```bash
+cd runner
+npm test
+```
+
+`node --test test/` drives the real page logic (`join.mjs`, split out of the CLI
+for exactly this) against `test/fake-join.mjs` — a local join form that can
+answer, refuse, challenge or stay silent. Every verdict the probe can produce is
+covered:
+
+| Fake page | Expected verdict |
+| --- | --- |
+| answered, nickname prompt | `clear` |
+| answered, "Game not found" | `clear` — the POST reached the app |
+| `403` with `cf-mitigated: challenge` | `blocked` |
+| challenge, then a silent retry | `blocked` — the first attempt's evidence survives |
+| no answer at all | `inconclusive` |
+| the probe itself throws | `inconclusive`, never `clear` |
+
+The last two rows are regressions: both once produced a wrong answer. Against
+real Blooket only `blocked` has ever fired, which is why the rest are produced
+here on purpose.
+
 ## When Blooket changes its page
 
 The selectors live in `joinOne()` — `input[placeholder*="code"]` for the game
