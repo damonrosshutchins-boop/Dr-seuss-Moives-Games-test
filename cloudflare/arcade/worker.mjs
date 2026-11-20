@@ -1454,6 +1454,20 @@ async function handleLegacyMirror(request, url) {
   if (isHtml) {
     out.set("cross-origin-opener-policy", "same-origin");
     out.set("cross-origin-embedder-policy", "require-corp");
+    if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+    // The Pages host appends its own analytics beacon after the page; the
+    // mirrored launcher must not talk to static.cloudflareinsights.com.
+    let page;
+    try {
+      page = await upstream.text();
+    } catch (error) {
+      console.warn("legacy mirror read failed", url.pathname, String(error));
+      return textError(502, "The legacy Minecraft site returned an unreadable page");
+    }
+    page = page
+      .replaceAll("<!-- Cloudflare Pages Analytics -->", "")
+      .replace(/<script[^>]*static\.cloudflareinsights\.com[^>]*><\/script>/gi, "");
+    return new Response(page, { status: upstream.status, headers: out });
   }
   return new Response(request.method === "HEAD" ? null : upstream.body, {
     status: upstream.status,
@@ -2008,9 +2022,11 @@ export default {
       }
     }
 
-    // Unity asks for its addressables catalogue at the origin root, which would
-    // leave the mirror and hit this worker's fallback instead.
-    if (pathname.startsWith("/StreamingAssets/")) {
+    // 2v2's Unity build asks for its addressables catalogue at the origin root,
+    // which would leave the mirror and hit this worker's fallback instead. Only
+    // its own versioned folder is claimed: the legacy Minecraft mirror also
+    // lives at this root and must keep every other path.
+    if (pathname.startsWith("/StreamingAssets/aa0.0.2798/")) {
       return withCors(request, await serveTwoVTwo(request, new URL(TWOV2_ROOT + pathname + url.search, url.origin)));
     }
 
