@@ -1,5 +1,3 @@
 node_modules/
 local-games/
 cloudflare/arcade/.wrangler/
-runner/.profile/
-runner/.profile*/
