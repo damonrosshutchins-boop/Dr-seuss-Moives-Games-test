@@ -44,12 +44,40 @@ That posts fake progress to the Worker board. Open the arcade, press
 **Watch runner**, enter `1234567`, and the rows should appear — proof the phone
 or laptop you are browsing from can see the home machine's runs.
 
+## 3b · Pass Cloudflare once (required for real joins)
+
+Blooket's join form is a Next.js server action: pressing join becomes a `POST`
+to the page itself, and Cloudflare challenges that POST (`cf-mitigated:
+challenge`, a "Just a moment…" body) when it does not trust the browser. The
+page still renders, so the failure looks like "the form does nothing" unless
+you read the response.
+
+Clear it once, in the profile the runner reuses:
+
+```bash
+node runner.mjs --setup
+```
+
+A browser window opens on the machine. Enter any game code and press join once,
+so Cloudflare issues a `cf_clearance` cookie, then leave the window alone — the
+runner notices the cookie, saves the profile and exits. Real runs reopen the
+same profile (`./runner/.profile` by default, `--profile <dir>` to move it), so
+one cleared session covers every bot until the cookie expires.
+
+This reuses a session a person cleared. It is not a stealth patch: if the
+challenge keeps coming back, the machine or the connection is being scored as a
+bot, and the answer is a different connection, not another workaround.
+
 ## 4 · Run a real game
 
 ```bash
 node runner.mjs --code 1234567 --bots 5 \
   --report https://seuss-arcade-relay.damonrosshutchins.workers.dev
 ```
+
+Every bot gets its own tab in one shared profile. A `failed — Cloudflare
+challenged the join POST` row means the clearance has expired: run `--setup`
+again.
 
 Add `--headful` to watch the windows on the machine itself, `--names a,b,c` to
 fix the names, `--spacing 2000` if the lobby rejects joins that arrive too fast.
