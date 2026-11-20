@@ -441,7 +441,7 @@ function safeAssetPath(raw) {
   try { file = decodeURIComponent(raw || ""); } catch { return null; }
   if (!file || file.length > 400 || file.startsWith("/") || file.includes("//") ||
       file.includes("\\") || file.split("/").some(part => !part || part === "." || part === "..")) return null;
-  if (!/^[A-Za-z0-9._/()# %-]+$/.test(file)) return null;
+  if (!/^[A-Za-z0-9._/()# %@+-]+$/.test(file)) return null;
   return file;
 }
 
