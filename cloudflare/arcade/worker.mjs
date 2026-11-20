@@ -1821,6 +1821,131 @@ async function serveToby(request, url) {
   return new Response(tobyRewrite(source), { status: upstream.status, headers: out });
 }
 
+/* ------------------------------------------------------------ 2v2.io mirror --- */
+
+// 2v2.io is a Cloudflare-hosted Unity build; the relay cannot open sockets to
+// Cloudflare's own addresses, so the shell, the build files and the SDK are
+// served from this origin. Ads are switched off here: the game's SDK gates every
+// ad call on window.ENABLE_ADS, and the CSP keeps adinplay, CPMStar, Criteo and
+// the rest of their stack from loading at all.
+const TWOV2_ROOT = "/approved-games/2v2";
+const TWOV2_ROUTE = TWOV2_ROOT + "/";
+const TWOV2_ORIGIN = "https://2v2.io";
+const TWOV2_FORWARD_HEADERS = ["accept", "accept-language", "content-type", "range"];
+const TWOV2_COPY_HEADERS = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges", "content-disposition"];
+const TWOV2_CSP = [
+  "default-src 'self' data: blob:",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "media-src 'self' data: blob:",
+  "font-src 'self' data: blob:",
+  "connect-src 'self' data: blob: ws: wss:",
+  "frame-src 'self' blob:",
+  "worker-src 'self' blob:",
+  "base-uri 'self'",
+  "form-action 'self'"
+].join("; ");
+// The game's SDK bundles its adinplay/CPMStar/local banner engine, so the CSP only
+// stops the network half of it; this also silences the banner calls themselves.
+const TWOV2_AD_BLOCK = "<script>(function(){" +
+  "try{Object.defineProperty(window,\"ENABLE_ADS\",{configurable:false,get:function(){return false;},set:function(){}});}catch(error){window.ENABLE_ADS=false;}" +
+  "window.adsbygoogle=window.adsbygoogle||{loaded:true,push:function(){}};" +
+  "window.googletag=window.googletag||{cmd:[],apiReady:true,enableServices:function(){},pubads:function(){return{addEventListener:function(){},refresh:function(){},setTargeting:function(){}};}," +
+  "defineSlot:function(){return{addService:function(){return this;}};},display:function(){},destroySlots:function(){}};" +
+  "var adApi=[\"SetBanner\",\"setBanner\",\"showMidroll\",\"showRewarded\",\"_displayBannerWithProviders\",\"_processQueuedBanners\",\"_debouncedSetBannerPerType\",\"_startTrackingShowtime\"];" +
+  "var sdkValue=null;" +
+  "function wrapSdk(sdk){if(!sdk||sdk.__adBlocked)return sdk;try{sdk.__adBlocked=true;var noop=function(){};" +
+  "for(var i=0;i<adApi.length;i++){try{if(adApi[i] in sdk)sdk[adApi[i]]=noop;}catch(error){}}sdk._bannerAds=[];sdk._pendingBannerQueue=[];" +
+  "}catch(error){}return sdk;}" +
+  "try{Object.defineProperty(window,\"SDK\",{configurable:true,enumerable:true,get:function(){return sdkValue;},set:function(value){sdkValue=wrapSdk(value);}});}catch(error){}" +
+  "window.videoAdProviders={};})();</script>";
+
+// A 1x1 transparent PNG, served wherever the page asks for banner artwork.
+const TRANSPARENT_PIXEL = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="), char => char.charCodeAt(0));
+
+function twoVTwoRewrite(source) {
+  return source
+    .replaceAll('<base href="/">', `<base href="${TWOV2_ROUTE}">`)
+    .replaceAll("window.ENABLE_ADS = true", "window.ENABLE_ADS = false")
+    .replaceAll(TWOV2_ORIGIN + "/", TWOV2_ROUTE)
+    .replaceAll('"' + TWOV2_ORIGIN + '"', '"' + TWOV2_ROOT + '"')
+    .replaceAll('<link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>', "")
+    .replaceAll("https://www.googletagmanager.com/ns.html", TWOV2_ROUTE + "__adblock.html")
+    .replaceAll("https://www.googletagmanager.com/", TWOV2_ROUTE + "__adblock.js")
+    .replaceAll("//www.google-analytics.com", TWOV2_ROUTE + "__adblock.js")
+    .replace("</head>", TWOV2_AD_BLOCK + "</head>");
+}
+
+async function serveTwoVTwo(request, url) {
+  if (request.method === "OPTIONS") return preflight(request);
+  const rest = url.pathname.slice(TWOV2_ROOT.length) || "/";
+  if (rest.startsWith("/ads/")) {
+    // Cross-promo banners live on the game's own host, so the CSP cannot stop
+    // them; serve a transparent pixel instead of the artwork.
+    return new Response(TRANSPARENT_PIXEL, {
+      headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" }
+    });
+  }
+  if (rest === "/__adblock.js" || rest === "/__adblock.html") {
+    const script = rest.endsWith(".js");
+    return new Response(script ? "/* ads are disabled on the mirrored page */\n" : "<!doctype html><title></title>\n", {
+      headers: {
+        "content-type": script ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8",
+        "cache-control": "public, max-age=86400",
+        "content-security-policy": TWOV2_CSP
+      }
+    });
+  }
+  const target = TWOV2_ORIGIN + (rest.startsWith("/") ? rest : "/" + rest) + url.search;
+  const headers = new Headers();
+  for (const name of TWOV2_FORWARD_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  const init = { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(120000) };
+  if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+  let upstream;
+  try {
+    upstream = await fetch(target, init);
+  } catch (error) {
+    console.warn("2v2 mirror failed", url.pathname, String(error));
+    return textError(502, "2v2.io could not be reached");
+  }
+  const out = new Headers();
+  for (const name of TWOV2_COPY_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  const type = (out.get("content-type") || "").toLowerCase();
+  // Unity's loader decompresses .br/.unityweb files itself when the response
+  // does not arrive already encoded, so those are streamed through untouched
+  // instead of being read and rewritten as text.
+  const encoded = /[.](br|gz|unityweb|wasm)$/i.test(url.pathname) || !!upstream.headers.get("content-encoding");
+  const html = type.includes("text/html") && !encoded;
+  const textual = !encoded && (html || type.includes("javascript") || type.includes("text/css"));
+  if (encoded) {
+    const encoding = upstream.headers.get("content-encoding");
+    if (encoding) out.set("content-encoding", encoding);
+  }
+  out.set("cache-control", html ? "no-cache, must-revalidate" : "public, max-age=86400");
+  out.set("x-content-type-options", "nosniff");
+  if (html) {
+    out.set("content-security-policy", TWOV2_CSP);
+    out.set("referrer-policy", "no-referrer");
+  }
+  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+  if (!textual) return new Response(upstream.body, { status: upstream.status, headers: out });
+  let source;
+  try {
+    source = await upstream.text();
+  } catch (error) {
+    console.warn("2v2 mirror read failed", url.pathname, String(error));
+    return textError(502, "2v2.io returned an unreadable file");
+  }
+  return new Response(twoVTwoRewrite(source), { status: upstream.status, headers: out });
+}
+
 /* ------------------------------------------------------------- entrypoint --- */
 
 export default {
@@ -1867,6 +1992,15 @@ export default {
       } catch (error) {
         console.error("firebase route failed", pathname, String(error));
         return withCors(request, textError(502, "The Firebase route failed"));
+      }
+    }
+
+    if (pathname === TWOV2_ROOT || pathname.startsWith(TWOV2_ROUTE)) {
+      try {
+        return withCors(request, await serveTwoVTwo(request, url));
+      } catch (error) {
+        console.error("2v2 route failed", pathname, String(error));
+        return withCors(request, textError(502, "The 2v2.io route failed"));
       }
     }
 

@@ -88,7 +88,8 @@ for(const [label,source,required] of [
   ["Dispatch mirror",arcadeWorker,["DISPATCH_ROUTE","DISPATCH_LFS_ROOT","dispatchHtml","media.githubusercontent.com"]],
   ["Find The Needle mirror",arcadeWorker,["NEEDLE_ROUTE","archivedGames","archivedGameFile","FindTheNeedle"]],
   ["Projection Studios movie mirror",arcadeWorker,["MOVIE_ROUTE","MOVIE_ORIGIN","serveMovieApp","serveMovieSocket","movieRewrite","projection-studios.dogeeats531.workers.dev"]],
-  ["Toby Web mirror",arcadeWorker,["TOBY_ROUTE","TOBY_ORIGIN","TOBY_API_ORIGIN","serveToby","tobyRewrite","themes-api.booksforschool.online"]]
+  ["Toby Web mirror",arcadeWorker,["TOBY_ROUTE","TOBY_ORIGIN","TOBY_API_ORIGIN","serveToby","tobyRewrite","themes-api.booksforschool.online"]],
+  ["2v2.io mirror with ads blocked",arcadeWorker,["TWOV2_ROUTE","TWOV2_ORIGIN","serveTwoVTwo","twoVTwoRewrite","TWOV2_AD_BLOCK","content-security-policy"]]
 ]){
   for(const snippet of required)if(!source.includes(snippet))errors.push(label+": missing "+snippet);
 }
