@@ -71,7 +71,19 @@ code you passed (or `000000` if none) and prints one of:
   exit code 1, and the profile is not ready.
 
 It probes even when no cookie appeared, so the answer is what actually happens
-rather than what the cookie suggests. Real runs reopen the same profile
+rather than what the cookie suggests. `--probe` runs that same check on the
+current profile without waiting, and `--channel msedge` (or `chrome`) drives an
+installed browser instead of bundled Chromium:
+
+```bash
+node runner.mjs --probe --code 607323 --channel msedge
+```
+
+"Challenge is gone" is only printed when Blooket actually answered the join
+POST — a nickname prompt, or an app-level reply with a real HTTP status. A page
+that never answers produces `Inconclusive: nothing answered the join POST within
+12000 ms`, because a timeout proves nothing either way. A challenged POST gets
+one reload-and-retry first, since the challenge can leave a clearance behind. Real runs reopen the same profile
 (`./runner/.profile` by default, `--profile <dir>` to move it), so one cleared
 session covers every bot until the clearance expires.
 

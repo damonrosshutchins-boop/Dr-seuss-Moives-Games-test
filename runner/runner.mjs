@@ -44,12 +44,14 @@ const USAGE = `Seuss Arcade bot runner
   --headful   show the browser windows
   --dry-run   post fake progress without launching a browser
   --profile   browser profile directory (default ./runner/.profile)
-  --setup     pass Cloudflare's check once, then prove it with a real join POST`;
+  --setup     pass Cloudflare's check once, then prove it with a real join POST
+  --probe     check the current profile with one join POST, without waiting
+  --channel   use an installed browser: chrome, msedge (default: bundled Chromium)`;
 
 function parseArgs(argv) {
   const args = {
     code: "", bots: 3, names: [], report: "", headless: true,
-    dryRun: false, spacing: 1200, timeout: 30000, setup: false,
+    dryRun: false, spacing: 1200, timeout: 30000, setup: false, probe: false, channel: "",
     profile: DEFAULT_PROFILE,
     url: "https://play.blooket.com/play", help: false,
   };
@@ -64,6 +66,8 @@ function parseArgs(argv) {
     else if (flag === "--headful") args.headless = false;
     else if (flag === "--dry-run") args.dryRun = true;
     else if (flag === "--setup") args.setup = true;
+    else if (flag === "--probe") args.probe = true;
+    else if (flag === "--channel") args.channel = String(value() || "").trim();
     else if (flag === "--profile") args.profile = String(value() || args.profile);
     else if (flag === "--spacing") args.spacing = Math.max(0, Number(value()) || 0);
     else if (flag === "--timeout") args.timeout = Math.max(5000, Number(value()) || 30000);
@@ -213,18 +217,37 @@ function interstitialMessage() {
     : "Cloudflare served the \"Just a moment…\" interstitial; pass the check once with --setup";
 }
 
+// Tracks the join POST itself: whether anything answered it, with what status,
+// and whether Cloudflare mitigated it. "No nickname box" has three very
+// different causes — a challenge, an app-level refusal, or nothing answering at
+// all — and only the response can tell them apart.
 function watchChallenge(page) {
-  const state = { challenged: false, status: 0 };
+  const state = { challenged: false, status: 0, postAnswered: false, postStatus: 0, postChallenged: false };
   page.on("response", (response) => {
     try {
-      const mitigated = (response.headers()["cf-mitigated"] || "").length > 0;
-      if (mitigated || (response.status() === 403 && response.request().method() === "POST")) {
+      if (response.request().method() !== "POST") return;
+      state.postAnswered = true;
+      state.postStatus = response.status();
+      if ((response.headers()["cf-mitigated"] || "").length > 0 || response.status() === 403) {
+        state.postChallenged = true;
         state.challenged = true;
         state.status = response.status();
       }
     } catch { /* response gone */ }
   });
   return state;
+}
+
+// Cloudflare's interstitial often clears itself once its script has run, so a
+// page that is still verifying gets a moment instead of an immediate failure.
+async function waitPastInterstitial(page, ms) {
+  if (!(await challengedNow(page))) return true;
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    await sleep(1500);
+    if (!(await challengedNow(page))) return true;
+  }
+  return false;
 }
 
 async function challengedNow(page) {
@@ -237,30 +260,58 @@ async function challengedNow(page) {
   }
 }
 
-// Types the game code and waits for the join POST to be answered. Returns the
-// nickname field: a normal run fills it, a setup probe stops right there.
-async function enterCode(page, code, timeout, state) {
-  await page.goto(args.url, { waitUntil: "domcontentloaded", timeout });
-  if (await challengedNow(page)) throw failure("interstitial", interstitialMessage());
-  await dismissConsent(page);
+const CODE_INPUT = 'input[placeholder*="game id" i], input[aria-label*="game id" i], input[placeholder*="code" i]';
+const NICK_INPUT = 'input[placeholder*="nick" i], input[aria-label*="nick" i], input[name*="name" i]';
 
+async function openJoin(page, code, timeout) {
+  await page.goto(args.url, { waitUntil: "domcontentloaded", timeout });
+  if (!(await waitPastInterstitial(page, Math.min(timeout, 45000)))) {
+    throw failure("interstitial", interstitialMessage());
+  }
+  await dismissConsent(page);
   // The join page asks for the code first; some builds skip straight to the
   // nickname box when the lobby is already known.
-  const codeBox = page.locator('input[placeholder*="game id" i], input[aria-label*="game id" i], input[placeholder*="code" i]').first();
+  const codeBox = page.locator(CODE_INPUT).first();
   if (await visible(codeBox, 8000)) {
     await typeInto(codeBox, code);
     await codeBox.press("Enter").catch(() => {});
     await clickButton(page, /submit|join|enter|next/i);
     await pressSubmit(page);
   }
+}
 
-  const nickBox = page.locator('input[placeholder*="nick" i], input[aria-label*="nick" i], input[name*="name" i]').first();
-  if (!(await visible(nickBox, Math.min(timeout, 12000)))) {
-    if (state && state.challenged) throw failure("challenge", CHALLENGE_MESSAGE + " (HTTP " + state.status + ")");
-    if (await challengedNow(page)) throw failure("interstitial", interstitialMessage());
-    throw failure("answer", (await firstLines(page)) || "no nickname box appeared — is the lobby still open for joining?");
+// Types the game code and waits for the join POST to be answered. Returns the
+// nickname field: a normal run fills it, a setup probe stops right there.
+async function enterCode(page, code, timeout, state) {
+  await openJoin(page, code, timeout);
+  const nickBox = page.locator(NICK_INPUT).first();
+  const window = Math.min(timeout, 12000);
+  if (await visible(nickBox, window)) return nickBox;
+
+  // A challenged POST can still leave a clearance behind, so reload once and
+  // submit again before deciding anything: Cloudflare's check is sometimes
+  // satisfied by the very request it rejected.
+  if (state && state.postChallenged) {
+    state.postChallenged = false;
+    state.challenged = false;
+    state.postAnswered = false;
+    await page.reload({ waitUntil: "domcontentloaded", timeout }).catch(() => {});
+    await waitPastInterstitial(page, 45000);
+    await dismissConsent(page);
+    const again = page.locator(CODE_INPUT).first();
+    if (await visible(again, 8000)) {
+      await typeInto(again, code);
+      await again.press("Enter").catch(() => {});
+      await clickButton(page, /submit|join|enter|next/i);
+      await pressSubmit(page);
+    }
+    if (await visible(nickBox, window)) return nickBox;
   }
-  return nickBox;
+
+  if (state && state.postChallenged) throw failure("challenge", CHALLENGE_MESSAGE + " (HTTP " + state.status + ")");
+  if (await challengedNow(page)) throw failure("interstitial", interstitialMessage());
+  if (state && !state.postAnswered) throw failure("timeout", "nothing answered the join POST within " + window + " ms");
+  throw failure("answer", (await firstLines(page)) || "no nickname box appeared — is the lobby still open for joining?");
 }
 
 async function joinOne(page, code, name, timeout, state) {
@@ -289,9 +340,10 @@ async function joinOne(page, code, name, timeout, state) {
 // not be honoured, and the GET works even when the POST is challenged.
 async function runSetup() {
   const { chromium } = await loadPlaywright();
+  args.headless = false; // setup and probe always open a real window
   const probeCode = /^\d{4,8}$/.test(args.code) ? args.code : "000000";
   console.log("Profile: " + args.profile);
-  const context = await chromium.launchPersistentContext(args.profile, { headless: false, viewport: { width: 900, height: 900 } });
+  const context = await chromium.launchPersistentContext(args.profile, { headless: false, channel: args.channel || undefined, viewport: { width: 900, height: 900 } });
   try {
     const page = context.pages()[0] || (await context.newPage());
     await page.goto(args.url, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
@@ -307,9 +359,10 @@ async function runSetup() {
       : "No cf_clearance cookie appeared. Probing anyway to see what actually answers…");
     const verdict = await probeJoin(context, probeCode);
     console.log(verdict.message);
-    if (verdict.clear) {
+    if (verdict.verdict === "clear") {
       console.log("Setup succeeded: the profile is ready, and runs will reuse it until the clearance expires.");
     } else {
+      if (verdict.verdict === "inconclusive") console.log("Not proven yet, so setup is not claiming success. Run --probe again, or pass the check again.");
       process.exitCode = 1;
     }
   } finally {
@@ -319,25 +372,57 @@ async function runSetup() {
 
 // One join POST, judged by its answer: a nickname prompt or an app-level reply
 // means Cloudflare let it through; a challenge means it did not.
-async function probeJoin(context, code) {
+// Verdicts are tri-state, because "no nickname box" is not proof of anything:
+//   clear        — Blooket answered the join POST (nickname prompt or an
+//                  app-level reply with a real status)
+//   blocked      — Cloudflare answered instead: mitigated POST or interstitial
+//   inconclusive — nothing answered inside the window; the check was not tested
+async function probeJoin(context, code, windowMs = 15000) {
   const page = await context.newPage();
   const state = watchChallenge(page);
   try {
-    await enterCode(page, code, 12000, state);
-    return {
-      clear: true,
-      message: "Challenge is gone: Blooket answered the join POST with a nickname prompt for " + code + ". The probe stops there and does not submit a name.",
-    };
-  } catch (error) {
-    if (error && (error.kind === "challenge" || error.kind === "interstitial")) {
-      return { clear: false, message: "Cloudflare still stops the join: " + error.message };
+    await enterCode(page, code, windowMs, state);
+    if (!state.postAnswered) {
+      return { verdict: "inconclusive", message: "Inconclusive: the page reached Blooket and a nickname prompt appeared, but no join POST answer was observed, so the challenge was not proven either way." };
     }
     return {
-      clear: true,
-      message: "Challenge is gone: Blooket itself answered the join POST for " + code + " (" + (error && error.message ? error.message : error) + ").",
+      verdict: "clear",
+      message: "Challenge is gone: Blooket answered the join POST with a nickname prompt for " + code + " (HTTP " + state.postStatus + "). The probe stops there and submits no name.",
+    };
+  } catch (error) {
+    const kind = error && error.kind ? error.kind : "answer";
+    const detail = error && error.message ? error.message : String(error);
+    if (kind === "challenge" || kind === "interstitial") {
+      return { verdict: "blocked", message: "Cloudflare still stops the join: " + detail };
+    }
+    if (kind === "timeout" || !state.postAnswered) {
+      return {
+        verdict: "inconclusive",
+        message: "Inconclusive: " + detail + " — no answer to the join POST at all, so nothing was proven about the challenge. Try again, or pass the check in --setup.",
+      };
+    }
+    return {
+      verdict: "clear",
+      message: "Challenge is gone: Blooket itself answered the join POST for " + code + " (HTTP " + state.postStatus + " — " + detail + ").",
     };
   } finally {
     await page.close().catch(() => {});
+  }
+}
+
+// Same probe without waiting for a clearance: for checking a profile quickly.
+async function runProbe() {
+  const { chromium } = await loadPlaywright();
+  args.headless = false; // setup and probe always open a real window
+  const probeCode = /^\d{4,8}$/.test(args.code) ? args.code : "000000";
+  console.log("Probing profile " + args.profile + " with one join POST for " + probeCode + "…");
+  const context = await chromium.launchPersistentContext(args.profile, { headless: false, channel: args.channel || undefined, viewport: { width: 900, height: 900 } });
+  try {
+    const verdict = await probeJoin(context, probeCode);
+    console.log(verdict.message);
+    if (verdict.verdict !== "clear") process.exitCode = 1;
+  } finally {
+    await context.close();
   }
 }
 
@@ -355,9 +440,10 @@ let args;
 async function main() {
   args = parseArgs(process.argv.slice(2));
   if (args.help) return console.log(USAGE);
-  // Setup runs before the code check: passing the check needs no game code, and
-  // any code given is only used to pick the probe.
+  // Setup and probe run before the code check: passing the check needs no game
+  // code, and any code given is only used to pick the probe.
   if (args.setup) return runSetup();
+  if (args.probe) return runProbe();
   if (!/^\d{4,8}$/.test(args.code)) {
     console.error("--code must be the 4-8 digit game code from the host screen\n\n" + USAGE);
     process.exitCode = 2;
@@ -392,6 +478,7 @@ async function main() {
     // each fresh context being challenged again.
     const context = await chromium.launchPersistentContext(args.profile, {
       headless: args.headless,
+      channel: args.channel || undefined,
       viewport: { width: 560, height: 820 },
     });
     try {
