@@ -1162,7 +1162,7 @@ async function handleFirebaseRelay(request, url) {
   const bucket = slash < 0 ? tail : tail.slice(0, slash);
   const rest = slash < 0 ? "" : tail.slice(slash + 1);
   const upstream = firebaseUpstreams[bucket];
-  if (!upstream || !approvedFirebaseTarget(bucket, rest)) {
+  if (!upstream || !approvedFirebaseTarget(bucket, rest, url)) {
     return firebaseCors(request, textError(404, "Not an approved Firebase route"));
   }
   const headers = new Headers();
@@ -1198,15 +1198,20 @@ async function handleFirebaseRelay(request, url) {
   }));
 }
 
-function approvedFirebaseTarget(bucket, rest) {
+function approvedFirebaseTarget(bucket, rest, url) {
   if (!rest || rest.length > 600) return false;
   if (rest.split("/").some(part => !part || part === "." || part === "..")) return false;
   if (bucket === "idt") return firebaseIdtMethods.has(rest);
   if (bucket === "st") return rest === "token";
   if (bucket !== "fs") return false;
-  return rest === FIREBASE_FIRESTORE_PREFIX ||
-    rest.startsWith(FIREBASE_FIRESTORE_PREFIX + "/") ||
-    rest.startsWith(FIREBASE_FIRESTORE_PREFIX + ":");
+  if (rest === FIREBASE_FIRESTORE_PREFIX ||
+      rest.startsWith(FIREBASE_FIRESTORE_PREFIX + "/") ||
+      rest.startsWith(FIREBASE_FIRESTORE_PREFIX + ":")) return true;
+  // Firestore's live channel names the database in its query string, so that
+  // shape is accepted only for the game's own database.
+  if (!/^google\.firestore\.v1\.Firestore\/[A-Za-z]+\/(?:[A-Za-z0-9-]+\/)?channel$/.test(rest)) return false;
+  const database = url.searchParams.get("database");
+  return database === null || database === "projects/justbuild-cdb86/databases/(default)";
 }
 
 // The SDK bundles carry the Google hosts in plain strings; point them at this
