@@ -10,6 +10,34 @@ the risk lands on whichever account and connection runs them — that is why thi
 sits on a machine you control, on a residential connection, and is not a hosted
 service.
 
+## Files
+
+| File | What it is |
+| --- | --- |
+| `runner.mjs` | The CLI: flags, names, progress reporting, browser session |
+| `join.mjs` | The page steps — consent banner, code field, nickname, submit — as functions the test can drive |
+| `test/fake-join.mjs` | Local join page that can answer, refuse, challenge or stay silent |
+| `test/probe.test.mjs` | Verdict tests against that page (`npm test`) |
+
+## Flags
+
+```
+--code 1234567   game code from the host screen (4-8 digits, required)
+--bots 3         how many bots join (1-25, default 3)
+--names a,b,c    fixed names; the rest are generated (unique, 15 chars)
+--report <url>   Worker base URL; posts each state to <url>/bots/report
+--headful        show the browser windows
+--dry-run        report fake progress without launching a browser
+--spacing 1200   pause between bots, ms
+--timeout 30000  how long each join step may take, ms
+--url <url>      join page to drive (default https://play.blooket.com/play)
+--profile <dir>  browser profile directory (default ./runner/.profile)
+--channel <name> installed browser: msedge or chrome (default bundled Chromium)
+--setup          pass Cloudflare's check once, then prove it with a real POST
+--probe          run that proof on the current profile, without waiting
+--help           print this list
+```
+
 ## 1 · Prepare the machine
 
 Any always-on computer at home works: an old laptop, a mini PC, a Raspberry Pi 4/5.
@@ -44,7 +72,7 @@ That posts fake progress to the Worker board. Open the arcade, press
 **Watch runner**, enter `1234567`, and the rows should appear — proof the phone
 or laptop you are browsing from can see the home machine's runs.
 
-## 3b · Pass Cloudflare once (required for real joins)
+## 4 · Pass Cloudflare once (required for real joins)
 
 Blooket's join form is a Next.js server action: pressing join becomes a `POST`
 to the page itself, and Cloudflare challenges that POST (`cf-mitigated:
@@ -71,21 +99,23 @@ code you passed (or `000000` if none) and prints one of:
   exit code 1, and the profile is not ready.
 
 It probes even when no cookie appeared, so the answer is what actually happens
-rather than what the cookie suggests. `--probe` runs that same check on the
-current profile without waiting, and `--channel msedge` (or `chrome`) drives an
-installed browser instead of bundled Chromium:
+rather than what the cookie suggests.
+
+"Challenge is gone" is only printed when Blooket actually answered the join
+POST — a nickname prompt, or an app-level reply with a real HTTP status. A page
+that never answers produces `Inconclusive: … nothing was proven about the
+challenge`, because a timeout is not evidence either way. A challenged POST gets
+one reload-and-retry first, since the challenge can leave a clearance behind.
+
+To check a profile you already cleared, without waiting for a cookie:
 
 ```bash
 node runner.mjs --probe --code 607323 --channel msedge
 ```
 
-"Challenge is gone" is only printed when Blooket actually answered the join
-POST — a nickname prompt, or an app-level reply with a real HTTP status. A page
-that never answers produces `Inconclusive: nothing answered the join POST within
-12000 ms`, because a timeout proves nothing either way. A challenged POST gets
-one reload-and-retry first, since the challenge can leave a clearance behind. Real runs reopen the same profile
-(`./runner/.profile` by default, `--profile <dir>` to move it), so one cleared
-session covers every bot until the clearance expires.
+Real runs reopen the same profile (`./runner/.profile` by default, `--profile
+<dir>` to move it), so one cleared session covers every bot until the clearance
+expires.
 
 This reuses a session a person cleared. It is not a stealth patch: if the
 challenge keeps coming back, the machine or the connection is being scored as a
@@ -97,7 +127,7 @@ headless Chromium; rerun with --headful` — the same request succeeds in a
 headful window, so the mode is named in the error instead of leaving you to
 guess.
 
-## 4 · Run a real game
+## 5 · Run a real game
 
 ```bash
 node runner.mjs --code 1234567 --bots 5 \
@@ -112,7 +142,7 @@ Add `--headful` to watch the windows on the machine itself, `--names a,b,c` to
 fix the names, `--spacing 2000` if the lobby rejects joins that arrive too fast.
 Exit code is `0` when every bot joined and `1` when any failed.
 
-## 5 · Keep it running
+## 6 · Keep it running
 
 The runner is a one-shot command per game, because a Blooket code only lives as
 long as the lobby. Start it when the host opens the lobby, from the machine or
@@ -189,8 +219,17 @@ here on purpose.
 
 ## When Blooket changes its page
 
-The selectors live in `joinOne()` — `input[placeholder*="code"]` for the game
-code, `input[placeholder*="nick"]` for the nickname, and the button text patterns
-next to them. If joins start failing with "no nickname box appeared", open the
-join page in a normal browser, check what the box is called now, and update those
-two locators. The userscript uses the same selectors, so fix both.
+The selectors live in `join.mjs` as `CODE_INPUT` and `NICK_INPUT`, plus the
+button text patterns in `openJoin()` and `joinOne()`:
+
+- `CODE_INPUT` — `input[placeholder*="game id" i]`, `input[aria-label*="game id" i]`,
+  `input[placeholder*="code" i]`
+- `NICK_INPUT` — `input[placeholder*="nick" i]`, `input[aria-label*="nick" i]`,
+  `input[name*="name" i]`
+- consent — CookieYes `button.cky-btn-reject` / `button.cky-btn-accept`
+- submit — `form button[type=submit]` (Blooket's submit has no text)
+
+If joins start failing with "no nickname box appeared", open the join page in a
+normal browser, check what the box is called now, and update those constants. The
+userscript uses the same selectors, so fix both. `npm test` will not catch a
+Blooket-side rename — the fake page keeps working — so this is a manual check.

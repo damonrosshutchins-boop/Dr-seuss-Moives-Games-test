@@ -1,25 +1,15 @@
 #!/usr/bin/env node
 // Seuss Arcade — self-hosted Blooket bot runner.
 //
-// The userscript's join step, lifted out of a browser extension so it can live
-// on an always-on machine instead of the browser you are sitting in front of.
-// The steps, waits and selectors are the same as blooket-autojoin.user.js:
-// dismiss the consent banner, type the game code, wait for the nickname box,
-// type the name, submit, then read the page back to see whether it was refused.
+// This file is the command line: flags, naming, progress reporting, and the
+// browser session. The page steps themselves live in join.mjs, because the test
+// drives them directly.
 //
 //   node runner.mjs --code 1234567 --bots 3 \
 //     --report https://seuss-arcade-relay.damonrosshutchins.workers.dev
 //
-// Options
-//   --code <digits>   game code from the host screen (required)
-//   --bots <n>        how many bots to join with (1-25, default 3)
-//   --names a,b,c     fixed names; generated ones fill any gap
-//   --report <url>    Worker base URL; posts status to <url>/bots/report
-//   --headful         show the browser windows instead of running headless
-//   --dry-run         report fake progress and never launch a browser
-//   --spacing <ms>    pause between bots (default 1200, same as the userscript)
-//   --timeout <ms>    how long each join step may take (default 30000)
-//   --url <url>       join page to drive (default https://play.blooket.com/play)
+//   node runner.mjs --help      every flag
+//   node runner.mjs --setup     pass Cloudflare's check once, then prove it
 //
 // Blooket sits behind Cloudflare, so run this on a residential connection: a
 // datacenter VPS is usually challenged long before a join happens.
@@ -117,9 +107,10 @@ async function post(args, payload) {
 // proves the clearance instead of trusting a cookie: one real join POST against
 // the profile, classified by whatever answered it. A cookie can exist and still
 // not be honoured, and the GET works even when the POST is challenged.
-async function runSetup() {
+async function runSetup(args) {
   const { chromium } = await loadPlaywright();
-  args.headless = false; // setup and probe always open a real window
+  // Setup and the probe always open a real window, whatever the flags say.
+  const live = { url: args.url, headless: false };
   const probeCode = /^\d{4,8}$/.test(args.code) ? args.code : "000000";
   console.log("Profile: " + args.profile);
   const context = await chromium.launchPersistentContext(args.profile, { headless: false, channel: args.channel || undefined, viewport: { width: 900, height: 900 } });
@@ -136,7 +127,7 @@ async function runSetup() {
     console.log(cleared
       ? "Clearance cookie found. Proving it with one real join POST for " + probeCode + "…"
       : "No cf_clearance cookie appeared. Probing anyway to see what actually answers…");
-    const verdict = await probeJoin(context, probeCode, args);
+    const verdict = await probeJoin(context, probeCode, live);
     console.log(verdict.message);
     if (verdict.verdict === "clear") {
       console.log("Setup succeeded: the profile is ready, and runs will reuse it until the clearance expires.");
@@ -149,17 +140,15 @@ async function runSetup() {
   }
 }
 
-// One join POST, judged by its answer: a nickname prompt or an app-level reply
-// means Cloudflare let it through; a challenge means it did not.
-// Same probe without waiting for a clearance: for checking a profile quickly.
-async function runProbe() {
+// The same probe without waiting for a clearance, for checking a profile fast.
+async function runProbe(args) {
   const { chromium } = await loadPlaywright();
-  args.headless = false; // setup and probe always open a real window
+  const live = { url: args.url, headless: false };
   const probeCode = /^\d{4,8}$/.test(args.code) ? args.code : "000000";
   console.log("Probing profile " + args.profile + " with one join POST for " + probeCode + "…");
   const context = await chromium.launchPersistentContext(args.profile, { headless: false, channel: args.channel || undefined, viewport: { width: 900, height: 900 } });
   try {
-    const verdict = await probeJoin(context, probeCode, args);
+    const verdict = await probeJoin(context, probeCode, live);
     console.log(verdict.message);
     if (verdict.verdict !== "clear") process.exitCode = 1;
   } finally {
@@ -176,15 +165,13 @@ async function loadPlaywright() {
   }
 }
 
-let args;
-
 async function main() {
-  args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2));
   if (args.help) return console.log(USAGE);
   // Setup and probe run before the code check: passing the check needs no game
   // code, and any code given is only used to pick the probe.
-  if (args.setup) return runSetup();
-  if (args.probe) return runProbe();
+  if (args.setup) return runSetup(args);
+  if (args.probe) return runProbe(args);
   if (!/^\d{4,8}$/.test(args.code)) {
     console.error("--code must be the 4-8 digit game code from the host screen\n\n" + USAGE);
     process.exitCode = 2;
