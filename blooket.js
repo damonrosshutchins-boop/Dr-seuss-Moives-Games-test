@@ -16,6 +16,7 @@
   const NOUNS = ["Otter", "Falcon", "Panda", "Tiger", "Koala", "Raven", "Lynx", "Bison", "Heron", "Yak", "Gecko", "Moth", "Wombat", "Crane", "Badger", "Ferret", "Quokka", "Tapir", "Marmot", "Puffin"];
   const JOIN_URL = "https://play.blooket.com/play";
   const SCRIPT_FILE = "./blooket-autojoin.user.js";
+  const INSTALL_PAGE = "./install-blooket.html";
   // The userscript ships with an empty preset so that, installed but unarmed,
   // it stays silent on ordinary Blooket visits.
   const PRESET_LINE = /const PRESET = \{[^}]*\}; \/\/ SEUSS-PRESET/;
@@ -64,7 +65,8 @@
 
   async function loadTemplate() {
     if (template) return template;
-    const response = await fetch(SCRIPT_FILE, { cache: "no-cache" });
+    // reload, not no-cache: a stale GitHub Pages copy would copy an old script.
+    const response = await fetch(SCRIPT_FILE, { cache: "reload" });
     if (!response.ok) throw new Error("the bot script file is missing (" + response.status + ")");
     template = await response.text();
     return template;
@@ -111,15 +113,16 @@
     }
   }
 
-  // Installed once, the same file runs by itself on the join page. Tampermonkey
-  // and Violentmonkey both offer their install page for a .user.js URL.
+  // A .user.js file only installs where a manager (Tampermonkey/Violentmonkey)
+  // is active; without one the browser just prints the code. The install page
+  // says which of those happened instead of leaving a wall of text unexplained.
   function installScript() {
-    const win = window.open(SCRIPT_FILE, "_blank");
+    const win = window.open(INSTALL_PAGE, "_blank");
     if (!win) {
       setState("The browser blocked the tab. Allow popups for this site, then press Install userscript again.");
       return;
     }
-    setState("If Tampermonkey or Violentmonkey is installed it now shows an install page — press Install there once and this panel never needs the console again.");
+    setState("Opened the install page. It needs Tampermonkey or Violentmonkey once; after that this panel never needs the console again.");
   }
 
   // Arms the installed userscript: the code and names travel in the hash, which
