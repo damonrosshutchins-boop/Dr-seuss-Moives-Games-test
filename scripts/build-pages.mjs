@@ -507,13 +507,43 @@ try{
     "GODOT_THREADS_ENABLED = false",'"buckshot-roulette.pck"',"<head>"])
     if(!buckshotHTML.includes(marker))
       throw new Error("Buckshot Roulette entry changed: "+marker);
-  // The Worker serves the whole pck and wasm files as single streams, so the
-  // browser no longer has to download 20 parts twice and merge 344 MB in a Blob
-  // before the engine may start. Drop the upstream merge step and prefetch.
-  if(!buckshotHTML.includes('<script src="main.js"></script>'))
-    throw new Error("Buckshot Roulette entry changed: merge script missing");
+  // The port's main.js merges the split pck and wasm before the engine starts,
+  // but it fetches the 17 pck parts one at a time: about four minutes of blank
+  // "LOADING..." on a first visit, which reads as a broken game. Replace it with
+  // the same merge run several parts at a time, and report a part failure
+  // instead of leaving the page waiting forever.
+  for(const marker of ['<script src="main.js"></script>',"window.godotRunStart = run;"])
+    if(!buckshotHTML.includes(marker))
+      throw new Error("Buckshot Roulette entry changed: "+marker);
+  const buckshotParts=[];
+  for(let i=1;i<=17;i++)buckshotParts.push("buckshot-roulette.pck.part"+i);
+  for(let i=1;i<=3;i++)buckshotParts.push("buckshot-roulette.wasm.part"+i);
+  const buckshotLoader="<script>(function(){"+
+    "var pck=[],wasm=[];for(var i=1;i<=17;i++)pck.push(\"buckshot-roulette.pck.part\"+i);"+
+    "for(var j=1;j<=3;j++)wasm.push(\"buckshot-roulette.wasm.part\"+j);"+
+    "function load(parts,limit){return new Promise(function(resolve,reject){"+
+    "var out=new Array(parts.length),next=0,active=0,failed=false;"+
+    "function pump(){if(failed)return;"+
+    "if(next>=parts.length&&active===0){resolve(new Blob(out));return;}"+
+    "while(active<limit&&next<parts.length){(function(index){active++;"+
+    "fetch(parts[index]).then(function(r){if(!r.ok)throw new Error(\"Missing part: \"+parts[index]);"+
+    "return r.arrayBuffer();}).then(function(buffer){out[index]=buffer;"+
+    "}).catch(function(error){failed=true;reject(error);}).then(function(){active--;pump();});"+
+    "})(next++);}}"+
+    "pump();});}"+
+    "var nativeFetch=window.fetch;"+
+    "Promise.all([load(pck,5),load(wasm,3)]).then(function(files){"+
+    "var pckUrl=URL.createObjectURL(files[0]),wasmUrl=URL.createObjectURL(files[1]);"+
+    "window.fetch=function(url){var value=String(url);"+
+    "if(value.indexOf(\"buckshot-roulette.pck\")>=0)return nativeFetch.call(this,pckUrl);"+
+    "if(value.indexOf(\"buckshot-roulette.wasm\")>=0)return nativeFetch.call(this,wasmUrl);"+
+    "return nativeFetch.apply(this,arguments);};window.godotRunStart();"+
+    "}).catch(function(error){"+
+    "var notice=document.getElementById(\"status-notice\");"+
+    "if(notice)notice.textContent=\"The game files could not be loaded: \"+(error&&error.message||error);"+
+    "console.error(\"[buckshot] game files failed\",error);});})();<\/script>";
   buckshotHTML=buckshotHTML
-    .replace('<script src="main.js"></script>','')
+    .replace('<script src="main.js"></script>',buckshotLoader)
     .replace("<head>",'<head>\n    <base href="'+buckshotRoute+'">');
   const buckshotOut=path.join(out,"games","buckshot");
   await fs.mkdir(buckshotOut,{recursive:true});

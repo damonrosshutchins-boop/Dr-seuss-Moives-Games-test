@@ -82,7 +82,6 @@ for(const [label,source,required] of [
   ["1v1.LOL Firebase relay",arcadeWorker,["FIREBASE_ROUTE","firebaseUpstreams","identitytoolkit","securetoken.googleapis.com","firestore.googleapis.com","serve11FirebaseSdk","handleFirebaseRelay","firebaseSdkAssets"]],
   ["Gamble With Your Friends pinned Cloudflare route",arcadeWorker,["gambleCommit","d7b3ac61ce6d2cb98e212dfa01ba0df413539a53","Camzzz-vrgt/gamble-with-your-friends-web","approvedGambleFile","gambleRoute"]],
   ["Buckshot pinned Cloudflare route",arcadeWorker,["buckshotCommit","f8a263b4da11c181e02e31086e5a5c8bc2dd1457","Random-Red-Dude-809-4456/buckshot","approvedBuckshotFile","buckshotRoute"]],
-  ["Buckshot whole-file streaming",arcadeWorker,["buckshotBundles","buckshot-roulette.pck","buckshot-roulette.wasm","streamParts"]],
   ["Pinned Unity mirrors",arcadeWorker,["unityMirrors","approvedUnityMirrorFile","d4ce675e5ab1bddd8ef03994129d31a8c8b34c67","eb5348fe5a0f17956daaea873fb161c7142ed0a7","a8815a5edf746b24ebd8028273c4de80c8f67821","79306ef07b5456ebdc6d25dc023aa61184c1ae27","631e27caca8f082cd60c8d374f7a7a96d422e26f"]],
   ["Firebase endpoint lock",arcadeWorker,["firebaseIdtMethods","approvedFirebaseTarget","FIREBASE_FIRESTORE_PREFIX"]]
 ]){
