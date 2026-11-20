@@ -518,7 +518,7 @@ function mc18DriveURL(item) {
 const oneVOneCommit = "af28b6e4c6ac08827a3404d33defd626cd236f74";
 const importedAssetRoots = Object.freeze({
   "emu": "https://cdn.jsdelivr.net/gh/bubblfan/emu@main/",
-  "emu-stable": "https://cdn.emulatorjs.com/stable/data/",
+  "emu-stable": "https://cdn.emulatorjs.org/stable/data/",
   "1v1": "https://cdn.jsdelivr.net/gh/n-101-1/1@" + oneVOneCommit + "/"
 });
 const importedExactAssets=Object.freeze({
