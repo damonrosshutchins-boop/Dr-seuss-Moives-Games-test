@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Seuss Arcade — Blooket auto-join
 // @namespace    https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/
-// @version      1.2.0
+// @version      1.3.0
 // @description  Opens one tab per bot on Blooket's join page and fills in the game code and nickname.
 // @match        https://play.blooket.com/play*
 // @updateURL    https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/blooket-autojoin.user.js
@@ -191,28 +191,56 @@
     return "joined";
   }
 
-  async function start(code, names) {
+  // When the arcade panel armed this tab it is also this tab's opener, so each
+  // bot's state is posted back there. Only the armada page's own origin is
+  // targeted, and the message carries nothing but names, states and the code.
+  const OPENER_ORIGIN = (() => {
+    try { return new URL(document.referrer).origin; } catch (error) { return ""; }
+  })();
+
+  function report(message, code) {
+    if (!OPENER_ORIGIN || !window.opener) return;
+    try {
+      window.opener.postMessage(Object.assign({ type: "seuss-arcade-bots", code: code }, message), OPENER_ORIGIN);
+    } catch (error) { /* the arcade tab was closed */ }
+  }
+
+  async function start(code, names, progress) {
     const results = [];
+    const say = (text) => { if (typeof progress === "function") progress(text); };
+    let done = 0;
+    say("Opening " + names.length + (names.length === 1 ? " bot tab…" : " bot tabs…"));
+    report({ event: "start", total: names.length, names: names }, code);
     for (const name of names) {
+      say(name + " · joining (" + (done + 1) + "/" + names.length + ")");
+      report({ event: "bot", name: name, state: "joining" }, code);
       const win = window.open("https://play.blooket.com/play", "_blank", "width=560,height=820");
       if (!win) {
-        results.push(name + ": popup blocked — allow popups for play.blooket.com and run again");
+        const blocked = "popup blocked — allow popups for play.blooket.com and run again";
+        results.push(name + ": " + blocked);
+        report({ event: "bot", name: name, state: "failed", detail: blocked }, code);
         break;
       }
       try {
         results.push(name + ": " + (await join(win, code, name)));
+        report({ event: "bot", name: name, state: "joined" }, code);
       } catch (error) {
-        results.push(name + ": " + (error && error.message ? error.message : String(error)));
+        const detail = error && error.message ? error.message : String(error);
+        results.push(name + ": " + detail);
+        report({ event: "bot", name: name, state: "failed", detail: detail }, code);
       }
+      done += 1;
+      say("" + done + "/" + names.length + " finished");
       await sleep(1200);
     }
+    report({ event: "done", total: names.length, results: results }, code);
     console.log("[Seuss Arcade] bot results:\n" + results.join("\n"));
     alert("Bot results:\n\n" + results.join("\n"));
   }
 
   // A tab opened from a link cannot open more windows without a gesture, so an
   // armed tab offers one button instead of relying on Blooket's own controls.
-  function launchBar(code, names, run) {
+  function launchBar(code, names, begin) {
     if (!document.body) return;
     const bar = document.createElement("div");
     bar.setAttribute("data-seuss-arcade", "bots");
@@ -224,8 +252,9 @@
     button.textContent = "Start bots";
     button.style.cssText = "border:0;border-radius:8px;padding:8px 12px;font:700 13px system-ui,sans-serif;background:linear-gradient(115deg,#ffffff,#c4c4c4);color:#000;cursor:pointer";
     button.addEventListener("click", () => {
-      bar.remove();
-      run();
+      // The bar stays put so each bot's progress is readable on Blooket too.
+      button.remove();
+      begin((text) => { label.textContent = text; });
     });
     bar.append(label, button);
     document.body.append(bar);
@@ -241,7 +270,7 @@
     }
     names = names.slice(0, MAX_BOTS);
     if (!names.length) return alert("No bot names were given.");
-    if (job.linked) launchBar(job.code, names, () => start(job.code, names));
+    if (job.linked) launchBar(job.code, names, (progress) => start(job.code, names, progress));
     else start(job.code, names);
   }
 

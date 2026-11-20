@@ -28,6 +28,66 @@
     $("blooketState").textContent = text;
   }
 
+  // --- Bot tabs -------------------------------------------------------------
+  // The armed Blooket tab is opened by this page, so it can post each bot's
+  // progress back here. Only Blooket's own origin is believed, and the rows
+  // show one line per bot instead of making you hunt through tabs.
+  const BLOOKET_ORIGIN = "https://play.blooket.com";
+  const botRows = new Map();
+
+  function botList() {
+    const list = $("blooketBots");
+    if (!list) return null;
+    list.hidden = false;
+    return list;
+  }
+
+  function clearBots(waiting) {
+    botRows.clear();
+    const list = botList();
+    if (!list) return;
+    list.textContent = "";
+    if (waiting) {
+      const row = document.createElement("li");
+      row.textContent = "Waiting for the Blooket tab to report back…";
+      list.append(row);
+    }
+  }
+
+  function setBot(name, text, kind) {
+    const list = botList();
+    if (!list) return;
+    let row = botRows.get(name);
+    if (!row) {
+      row = document.createElement("li");
+      botRows.set(name, row);
+      list.append(row);
+    }
+    row.textContent = name + " · " + text;
+    row.classList.toggle("bk-ok", kind === "ok");
+    row.classList.toggle("bk-err", kind === "err");
+  }
+
+  function renderBots(data) {
+    if (data.event === "start") {
+      clearBots(false);
+      for (const name of data.names || []) setBot(name, "armed", "wait");
+      return;
+    }
+    if (data.event === "bot") {
+      if (data.state === "joined") return setBot(data.name, "joined", "ok");
+      if (data.state === "failed") return setBot(data.name, "failed — " + (data.detail || "unknown reason"), "err");
+      return setBot(data.name, "joining…", "wait");
+    }
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.origin !== BLOOKET_ORIGIN) return;
+    const data = event.data;
+    if (!data || data.type !== "seuss-arcade-bots") return;
+    renderBots(data);
+  });
+
   function generatedNames(count) {
     const names = [];
     const used = new Set();
@@ -135,6 +195,9 @@
       return;
     }
     const hash = "#seuss=" + encodeURIComponent([code, ...names].join("\n"));
+    // No noopener here on purpose: the Blooket tab needs this page as its
+    // opener to post every bot's state back to the list below.
+    clearBots(true);
     const win = window.open(JOIN_URL + hash, "_blank");
     if (!win) {
       setState("The browser blocked the tab. Allow popups for this site, then press Arm & launch again.");
