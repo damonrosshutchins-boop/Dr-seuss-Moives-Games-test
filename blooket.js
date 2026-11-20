@@ -52,7 +52,7 @@
     list.textContent = "";
     if (waiting) {
       const row = document.createElement("li");
-      row.textContent = "Waiting for the Blooket tab to report back…";
+      row.textContent = "Waiting for bots to report…";
       list.append(row);
     }
   }
@@ -102,6 +102,9 @@
   function applyBoard(board) {
     const bots = board && board.bots;
     if (!bots || typeof bots !== "object") return false;
+    if (!Object.keys(bots).length) return false;
+    // The first real board replaces the waiting placeholder.
+    if (botRows.size === 0) clearBots(false);
     let seen = false;
     for (const [name, state] of Object.entries(bots)) {
       if (!state || !state.state) continue;
