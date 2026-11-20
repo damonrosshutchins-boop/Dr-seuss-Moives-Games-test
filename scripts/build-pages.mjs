@@ -97,7 +97,7 @@ for(const slug of ["lobcorp","plague-inc","tabs"]){
   await fs.mkdir(path.join(out,"games",slug),{recursive:true});
   await fs.copyFile(path.join("games",slug,"index.html"),path.join(out,"games",slug,"index.html"));
 }
-for(const slug of ["balatro","cheese"]){
+for(const slug of ["balatro","cheese","happywheels","dispatch"]){
   await fs.mkdir(path.join(out,"games",slug),{recursive:true});
   await fs.copyFile(path.join("games",slug,"index.html"),path.join(out,"games",slug,"index.html"));
 }

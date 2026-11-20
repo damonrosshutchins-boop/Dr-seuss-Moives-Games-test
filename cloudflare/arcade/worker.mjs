@@ -850,6 +850,66 @@ async function handleApproved(request, env, url) {
     });
   }
 
+  /* ------------------------------------------------- archived site games --- */
+
+  if (pathname === "/approved-games/happywheels") return Response.redirect(url.origin + HW_ROUTE, 308);
+  if (pathname === HW_ROUTE || pathname === HW_ROUTE + "index.html") {
+    return serveArchivedHtml(request, HW_PAGE, page => happyWheelsHtml(page, url.origin));
+  }
+  if (pathname.startsWith(HW_ROUTE)) {
+    const raw = pathname.slice(HW_ROUTE.length);
+    if (raw === "config.json") return serveHappyWheelsConfig(request);
+    if (raw === "intro.js") {
+      return fetchPinned(request, HW_INTRO, {
+        mime: "application/javascript; charset=utf-8", cache: "public, max-age=86400", timeout: 45000
+      });
+    }
+    if (raw.startsWith("api/")) return serveHappyWheelsApi(request, url);
+    if (raw === "game/backend-config.js") return serveHappyWheelsBackendConfig(request, url.origin);
+    if (raw.startsWith("game/")) {
+      const file = archivedGameFile(raw.slice("game/".length));
+      if (!file) return textError(404, "Not an approved Happy Wheels file");
+      return fetchPinned(request, HW_ASSET_ROOT + encodePath(file), {
+        mime: mimeFor(file), cache: "public, max-age=86400, immutable", timeout: 120000
+      });
+    }
+    return textError(404, "Not an approved Happy Wheels route");
+  }
+
+  if (pathname.startsWith(DISPATCH_ROUTE + "lfs/")) {
+    const file = archivedGameFile(pathname.slice((DISPATCH_ROUTE + "lfs/").length));
+    if (!file) return textError(404, "Not an approved Dispatch asset");
+    return fetchPinned(request, DISPATCH_LFS_ROOT + encodePath(file), {
+      cache: "public, max-age=86400, immutable", timeout: 180000
+    });
+  }
+  if (pathname === "/approved-games/dispatch") return Response.redirect(url.origin + DISPATCH_ROUTE, 308);
+  if (pathname.startsWith(DISPATCH_ROUTE)) {
+    const raw = pathname.slice(DISPATCH_ROUTE.length);
+    if (raw === "" || raw === "index.html") {
+      return serveArchivedHtml(request, archivedGames.dispatch.base + "index.html",
+        page => dispatchHtml(page, url.origin));
+    }
+    const file = archivedGameFile(raw);
+    if (!file) return textError(404, "Not an approved Dispatch file");
+    return fetchPinned(request, archivedGames.dispatch.base + encodePath(file), {
+      mime: mimeFor(file), cache: "public, max-age=86400", timeout: 180000
+    });
+  }
+
+  if (pathname === "/approved-games/needle") return Response.redirect(url.origin + NEEDLE_ROUTE, 308);
+  if (pathname.startsWith(NEEDLE_ROUTE)) {
+    const raw = pathname.slice(NEEDLE_ROUTE.length);
+    if (raw === "" || raw === "index.html") {
+      return serveArchivedHtml(request, archivedGames.needle.base + "index.html", page => page, { isolated: true });
+    }
+    const file = archivedGameFile(raw);
+    if (!file) return textError(404, "Not an approved FindTheNeedle file");
+    return fetchPinned(request, archivedGames.needle.base + encodePath(file), {
+      mime: mimeFor(file), cache: "public, max-age=86400", timeout: 180000
+    });
+  }
+
   for (const [slug, mirror] of Object.entries(unityMirrors)) {
     const prefix = "/approved-games/" + slug + "/";
     if (!pathname.startsWith(prefix)) continue;
@@ -1395,6 +1455,161 @@ async function handleLegacyMirror(request, url) {
     out.set("cross-origin-opener-policy", "same-origin");
     out.set("cross-origin-embedder-policy", "require-corp");
   }
+  return new Response(request.method === "HEAD" ? null : upstream.body, {
+    status: upstream.status,
+    headers: out
+  });
+}
+
+/* ------------------------------------------- mirrored GitHub Pages games --- */
+
+// Three GitHub Pages games load their own directory trees with relative URLs,
+// and two of them also pull from a fixed asset host. Serving all of it from
+// this origin keeps every request inside the Worker instead of the browser
+// talking to nawsif.github.io, jsDelivr, media.githubusercontent.com or the
+// game's own Workers backend directly.
+const NW_SITE = "https://nawsif.github.io";
+const HW_PAGE = NW_SITE + "/html/happywheels";
+const HW_ASSET_COMMIT = "80b52b89d6e2739e79378ef2512cd86e2ef79c7c";
+const HW_ASSET_ROOT = "https://cdn.jsdelivr.net/gh/nawsif/host@" + HW_ASSET_COMMIT + "/HappyWheels/";
+const HW_INTRO = "https://tinklehost.github.io/intro.js";
+const HW_API_ORIGIN = "https://happy-wheels-api.nawsifsspammail.workers.dev";
+const DISPATCH_LFS_ROOT = "https://media.githubusercontent.com/media/Nawsif/hctapsid/main/";
+const HW_ROUTE = "/approved-games/happywheels/";
+const DISPATCH_ROUTE = "/approved-games/dispatch/";
+const NEEDLE_ROUTE = "/approved-games/needle/";
+const archivedGames = Object.freeze({
+  dispatch: { base: NW_SITE + "/hctapsid/" },
+  needle: { base: NW_SITE + "/FindTheNeedle/" }
+});
+
+// A page may use any path inside its own published directory, but nothing else:
+// the shared asset-path check rejects traversal, empty segments and odd bytes.
+function archivedGameFile(raw) {
+  return safeAssetPath(raw || "");
+}
+
+async function serveArchivedHtml(request, upstreamUrl, rewrite, options = {}) {
+  let upstream;
+  try {
+    upstream = await fetch(upstreamUrl, { redirect: "follow", signal: AbortSignal.timeout(45000) });
+  } catch (error) {
+    console.warn("archived page failed", upstreamUrl, String(error));
+    return textError(502, "The approved game page could not be reached");
+  }
+  if (!upstream.ok) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "The approved game page is unavailable (" + upstream.status + ")");
+  }
+  const page = rewrite(await upstream.text());
+  const headers = corsHeaders(request, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff"
+  });
+  // A threaded Godot page only becomes cross-origin isolated when the document
+  // itself carries these; an iframe inherits its parent's cluster instead.
+  if (options.isolated) {
+    headers.set("cross-origin-opener-policy", "same-origin");
+    headers.set("cross-origin-embedder-policy", "require-corp");
+  }
+  return new Response(request.method === "HEAD" ? null : page, {
+    status: 200,
+    headers
+  });
+}
+
+// Happy Wheels ships its own CSP, a jsDelivr base and a Google Fonts stylesheet.
+// Point the base at the relayed asset route, drop the font hosts, route the
+// intro script through the Worker and allow only this origin in the policy.
+function happyWheelsHtml(html, origin) {
+  // The port reads one small config file from the publisher's site before it
+  // finishes booting. Send that request to the relayed copy instead so the page
+  // never leaves this origin.
+  const configBridge = '<script>(function(){' +
+    'var from="https://totaljerkface.com/hw-steam/config.json",' +
+    'to=location.origin+"' + HW_ROUTE + 'config.json",native=window.fetch;' +
+    'if(typeof native!="function")return;' +
+    'window.fetch=function(input,init){try{var url=typeof input==="string"?input:(input&&input.url)||"";' +
+    'if(url.indexOf(from)===0)input=to+(url.indexOf("?")>=0?url.slice(url.indexOf("?")):"");}catch(e){}' +
+    'return native.call(this,input,init);};})();<\/script>';
+  const csp = '<meta http-equiv="Content-Security-Policy" content="default-src \'self\' data: blob:; ' +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; " +
+    "font-src 'self' data:; connect-src 'self' data: blob:; media-src 'self' data: blob:; " +
+    "img-src 'self' data: blob:; object-src 'none'\">";
+  return html
+    .replace(/<base\b[^>]*>/i, '<base href="' + origin + HW_ROUTE + 'game/">')
+    .replace(/<link\b[^>]*fonts\.(?:googleapis|gstatic)[^>]*>/gi, "")
+    .replace(/<link\b[^>]*rel="preconnect"[^>]*>/gi, "")
+    .replaceAll(HW_INTRO, origin + HW_ROUTE + "intro.js")
+    .replace(/<meta\s+http-equiv="Content-Security-Policy"[^>]*>/i, csp)
+    .replace(/<head\b[^>]*>/i, match => match + configBridge);
+}
+
+const HW_CONFIG_ORIGIN = "https://totaljerkface.com/hw-steam/config.json";
+
+async function serveHappyWheelsConfig(request) {
+  return fetchPinned(request, HW_CONFIG_ORIGIN, {
+    mime: "application/json; charset=utf-8", cache: "public, max-age=300", timeout: 30000
+  });
+}
+
+// Dispatch rewrites its own Git LFS paths to a hard-coded media host; send that
+// prefix to the relayed route instead.
+function dispatchHtml(html, origin) {
+  return html.replaceAll(DISPATCH_LFS_ROOT, origin + DISPATCH_ROUTE + "lfs/");
+}
+
+// The game's backend is a Cloudflare Workers host the relay cannot open sockets
+// to, so the config script is rewritten to call the API through this Worker.
+async function serveHappyWheelsBackendConfig(request, origin) {
+  let upstream;
+  try {
+    upstream = await fetch(HW_ASSET_ROOT + "backend-config.js", { signal: AbortSignal.timeout(30000) });
+  } catch {
+    return textError(502, "The Happy Wheels config script could not be reached");
+  }
+  if (!upstream.ok) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "The Happy Wheels config script is unavailable (" + upstream.status + ")");
+  }
+  const source = (await upstream.text()).replaceAll(HW_API_ORIGIN, origin + HW_ROUTE + "api");
+  return new Response(request.method === "HEAD" ? null : source, {
+    status: 200,
+    headers: corsHeaders(request, {
+      "content-type": "application/javascript; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "x-content-type-options": "nosniff"
+    })
+  });
+}
+
+async function serveHappyWheelsApi(request, url) {
+  if (request.method === "OPTIONS") return preflight(request);
+  if (request.method !== "GET" && request.method !== "HEAD" && request.method !== "POST") {
+    return textError(405, "Unsupported method for the Happy Wheels backend");
+  }
+  const tail = archivedGameFile(url.pathname.slice((HW_ROUTE + "api/").length));
+  if (!tail) return textError(404, "Not an approved Happy Wheels backend path");
+  const headers = new Headers({ "accept-encoding": "identity" });
+  for (const name of ["content-type", "accept"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  const init = { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(30000) };
+  if (request.method === "POST") init.body = request.body;
+  let upstream;
+  try {
+    upstream = await fetch(HW_API_ORIGIN + "/" + encodePath(tail) + url.search, init);
+  } catch (error) {
+    console.warn("happy wheels api failed", tail, String(error));
+    return textError(502, "The Happy Wheels backend could not be reached");
+  }
+  const out = corsHeaders(request, {
+    "content-type": upstream.headers.get("content-type") || "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff"
+  });
   return new Response(request.method === "HEAD" ? null : upstream.body, {
     status: upstream.status,
     headers: out
