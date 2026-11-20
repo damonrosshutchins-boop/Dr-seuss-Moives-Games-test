@@ -58,15 +58,32 @@ Clear it once, in the profile the runner reuses:
 node runner.mjs --setup
 ```
 
-A browser window opens on the machine. Enter any game code and press join once,
-so Cloudflare issues a `cf_clearance` cookie, then leave the window alone — the
-runner notices the cookie, saves the profile and exits. Real runs reopen the
-same profile (`./runner/.profile` by default, `--profile <dir>` to move it), so
-one cleared session covers every bot until the cookie expires.
+A browser window opens on the machine. Enter a game code and press join once, so
+Cloudflare issues a `cf_clearance` cookie, then leave the window alone. The
+runner waits for the cookie, then **proves it** with one real join POST for the
+code you passed (or `000000` if none) and prints one of:
+
+- `Challenge is gone: Blooket answered the join POST with a nickname prompt for
+  607323` — the profile is ready. The probe stops there without submitting a name.
+- `Challenge is gone: Blooket itself answered the join POST … (Game not found)` —
+  still good: the request reached the app, which is all the clearance has to prove.
+- `Cloudflare still stops the join: …` — the cookie exists but is not honoured;
+  exit code 1, and the profile is not ready.
+
+It probes even when no cookie appeared, so the answer is what actually happens
+rather than what the cookie suggests. Real runs reopen the same profile
+(`./runner/.profile` by default, `--profile <dir>` to move it), so one cleared
+session covers every bot until the clearance expires.
 
 This reuses a session a person cleared. It is not a stealth patch: if the
 challenge keeps coming back, the machine or the connection is being scored as a
 bot, and the answer is a different connection, not another workaround.
+
+Headless runs print a warning up front, and a bot that actually gets the
+interstitial fails with `Cloudflare served the "Just a moment…" interstitial to
+headless Chromium; rerun with --headful` — the same request succeeds in a
+headful window, so the mode is named in the error instead of leaving you to
+guess.
 
 ## 4 · Run a real game
 
