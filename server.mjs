@@ -547,7 +547,7 @@ for(let i=1;i<=4;i++){
 // No user-provided upstream URLs, protocols, hostnames or redirect following.
 const importedAssetRoots=Object.freeze({
   "emu":"https://cdn.jsdelivr.net/gh/bubblfan/emu@main/",
-  "emu-stable":"https://cdn.emulatorjs.org/stable/data/",
+  "emu-4.2.3":"https://cdn.emulatorjs.org/4.2.3/data/",
   "1v1":"https://cdn.jsdelivr.net/gh/n-101-1/1@main/"
 });
 const importedExactAssets=Object.freeze({

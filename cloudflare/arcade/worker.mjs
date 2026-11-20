@@ -518,7 +518,9 @@ function mc18DriveURL(item) {
 const oneVOneCommit = "af28b6e4c6ac08827a3404d33defd626cd236f74";
 const importedAssetRoots = Object.freeze({
   "emu": "https://cdn.jsdelivr.net/gh/bubblfan/emu@main/",
-  "emu-stable": "https://cdn.emulatorjs.org/stable/data/",
+  // Pinned release, not /stable/: the emulator script and its core data must
+  // not change under a launcher that was built against one version.
+  "emu-4.2.3": "https://cdn.emulatorjs.org/4.2.3/data/",
   "1v1": "https://cdn.jsdelivr.net/gh/n-101-1/1@" + oneVOneCommit + "/"
 });
 const importedExactAssets=Object.freeze({
