@@ -1625,6 +1625,130 @@ async function serveHappyWheelsApi(request, url) {
   });
 }
 
+/* ---------------------------------------------- Projection Studios mirror --- */
+
+// The movie site lives on another workers.dev host. Cloudflare will not let the
+// Wisp relay open TCP sockets to its own addresses, so the movie page could only
+// be framed straight from that host. This mirrors it instead: the shell, its
+// scripts, its /api calls and its chat socket all come back through this origin.
+const MOVIE_ROUTE = "/movies/projection/";
+const MOVIE_ROOT = "/movies/projection";
+const MOVIE_ORIGIN = "https://projection-studios.dogeeats531.workers.dev";
+const MOVIE_FORWARD_HEADERS = ["accept", "accept-language", "authorization", "content-type", "range", "x-token", "x-session"];
+const MOVIE_COPY_HEADERS = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges", "content-disposition"];
+
+// The page hardcodes root-absolute paths (API='/api', new URL('/ws', …)) because
+// it normally owns its whole host. Rewrite them onto the mirror prefix so the
+// browser keeps every request on this origin.
+function movieRewrite(source) {
+  return source
+    .replaceAll(MOVIE_ORIGIN + "/", MOVIE_ROUTE)
+    .replaceAll('"' + MOVIE_ORIGIN, '"' + MOVIE_ROOT)
+    .replaceAll('"' + "/api", '"' + MOVIE_ROUTE + "api")
+    .replaceAll("'" + "/api", "'" + MOVIE_ROUTE + "api")
+    .replaceAll('"' + "/ws", '"' + MOVIE_ROUTE + "ws")
+    .replaceAll("'" + "/ws'", "'" + MOVIE_ROUTE + "ws'")
+    .replaceAll('"' + "/vendor/", '"' + MOVIE_ROUTE + "vendor/")
+    .replaceAll("'" + "/vendor/", "'" + MOVIE_ROUTE + "vendor/")
+    .replaceAll('"' + "/degloved-games.json", '"' + MOVIE_ROUTE + "degloved-games.json")
+    .replaceAll("'" + "/degloved-games.json", "'" + MOVIE_ROUTE + "degloved-games.json")
+    // The catalogue also loads sidebar scripts, its own stylesheet and its
+    // game-art thumbnails by root-absolute path, and frames proxied games
+    // through /proxy/, so those move under the mirror too. The lookaheads keep
+    // a value that is already mirrored from being prefixed a second time.
+    .replaceAll("'/proxy/", "'" + MOVIE_ROUTE + "proxy/")
+    .replaceAll('"' + "/proxy/", '"' + MOVIE_ROUTE + "proxy/")
+    .replace(/(src|href)="\/(?!\/)(?!movies\/projection\/)/g, ('$1="' + MOVIE_ROUTE))
+    .replace(/(["'])\/(?!movies\/projection\/)([A-Za-z0-9][A-Za-z0-9._/-]*\.(?:js|css|html|json|jpg|jpeg|png|webp|svg|gif|woff2?|otf|ttf|mp4|webm))\1/g,
+      (match, quote, path) => quote + MOVIE_ROUTE + path + quote);
+}
+
+async function serveMovieApp(request, url) {
+  if (request.method === "OPTIONS") return preflight(request);
+  const rest = url.pathname.slice(MOVIE_ROOT.length) || "/";
+  const target = MOVIE_ORIGIN + (rest.startsWith("/") ? rest : "/" + rest) + url.search;
+  const headers = new Headers();
+  for (const name of MOVIE_FORWARD_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  const init = {
+    method: request.method,
+    headers,
+    redirect: "follow",
+    signal: AbortSignal.timeout(60000)
+  };
+  if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+  let upstream;
+  try {
+    upstream = await fetch(target, init);
+  } catch (error) {
+    console.warn("movie mirror failed", url.pathname, String(error));
+    return textError(502, "Projection Studios could not be reached");
+  }
+  const out = new Headers();
+  for (const name of MOVIE_COPY_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  const type = (out.get("content-type") || "").toLowerCase();
+  // Only documents and code are rewritten. API JSON carries the catalogue's own
+  // data (TMDB poster paths that the page joins onto image.tmdb.org), so a
+  // prefix must never be injected into it.
+  const textual = type.includes("text/html") || type.includes("text/css") || type.includes("javascript");
+  // Pages, catalogue API replies and the socket carry the app's live state, so
+  // neither the edge nor the browser may hold on to them.
+  const live = type.includes("text/html") || rest.startsWith("/api/") || rest.startsWith("/ws");
+  out.set("cache-control", live || !upstream.ok ? "no-store" : "public, max-age=3600");
+  out.set("x-content-type-options", "nosniff");
+  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+  if (!textual) return new Response(upstream.body, { status: upstream.status, headers: out });
+  let source;
+  try {
+    source = await upstream.text();
+  } catch (error) {
+    console.warn("movie mirror read failed", url.pathname, String(error));
+    return textError(502, "Projection Studios returned an unreadable page");
+  }
+  return new Response(movieRewrite(source), { status: upstream.status, headers: out });
+}
+
+// The catalogue keeps watch-party and chat state on a socket at /ws, so the
+// mirror has to carry it across as well.
+async function serveMovieSocket(request) {
+  if ((request.headers.get("Upgrade") || "").toLowerCase() !== "websocket") {
+    return textError(426, "Expected a websocket upgrade");
+  }
+  const url = new URL(request.url);
+  let upstream;
+  try {
+    upstream = await fetch(MOVIE_ORIGIN + "/ws" + url.search, { headers: { Upgrade: "websocket" } });
+  } catch (error) {
+    console.warn("movie socket failed", String(error));
+    return textError(502, "The movie chat socket could not be reached");
+  }
+  const peer = upstream.webSocket;
+  if (!peer) {
+    try { await upstream.body?.cancel(); } catch {}
+    return textError(502, "The movie chat socket was refused (" + upstream.status + ")");
+  }
+  const pair = new WebSocketPair();
+  const client = pair[0], server = pair[1];
+  server.accept();
+  peer.accept();
+  const shutdown = () => {
+    try { server.close(); } catch {}
+    try { peer.close(); } catch {}
+  };
+  server.addEventListener("message", event => { try { peer.send(event.data); } catch (error) { console.warn("movie socket write failed", String(error)); shutdown(); } });
+  peer.addEventListener("message", event => { try { server.send(event.data); } catch (error) { console.warn("movie socket read failed", String(error)); shutdown(); } });
+  server.addEventListener("close", shutdown);
+  peer.addEventListener("close", shutdown);
+  server.addEventListener("error", shutdown);
+  peer.addEventListener("error", shutdown);
+  return new Response(null, { status: 101, webSocket: client });
+}
+
 /* ------------------------------------------------------------- entrypoint --- */
 
 export default {
@@ -1671,6 +1795,16 @@ export default {
       } catch (error) {
         console.error("firebase route failed", pathname, String(error));
         return withCors(request, textError(502, "The Firebase route failed"));
+      }
+    }
+
+    if (pathname.startsWith(MOVIE_ROOT)) {
+      try {
+        if (pathname === MOVIE_ROUTE + "ws" || pathname === MOVIE_ROUTE + "ws/") return serveMovieSocket(request);
+        return withCors(request, await serveMovieApp(request, url));
+      } catch (error) {
+        console.error("movie route failed", pathname, String(error));
+        return withCors(request, textError(502, "The movie route failed"));
       }
     }
 

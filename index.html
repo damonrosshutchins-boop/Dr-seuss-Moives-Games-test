@@ -106,7 +106,7 @@ const library=[
 {id:'hollowknight',kind:'game',name:'Hollow Knight Webport',desc:'Opens inside the site; downloads a large Unity build from your fork (around 1 GB).',icon:'🦋',bg:'linear-gradient(130deg,#303030,#878787)',url:'./games/hollow-knight/index.html',local:true},
 {id:'fish',kind:'game',name:'FISH (Unity web port)',desc:'Run bundled Unity game files from this site.',icon:'🐟',bg:'linear-gradient(130deg,#404040,#888888)',url:'./games/fish/index.html',local:true},
 {id:'shuttle',kind:'movie',name:'ShuttleTV',desc:'Browse the external entertainment site.',icon:'🎬',bg:'linear-gradient(130deg,#4a4a4a,#a4a4a4)',url:'https://shuttletv.pk/'},
-{id:'projection',kind:'movie',name:'Projection Studios',desc:'Movies, TV, anime and manga in one catalogue; opened directly in the player.',icon:'📽️',bg:'linear-gradient(130deg,#3d3d3d,#a2a2a2)',url:'https://projection-studios.dogeeats531.workers.dev/',direct:true}
+{id:'projection',kind:'movie',name:'Projection Studios',desc:'Movies, TV, anime and manga; the site, its catalogue calls and its watch-party chat all run through the Cloudflare relay.',icon:'📽️',bg:'linear-gradient(130deg,#3d3d3d,#a2a2a2)',url:'https://seuss-arcade-relay.damonrosshutchins.workers.dev/movies/projection/',direct:true}
 ];
 const $=id=>document.getElementById(id);let filter='all',selected=null;
 const favorites=new Set(JSON.parse(localStorage.getItem('seussFavorites')||'[]'));
