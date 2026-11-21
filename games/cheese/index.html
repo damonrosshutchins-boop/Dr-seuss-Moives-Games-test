@@ -38,25 +38,18 @@ const game=document.getElementById("game");
 const status=document.getElementById("status");
 const message=document.getElementById("message");
 const retry=document.getElementById("retry");
-async function launch(){
+// Surge serves the game without CORS headers, so the mirror cannot be probed
+// with fetch(): a cross-origin fetch is refused in the browser even though the
+// frame itself loads fine. The frame's load event is the readiness signal.
+function launch(){
   status.hidden=false;
-  retry.hidden=true;
-  game.removeAttribute("src");
-  message.textContent="Checking the approved game mirror…";
-  try{
-    const response=await fetch(base+"index.html",{method:"HEAD",cache:"no-store",signal:AbortSignal.timeout(15000)});
-    if(!response.ok)throw Error("The game mirror is temporarily unavailable (HTTP "+response.status+").");
-    message.textContent="Loading the Cheese Rolling Unity build…";
-    game.onload=()=>{status.hidden=true;};
-    game.src=base+"index.html";
-  }catch(error){
-    message.textContent="Cheese Rolling could not be reached on its published mirror. "+
-      (error.message||String(error))+" Try again in a moment.";
-    retry.hidden=false;
-  }
+  retry.hidden=false;
+  message.textContent="Loading the Cheese Rolling Unity build…";
+  game.onload=()=>{status.hidden=true;};
+  game.src=base+"index.html";
 }
-retry.onclick=()=>void launch();
-void launch();
+retry.onclick=()=>launch();
+launch();
 </script>
 </body>
 </html>
