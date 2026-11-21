@@ -185,6 +185,21 @@ export function warmupPlayer() {
   initialization.catch(error => console.warn("[Seuss player] Background warmup failed:", error));
 }
 
+// Scramjet stamps a frame handle's routing prefix when the handle is created
+// and keeps its own table in the worker. A second handle for one element, or a
+// handle whose element was replaced, produces requests that match no frame and
+// the worker answers them with 500 "No frame found for request". Keep exactly
+// one handle per element and rebuild it only when the controller is replaced.
+let frameElement = null, frameHandle = null, frameController = null;
+function frameHandleFor(controller, iframe) {
+  if (!frameHandle || frameElement !== iframe || frameController !== controller) {
+    frameHandle = controller.createFrame(iframe);
+    frameElement = iframe;
+    frameController = controller;
+  }
+  return frameHandle;
+}
+
 export async function openProxied(iframe, url, onProgress) {
   const target = new URL(url);
   if (target.protocol !== "https:" ||
@@ -212,7 +227,7 @@ export async function openProxied(iframe, url, onProgress) {
   report("Opening selected content…", onProgress);
   const prefix = controller.prefix || proxyPrefix || (base + "scramjet/");
   await ensureRouting(controller, prefix, onProgress);
-  const frame = controller.createFrame(iframe);
+  const frame = frameHandleFor(controller, iframe);
   await timeout(Promise.resolve(frame.go(target.href)), "Starting content");
   // The route can still be lost between the probe and the navigation; a lost
   // route shows up as the host's 404 page, which one retry recovers from.

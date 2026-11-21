@@ -176,18 +176,16 @@ window.addEventListener('message',event=>{
  location.assign(target.href);
 });
 function resetPlayerFrame(){
-  const old=$('frame');
-  const replacement=document.createElement('iframe');
-  replacement.id='frame';
-  replacement.title='Embedded game or movie';
-  // Keep the game inside the viewer; iframe fullscreen hides the Close/Reload toolbar.
-  replacement.setAttribute('allow','gamepad; autoplay; fullscreen');
-  replacement.setAttribute('allowfullscreen','');
-  replacement.setAttribute('referrerpolicy','no-referrer');
-  replacement.setAttribute('sandbox','allow-scripts allow-forms allow-same-origin allow-pointer-lock');
-  old.replaceWith(replacement);
-  try{old.src='about:blank';old.removeAttribute('src');}catch(error){console.warn('Player cleanup:',error);}
-  return replacement;
+  // Scramjet binds one frame handle to one iframe element and stamps that
+  // handle's prefix when it is created. Replacing the element on every open
+  // left the worker routing requests for a frame the page no longer had, which
+  // surfaced as "No frame found for request" and an HTTP 500 for every proxied
+  // card. Reset the same element instead, exactly as the search view does.
+  const frame=$('frame');
+  delete frame.dataset.progressReceived;
+  try{frame.setAttribute('src','about:blank');frame.removeAttribute('src');}
+  catch(error){console.warn('Player cleanup:',error);}
+  return frame;
 }
 function releaseGameControls(){
   try{if(document.pointerLockElement)document.exitPointerLock();}catch(error){console.warn('Pointer lock cleanup:',error);}
