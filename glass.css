@@ -794,3 +794,473 @@ html[data-ui="glass"] aside::-webkit-scrollbar-thumb{background:rgba(255,255,255
   html[data-ui="glass"] .card:hover,
   html[data-ui="glass"] nav button:hover{transform:none}
 }
+
+/* ---------------------------------------------------------------------------
+   Steam launcher shell.
+   Structure, radii and density follow Steam's library: a title bar across the
+   content, a rail that lists the whole library under the collection filter, and
+   a selected-item banner whose Play action sits bottom right. The material stays
+   the liquid-glass purple palette, so nothing here reintroduces Steam's blues.
+   --------------------------------------------------------------------------- */
+
+html[data-ui="glass"]{
+  --steam-edge:rgba(255,255,255,.09);
+  --steam-panel:rgba(12,14,23,.62);
+  --steam-row:rgba(255,255,255,.045);
+}
+
+html[data-ui="glass"] .shell{
+  grid-template-columns:302px minmax(0,1fr);
+  gap:12px;
+  padding:12px;
+}
+
+html[data-ui="glass"] aside{
+  top:12px;
+  height:calc(100vh - 24px);
+  padding:12px 10px;
+  gap:4px;
+  border-radius:12px;
+  border-color:var(--steam-edge);
+  overflow:hidden;
+}
+
+html[data-ui="glass"] .brand{padding:6px 8px 14px;gap:10px}
+
+html[data-ui="glass"] .logo{
+  width:36px;
+  height:36px;
+  border-radius:10px;
+  font-size:18px;
+  box-shadow:0 8px 20px -10px rgba(139,108,255,.95),inset 0 1px 0 rgba(255,255,255,.55);
+}
+
+html[data-ui="glass"] .brand strong{font-size:14px;letter-spacing:.16em}
+html[data-ui="glass"] .brand small{margin-top:2px;font-size:8.5px;letter-spacing:.2em}
+html[data-ui="glass"] .nav-title{margin:6px 8px;font-size:9px;letter-spacing:.2em}
+
+html[data-ui="glass"] nav{gap:2px}
+
+html[data-ui="glass"] nav button,
+html[data-ui="glass"] .navlink{
+  padding:8px 10px;
+  gap:8px;
+  border:1px solid transparent;
+  border-radius:7px;
+  font-size:12.5px;
+  font-weight:600;
+}
+
+html[data-ui="glass"] nav button:hover,
+html[data-ui="glass"] .navlink:hover{
+  background:var(--steam-row);
+  border-color:transparent;
+  color:#fff;
+  transform:none;
+}
+
+html[data-ui="glass"] nav button.active{
+  background:linear-gradient(90deg,rgba(139,108,255,.36),rgba(139,108,255,.08));
+  border-color:transparent;
+  box-shadow:inset 2px 0 0 var(--a-violet),0 8px 18px -16px rgba(139,108,255,.9);
+}
+
+html[data-ui="glass"] nav button.active:after{display:none}
+html[data-ui="glass"] .navlink b{border-radius:4px;padding:1px 5px;font-size:8.5px}
+
+html[data-ui="glass"] .rail-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin:14px 8px 6px;
+  font-size:9px;
+  font-weight:750;
+  letter-spacing:.2em;
+  color:#7b87a6;
+}
+
+html[data-ui="glass"] .rail-head b{
+  padding:1px 7px;
+  border:1px solid var(--steam-edge);
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  font-size:9.5px;
+  font-weight:650;
+  letter-spacing:.04em;
+  color:#a9b6d2;
+  font-variant-numeric:tabular-nums;
+}
+
+html[data-ui="glass"] .rail-list{
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+  flex:1 1 auto;
+  min-height:0;
+  padding:0 2px 6px;
+  overflow:auto;
+  scrollbar-width:thin;
+}
+
+html[data-ui="glass"] .rail-row{
+  display:grid;
+  grid-template-columns:52px minmax(0,1fr) auto;
+  align-items:center;
+  gap:9px;
+  padding:3px 8px 3px 5px;
+  border:1px solid transparent;
+  border-radius:6px;
+  background:transparent;
+  color:#b9c4dd;
+  text-align:left;
+  font-size:12.5px;
+  font-weight:600;
+  cursor:pointer;
+  transition:background .14s ease,color .14s ease;
+}
+
+html[data-ui="glass"] .rail-row:hover{background:var(--steam-row);color:#fff}
+
+html[data-ui="glass"] .rail-row[aria-selected="true"]{
+  background:linear-gradient(90deg,rgba(139,108,255,.34),rgba(60,231,255,.07));
+  color:#fff;
+  box-shadow:inset 2px 0 0 var(--a-violet);
+}
+
+html[data-ui="glass"] .rail-thumb{
+  display:grid;
+  place-items:center;
+  width:52px;
+  height:29px;
+  border-radius:4px;
+  font-size:15px;
+  overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 6px 12px -8px rgba(0,0,0,.9);
+}
+
+html[data-ui="glass"] .rail-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html[data-ui="glass"] .rail-kind{font-size:8px;letter-spacing:.12em;color:#7f8cab}
+html[data-ui="glass"] .rail-row[aria-selected="true"] .rail-kind{color:#cfd8ef}
+
+/* The rail is a list, not a notice board: the compatibility note lives in
+   Settings, so the whole column is available to the library. */
+html[data-ui="glass"] .foot{display:none}
+
+/* Title bar: Steam puts history arrows, the path and search on one strip. */
+html[data-ui="glass"] main{padding:0 clamp(2px,1.2vw,14px) 48px}
+
+html[data-ui="glass"] header{
+  top:12px;
+  margin:0 0 14px;
+  padding:8px 10px;
+  gap:8px;
+  border-radius:10px;
+  border-color:var(--steam-edge);
+  background:var(--steam-panel);
+  box-shadow:var(--glass-sheen),0 14px 30px -26px rgba(0,0,0,.95);
+}
+
+html[data-ui="glass"] .chrome-nav{display:flex;gap:4px}
+
+html[data-ui="glass"] .chrome-btn{
+  display:grid;
+  place-items:center;
+  width:28px;
+  height:28px;
+  padding:0;
+  border:1px solid var(--steam-edge);
+  border-radius:6px;
+  background:var(--steam-row);
+  color:#c6d0e6;
+  font-size:16px;
+  line-height:1;
+}
+
+html[data-ui="glass"] .chrome-btn:hover{background:rgba(255,255,255,.13);color:#fff}
+html[data-ui="glass"] .crumb{font-size:10px;letter-spacing:.14em}
+html[data-ui="glass"] .tools{margin-left:auto;gap:8px}
+
+html[data-ui="glass"] .search{
+  border-radius:6px;
+  border-color:var(--steam-edge);
+  background:rgba(255,255,255,.05);
+}
+
+html[data-ui="glass"] .search input{height:32px;width:220px;font-size:12.5px}
+html[data-ui="glass"] #settingsButton,
+html[data-ui="glass"] .secondary{padding:8px 12px;border-radius:6px;font-size:12px;box-shadow:none}
+
+html[data-ui="glass"] .profile{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:3px 10px 3px 3px;
+  border:1px solid var(--steam-edge);
+  border-radius:999px;
+  background:var(--steam-row);
+  font-size:11.5px;
+  font-weight:650;
+  color:#cdd7ef;
+}
+
+html[data-ui="glass"] .profile span{
+  display:grid;
+  place-items:center;
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  background:conic-gradient(from 140deg,var(--a-violet),var(--a-cyan),var(--a-mint),var(--a-violet));
+  color:#0a0a12;
+  font-size:11px;
+  font-weight:800;
+}
+
+/* Selected item banner. The static pitch hero belongs to Classic only. */
+html[data-ui="glass"] .hero{display:none}
+
+html[data-ui="glass"] .steam-hero{
+  display:block;
+  margin:0 0 18px;
+  overflow:hidden;
+  border:1px solid var(--steam-edge);
+  border-radius:12px;
+  background:var(--glass-fill);
+  box-shadow:var(--glass-sheen),0 26px 60px -46px rgba(0,0,0,.95);
+}
+
+html[data-ui="glass"] .hero-banner{
+  position:relative;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+  min-height:224px;
+  padding:20px 22px;
+  isolation:isolate;
+}
+
+html[data-ui="glass"] .hero-banner:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:
+    linear-gradient(180deg,rgba(6,7,14,.34) 0%,rgba(6,7,14,.62) 52%,rgba(4,5,10,.94) 100%),
+    linear-gradient(118deg,rgba(96,70,196,.52),rgba(24,20,48,.3) 58%,rgba(60,231,255,.16)),
+    radial-gradient(28rem 15rem at 84% 6%,rgba(139,108,255,.55),transparent 72%);
+}
+
+/* The catalogue photos become the banner's backdrop, blurred behind the
+   gradient, so a capsule-sized crop never shows a stretched face. */
+html[data-ui="glass"] .hero-banner:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  background-image:var(--shot,none);
+  background-size:cover;
+  background-position:center;
+  opacity:.42;
+  filter:blur(7px) saturate(115%);
+}
+
+html[data-ui="glass"] .hero-emoji{
+  position:absolute;
+  top:14px;
+  right:20px;
+  z-index:-1;
+  font-size:52px;
+  opacity:.92;
+  filter:drop-shadow(0 14px 22px rgba(0,0,0,.6));
+}
+
+html[data-ui="glass"] .hero-copy{min-width:0}
+
+html[data-ui="glass"] .hero-kind{
+  display:inline-flex;
+  padding:3px 7px;
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:4px;
+  background:rgba(139,108,255,.42);
+  font-size:8.5px;
+  font-weight:750;
+  letter-spacing:.16em;
+  color:#f2f5ff;
+}
+
+html[data-ui="glass"] .hero-copy h1{
+  margin:9px 0 0;
+  max-width:26ch;
+  font-size:clamp(24px,2.8vw,36px);
+  font-weight:760;
+  line-height:1.04;
+  letter-spacing:-.03em;
+  color:#fff;
+  text-shadow:0 12px 28px rgba(0,0,0,.65);
+}
+
+html[data-ui="glass"] .hero-cta{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+html[data-ui="glass"] .hero-cta .primary{
+  margin:0;
+  padding:11px 22px;
+  border-radius:6px;
+  font-size:13px;
+  font-weight:750;
+  color:#fff;
+  background:linear-gradient(120deg,#8b6cff,#6f7dff 55%,#3ce7ff);
+  box-shadow:0 16px 34px -18px rgba(139,108,255,.95),inset 0 1px 0 rgba(255,255,255,.45);
+  text-shadow:0 1px 0 rgba(0,0,0,.3);
+}
+
+html[data-ui="glass"] .hero-fav{
+  display:grid;
+  place-items:center;
+  width:40px;
+  height:40px;
+  padding:0;
+  border-radius:6px;
+  font-size:15px;
+}
+
+html[data-ui="glass"] .hero-fav[aria-pressed="true"]{
+  color:#fff;
+  border-color:rgba(255,95,158,.7);
+  background:rgba(255,95,158,.24);
+}
+
+html[data-ui="glass"] .hero-strip{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+  padding:11px 20px;
+  border-top:1px solid var(--steam-edge);
+  background:rgba(8,10,18,.55);
+}
+
+html[data-ui="glass"] .hero-strip p{
+  margin:0;
+  max-width:74ch;
+  font-size:12px;
+  line-height:1.6;
+  color:#a9b6d2;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+html[data-ui="glass"] .hero-meta{display:flex;gap:5px;flex-wrap:wrap}
+
+html[data-ui="glass"] .hero-meta span{
+  padding:3px 8px;
+  border:1px solid var(--steam-edge);
+  border-radius:3px;
+  background:rgba(255,255,255,.05);
+  font-size:10px;
+  letter-spacing:.06em;
+  color:#b9c4dd;
+  white-space:nowrap;
+}
+
+/* Shelf heading and capsules. */
+html[data-ui="glass"] .sectionhead{margin:20px 0 12px}
+html[data-ui="glass"] .sectionhead h2{
+  margin:0;
+  font-size:11px;
+  font-weight:750;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:#c9d3ec;
+}
+html[data-ui="glass"] .sectionhead p{display:none}
+
+html[data-ui="glass"] #count{
+  padding:3px 8px;
+  border-radius:3px;
+  font-size:10px;
+  letter-spacing:.06em;
+}
+
+html[data-ui="glass"] .grid{grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:12px}
+
+html[data-ui="glass"] .card{
+  border-radius:8px;
+  border-color:var(--steam-edge);
+  background:rgba(255,255,255,.045);
+  box-shadow:0 14px 30px -26px rgba(0,0,0,.95);
+}
+
+html[data-ui="glass"] .card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 22px 40px -26px rgba(0,0,0,.95),0 0 0 1px rgba(139,108,255,.45);
+}
+
+html[data-ui="glass"] .art{height:auto;aspect-ratio:16/9}
+html[data-ui="glass"] .art .emoji{font-size:46px;filter:drop-shadow(0 12px 16px rgba(0,0,0,.55))}
+html[data-ui="glass"] .art.photo-art{background-image:none!important}
+html[data-ui="glass"] .art .tag{top:8px;left:8px;padding:3px 6px;border-radius:3px;font-size:8px;letter-spacing:.12em}
+
+html[data-ui="glass"] .body{padding:9px 10px 10px}
+
+html[data-ui="glass"] .body h3{
+  margin:0;
+  font-size:12.5px;
+  font-weight:650;
+  line-height:1.3;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+html[data-ui="glass"] .body p{display:none}
+html[data-ui="glass"] .actions{margin-top:8px;gap:6px}
+
+html[data-ui="glass"] .play{
+  padding:6px 9px;
+  border-radius:5px;
+  font-size:11px;
+  font-weight:650;
+  background:linear-gradient(135deg,rgba(139,108,255,.4),rgba(60,231,255,.16));
+  box-shadow:none;
+}
+
+html[data-ui="glass"] .fav{padding:6px 9px;border-radius:5px;font-size:11.5px}
+
+html[data-ui="glass"] .note{
+  margin-top:22px;
+  padding:12px 14px;
+  border-radius:8px;
+  border-left-width:2px;
+  font-size:11.5px;
+}
+
+html[data-ui="glass"] .note b{font-size:9.5px;letter-spacing:.18em}
+
+/* The rail collapses to a scrollable chip row on narrow screens, as before. */
+@media(max-width:980px){
+  html[data-ui="glass"] .shell{grid-template-columns:1fr;gap:12px;padding:10px}
+  html[data-ui="glass"] aside{position:static;height:auto;overflow:visible;padding:12px;border-radius:12px}
+  html[data-ui="glass"] nav{flex-direction:row;overflow:auto;gap:6px;padding-bottom:2px}
+  html[data-ui="glass"] nav button,
+  html[data-ui="glass"] .navlink{width:auto;white-space:nowrap}
+  html[data-ui="glass"] .rail-head,
+  html[data-ui="glass"] .rail-list{display:none}
+  html[data-ui="glass"] header{position:static;margin-bottom:12px}
+  html[data-ui="glass"] .hero-banner{min-height:190px;padding:16px}
+  html[data-ui="glass"] .hero-emoji{font-size:38px}
+  html[data-ui="glass"] .profile b{display:none}
+}
+
+@media(max-width:620px){
+  html[data-ui="glass"] .hero-cta{width:100%}
+  html[data-ui="glass"] .hero-cta .primary{flex:1}
+  html[data-ui="glass"] .hero-strip{padding:10px 14px}
+  html[data-ui="glass"] .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  html[data-ui="glass"] .art{height:auto}
+  html[data-ui="glass"] .body h3{font-size:12px}
+  html[data-ui="glass"] .tools{width:100%;flex-wrap:wrap}
+}
