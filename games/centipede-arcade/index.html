@@ -1,6 +1,37 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Centipede (Arcade) · Seuss Arcade</title>
+<script>
+/* Diagnostics: EJS runs its 7z worker and core from in-memory blobs, so a failure
+   there only reports "blob:" with no stack. Record each blob and print the
+   failing source line at the error column. */
+(()=>{try{
+  const blobs=new Map(),create=URL.createObjectURL.bind(URL);
+  URL.createObjectURL=value=>{
+    const url=create(value);
+    if(value instanceof Blob)value.text().then(text=>blobs.set(url,text)).catch(()=>{});
+    return url;
+  };
+  const report=(kind,message,line,col,source)=>{
+    console.warn("[ejs-blob] "+kind+": "+message+" @ line "+line+" col "+col+" src "+String(source).slice(0,50)+" known "+blobs.size);
+    // The failing script is usually a proxy-mapped blob we never saw created, so
+    // fetch it by its reported URL and print the source at the failing column.
+    fetch(source).then(response=>response.text()).then(text=>{
+      const row=(text.split("\n")[(line||1)-1]||"");
+      const at=Math.max(0,(col||0)-220);
+      console.error("[ejs-blob] source "+text.length+" chars, line "+(line||1)+" | "+row.slice(at,at+440));
+    }).catch(error=>console.warn("[ejs-blob] source unavailable: "+error.message));
+  };
+  const Native=window.Worker;
+  window.Worker=function(url,options){
+    const worker=new Native(url,options);
+    worker.addEventListener("error",event=>report("worker",event.message,event.lineno,event.colno,url));
+    return worker;
+  };
+  window.Worker.prototype=Native.prototype;
+  window.addEventListener("error",event=>report("script",event.message,event.lineno,event.colno,event.filename));
+}catch(error){console.warn("EJS blob diagnostics unavailable",error)}})();
+</script>
 <style>
 :root{color-scheme:dark}*{box-sizing:border-box}
 html,body{margin:0;min-height:100%;background:#090f14;color:#f2fff9;font:15px system-ui,sans-serif}
@@ -20,9 +51,9 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 </style></head><body>
 <section id="setup">
 <h1>Centipede (Arcade)</h1>
-<p>Runs inside Seuss Arcade using EmulatorJS. The game file and emulator are delivered through approved Cloudflare routes.</p>
+<p>Runs inside Seuss Arcade using EmulatorJS 4.2.3. The game file and runtime load from this page's own folder when it is published together with them, and from the approved Cloudflare route when it is served without them.</p>
 <label for="core">Emulator core</label>
-<select id="core"><option value="arcade">FinalBurn Neo</option><option value="mame2003">MAME 2003</option></select>
+<select id="core"><option value="fbneo">FinalBurn Neo</option><option value="mame2003_plus">MAME 2003 Plus</option></select>
 <label><input id="legacy" type="checkbox"> Use legacy WebGL 1 (try if video is black)</label>
 <p>If the game has sound but a black screen, try the alternate emulator or use <strong>Open directly in this tab</strong> to avoid the nested arcade frame.</p>
 <button id="start" type="button">Start Centipede</button>
@@ -37,9 +68,17 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 <div id="loadingNote" role="status" aria-live="polite"></div>
 <script>
 "use strict";
+// This page is published in three places from one file: the Surge bundle, the
+// GitHub Pages mirror, and the arcade's own catalogue. The first two ship the
+// romset and the EmulatorJS runtime in the page's folder; the catalogue does
+// not, so the approved Cloudflare route stands in for them. Which one to use is
+// decided by asking for the bundled romset, not by guessing from the URL.
 const ROOT="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-assets/imported/";
-const RUNTIME=ROOT+"emu-4.2.3/";
-const GAME=ROOT+"centipede/rom.zip";
+const BUNDLED_GAME="centtime.zip";
+const REMOTE_RUNTIME=ROOT+"emu-4.2.3/";
+const REMOTE_GAME=ROOT+"centipede/rom.zip";
+let runtime="./";
+let game=BUNDLED_GAME;
 const playerView=document.getElementById("playerView");
 const setup=document.getElementById("setup");
 const start=document.getElementById("start");
@@ -64,7 +103,17 @@ function directLaunch(){
 }
 document.getElementById("directSetup").addEventListener("click",directLaunch);
 document.getElementById("directGame").addEventListener("click",directLaunch);
-document.getElementById("restart").addEventListener("click",()=>location.reload());
+const coreSelect=document.getElementById("core");
+const CORE_KEY="seuss-centipede-core";
+try{
+ const savedCore=sessionStorage.getItem(CORE_KEY);
+ if(savedCore==="fbneo"||savedCore==="mame2003_plus")coreSelect.value=savedCore;
+}catch{}
+document.getElementById("restart").addEventListener("click",()=>{
+ const next=coreSelect.value==="fbneo"?"mame2003_plus":"fbneo";
+ try{sessionStorage.setItem(CORE_KEY,next);}catch{}
+ location.reload();
+});
 function failed(error){
  report("Launch failed: "+(error?.message||String(error)));
  console.error("Centipede launch failed",error);
@@ -74,27 +123,55 @@ function failed(error){
  start.disabled=false;
  started=false;
 }
-function request(url,method="HEAD",ms=45000){
- return fetch(url,{method,mode:"cors",signal:AbortSignal.timeout(ms)});
+async function request(url,method="GET",ms=45000){
+ // One proxied fetch can fail while the relay drops and reopens its socket, so
+ // retry a few times before declaring the runtime unavailable.
+ let last=null;
+ for(let attempt=0;attempt<4;attempt++){
+  try{
+   const response=await fetch(url,{method,mode:"cors",cache:"no-store",signal:AbortSignal.timeout(ms)});
+   if(response.ok)return response;
+   last=response;
+  }catch(error){last=error;}
+  await new Promise(resolve=>setTimeout(resolve,400*(attempt+1)));
+ }
+ if(last instanceof Response)return last;
+ throw last||Error("Request failed");
 }
+// A backgrounded tab cannot take a Wake Lock; that rejection says nothing about
+// the game and must not replace the status line.
+const harmless=message=>/wake\s*lock/i.test(String(message||""));
 window.addEventListener("error",event=>{
- if(started&&event.message)report("Emulator script error: "+event.message);
+ if(started&&event.message&&!harmless(event.message))report("Emulator script error: "+event.message);
 });
 window.addEventListener("unhandledrejection",event=>{
- if(started)report("Emulator error: "+(event.reason?.message||String(event.reason)));
+ const message=event.reason?.message||String(event.reason);
+ if(started&&!harmless(message))report("Emulator error: "+message);
 });
+async function chooseAssets(){
+ // A HEAD for the bundled romset costs one small request and answers exactly
+ // what the folder holds, so no copy needs to be edited for its host.
+ const bundled=new URL(BUNDLED_GAME,location.href).href;
+ try{
+  const response=await fetch(bundled,{method:"HEAD",mode:"cors",cache:"no-store",signal:AbortSignal.timeout(15000)});
+  if(response.ok){runtime=new URL("./",location.href).href;game=bundled;return "bundle";}
+ }catch(error){console.warn("Bundled romset check failed",error);}
+ runtime=REMOTE_RUNTIME;
+ game=REMOTE_GAME;
+ return "approved route";
+}
 async function launch(){
  if(started)return;
  started=true;start.disabled=true;
- report("Checking the approved game file and EmulatorJS…");
+ report("Checking the game file and EmulatorJS…");
  try{
-  const runtime=RUNTIME;
+  const source=await chooseAssets();
   const loader=await request(runtime+"loader.js");
   if(!loader.ok)throw Error("EmulatorJS runtime unavailable (HTTP "+loader.status+")");
-  let gameUrl=GAME;
-  let gameCheck=await request(GAME);
-  if(!gameCheck.ok)throw Error("Approved Centipede ROM unavailable (HTTP "+gameCheck.status+")");
-  const wantLegacy=document.getElementById("legacy").checked;
+  const gameCheck=await request(game);
+  if(!gameCheck.ok)throw Error("Centipede ROM unavailable (HTTP "+gameCheck.status+")");
+  try{sessionStorage.setItem(CORE_KEY,coreSelect.value);}catch{}
+ const wantLegacy=document.getElementById("legacy").checked;
   if(wantLegacy&&!document.createElement("canvas").getContext("webgl"))
    throw Error("WebGL 1 is unavailable in this browser. Uncheck legacy graphics or enable hardware acceleration.");
   if(!document.createElement("canvas").getContext("webgl")&&!document.createElement("canvas").getContext("webgl2"))
@@ -102,7 +179,7 @@ async function launch(){
   window.EJS_player="#game";
   window.EJS_core=document.getElementById("core").value;
   window.EJS_gameName="Centipede (Arcade)";
-  window.EJS_gameUrl=gameUrl;
+  window.EJS_gameUrl=game;
   window.EJS_pathtodata=runtime;
   window.EJS_startOnLoaded=true;
   window.EJS_threads=false;
@@ -110,22 +187,53 @@ async function launch(){
   window.EJS_disableLocalStorage=true;
   window.EJS_color="#65b2cf";
   window.EJS_ready=()=>report("Emulator ready · downloading graphics core…");
+  // EJS_onGameStart fires as soon as the core starts, which happens even when
+  // RetroArch rejects the romset and opens its own menu. A menu still paints a
+  // few frames, so only a sustained frame rate proves the game is running.
   window.EJS_onGameStart=()=>{
-   report("Centipede core started. Checking video display…",100);
-   // Do not alter the framebuffer or override EmulatorJS's internal canvas.
-   setTimeout(()=>{
+   report("Core started · checking whether Centipede is actually rendering… ("+source+")");
+   const beganAt=Date.now();
+   let lastFrameCount=null,lastSampleAt=0,bestRate=0,sawFrameCounter=false;
+   const check=setInterval(()=>{
     const canvas=document.querySelector("#game canvas.ejs_canvas");
-    if(!canvas){
-     report("The emulator started without a visible canvas. Try Open directly, or restart with the alternate core.");
+    const emulator=window.EJS_emulator;
+    const manager=emulator&&emulator.gameManager;
+    const core=(emulator&&emulator.coreName)||coreSelect.value;
+    let frames=null,content="";
+    try{frames=manager.Module._get_current_frame_count();}catch{}
+    try{const path=manager.functions.getSaveFilePath();content=path?String(path).split("/").pop():"";}catch{}
+    if(emulator&&emulator.failedToStart){
+     clearInterval(check);
+     report("EmulatorJS failed to start the "+core+" core. Try Restart with other core.");
      return;
     }
-    const bounds=canvas.getBoundingClientRect();
-    if(bounds.width<2||bounds.height<2){
-     report("Canvas is hidden ("+Math.round(bounds.width)+"×"+Math.round(bounds.height)+"). Try Open directly.");
-     return;
+    if(typeof frames==="number"){
+     sawFrameCounter=true;
+     const now=Date.now();
+     if(lastFrameCount===null){lastFrameCount=frames;lastSampleAt=now;}
+     else if(now-lastSampleAt>=900){
+      const rate=(frames-lastFrameCount)/((now-lastSampleAt)/1000);
+      if(rate>bestRate)bestRate=rate;
+      lastFrameCount=frames;lastSampleAt=now;
+     }
+     if(bestRate>=10){
+      clearInterval(check);
+      report("Centipede is running · "+core+" · "+Math.round(bestRate)+" fps"+(content?" · content "+content:""),100);
+      return;
+     }
     }
-    report("Centipede emulator is running. If the picture is black, restart with the alternate core.",100);
-   },6000);
+    if(Date.now()-beganAt>15000){
+     clearInterval(check);
+     const bounds=canvas?canvas.getBoundingClientRect():null;
+     let reason;
+     if(!canvas)reason="the emulator never created a canvas";
+     else if(bounds&&(bounds.width<2||bounds.height<2))reason="its canvas is hidden ("+Math.round(bounds.width)+"×"+Math.round(bounds.height)+")";
+     else if(!sawFrameCounter)reason="the "+core+" core does not report frame counts, so the picture could not be verified";
+     else if(bestRate<1)reason="the "+core+" core is not painting frames ("+(lastFrameCount||0)+" frames so far), so it is sitting on RetroArch's menu instead of running the game"+(content?" (it picked up "+content+", so the romset was read but rejected)":"");
+     else reason="the "+core+" core is only drawing about "+Math.round(bestRate)+" frames per second, far too slow for a running game, so it has not started the content"+(content?" (it picked up "+content+")":"");
+     report("Core started, but Centipede is not running: "+reason+". Use Restart with other core.");
+    }
+   },1000);
   };
   setup.style.display="none";
   playerView.style.display="block";
@@ -138,4 +246,7 @@ async function launch(){
  }catch(error){failed(error);}
 }
 start.addEventListener("click",launch);
+// The arcade frames this page from a different origin, so it cannot press Start
+// for the player. ?autostart=1 begins the emulator as soon as the page is ready.
+if(new URLSearchParams(location.search).get("autostart")==="1")setTimeout(()=>{if(!started)launch();},400);
 </script></body></html>

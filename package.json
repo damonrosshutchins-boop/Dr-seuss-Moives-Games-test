@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "build:pages": "node scripts/build-pages.mjs"
+    "build:pages": "node scripts/build-pages.mjs",
+    "publish:centipede": "node scripts/publish-centipede.mjs",
+    "check:centipede": "node scripts/publish-centipede.mjs --check"
   },
   "engines": {
     "node": ">=22"
