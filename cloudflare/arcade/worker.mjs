@@ -2097,11 +2097,10 @@ async function serveNowgg(request, url) {
 
 /* --------------------------------------------------------- site mirrors --- */
 
-// Kahoot and Blooket are served from this origin the way now.gg is: the page,
-// its own files and its asset hosts are fetched and rewritten by the Worker, so
-// the player no longer depends on the X-Network launcher pointing at its own
-// proxied builds. Each mirror answers with a policy that names the hosts the
-// page needs and refuses the ad, consent and page-metric networks by omission.
+// Kahoot is served from this origin the way now.gg is: the page, its own files
+// and its asset hosts are fetched and rewritten by the Worker. Each mirror
+// answers with a policy that names the hosts the page needs and refuses the ad,
+// consent and page-metric networks by omission.
 const SITE_MIRROR_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
 // Everything the page sends is forwarded, minus the headers that describe this
 // hop. Without content-type and the page's own origin, a server action or a JSON
@@ -2109,7 +2108,6 @@ const SITE_MIRROR_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/53
 const SITE_MIRROR_SKIP = new Set(["host", "connection", "content-length", "accept-encoding", "origin", "referer", "cf-connecting-ip", "cf-ipcountry", "cf-ray", "cdn-loop", "x-forwarded-for", "x-forwarded-proto", "x-real-ip", "keep-alive", "te", "upgrade", "proxy-connection"]);
 const SITE_MIRROR_COPY = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges"];
 const SITE_MIRROR_HOSTS = "https://*.kahoot.it";
-const BLOOKET_HOSTS = "https://*.blooket.com";
 
 const SITE_MIRRORS = {
   // kahoot.it is a module-script SPA whose code lives on assets-cdn.kahoot.it:
@@ -2143,33 +2141,34 @@ const SITE_MIRRORS = {
     ].join("; "),
     ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|amplitude|segment\.io|hotjar|cloudflareinsights|adservice)/i
   },
-  // The join page runs on play.blooket.com and ships its Next.js build from
-  // ac.blooket.com; identity stays absolute in the page but only its own
-  // subdomains are allowed.
+  // The Blooket client on clients-blooket.x-network.lol already points its build,
+  // its assets and its API calls at its own origin. That edge refuses the relay's
+  // raw sockets, so the page is proxied here instead of through the Wisp player:
+  // bringing it inside this route keeps every path-based request on this origin.
   blooket: {
     root: "/approved-games/blooket",
-    origin: "https://play.blooket.com",
+    origin: "https://clients-blooket.x-network.lol",
     entry: "/play",
-    navPaths: ["/play/"],
-    hosts: [
-      ["https://ac.blooket.com/", "/approved-games/blooket/ac/"],
-      ["https://id.blooket.com/", "/approved-games/blooket/id/"]
-    ],
+    navPaths: ["/play"],
+    // Its Next.js runtime loads chunks and art from the origin root, so those
+    // prefixes are claimed and mapped back inside the route.
+    aliases: ["/_b/"],
+    hosts: [],
     policy: [
-      "default-src 'self' " + BLOOKET_HOSTS + " https://unpkg.com",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: " + BLOOKET_HOSTS + " https://unpkg.com",
-      "style-src 'self' 'unsafe-inline' " + BLOOKET_HOSTS,
-      "img-src 'self' data: blob: " + BLOOKET_HOSTS + " https://unpkg.com",
-      "font-src 'self' data: " + BLOOKET_HOSTS,
-      "media-src 'self' blob: " + BLOOKET_HOSTS,
-      "connect-src 'self' " + BLOOKET_HOSTS + " wss://*.blooket.com",
-      "frame-src 'self' blob: " + BLOOKET_HOSTS,
+      "default-src 'self' data: blob:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "media-src 'self' blob:",
+      "connect-src 'self' https://*.x-network.lol wss://*.x-network.lol",
+      "frame-src 'self' blob:",
       "worker-src 'self' blob:",
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'"
     ].join("; "),
-    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|cdn-cookieyes|cloudflareinsights|adservice|criteo|taboola|outbrain)/i
+    ads: /(?:cookieyes|googletagmanager|googlesyndication|doubleclick|google-analytics|cloudflareinsights|adservice|criteo|taboola|outbrain)/i
   }
 };
 
@@ -2362,6 +2361,21 @@ export default {
         return withCors(request, await serveSiteMirror(request, url, site));
       } catch (error) {
         console.error("site mirror failed", site.root, pathname, String(error));
+        return withCors(request, textError(502, "The " + site.root.split("/").pop() + " route failed"));
+      }
+    }
+
+    // Some mirrored pages build their file paths from the origin root instead of
+    // the page's own path, which would leave the route; their prefixes are
+    // claimed here and moved back inside it.
+    for (const site of SITE_MIRROR_LIST) {
+      if (!(site.aliases || []).some((prefix) => pathname.startsWith(prefix))) continue;
+      const aliased = new URL(request.url);
+      aliased.pathname = site.root + pathname;
+      try {
+        return withCors(request, await serveSiteMirror(request, aliased, site));
+      } catch (error) {
+        console.error("site mirror alias failed", site.root, pathname, String(error));
         return withCors(request, textError(502, "The " + site.root.split("/").pop() + " route failed"));
       }
     }
