@@ -176,7 +176,8 @@ async function launch(){
   if(!loader.ok)throw Error("EmulatorJS runtime unavailable (HTTP "+loader.status+")");
   const gameCheck=await request(game);
   if(!gameCheck.ok)throw Error("Centipede ROM unavailable (HTTP "+gameCheck.status+")");
-  try{sessionStorage.setItem(CORE_KEY,coreSelect.value);}catch{}
+  // Only the restart button remembers a core. Saving whatever the page happened
+  // to start with would make one failed first run sticky for the whole session.
  const wantLegacy=document.getElementById("legacy").checked;
   if(wantLegacy&&!document.createElement("canvas").getContext("webgl"))
    throw Error("WebGL 1 is unavailable in this browser. Uncheck legacy graphics or enable hardware acceleration.");
