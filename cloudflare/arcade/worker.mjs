@@ -2154,14 +2154,16 @@ const SITE_MIRRORS = {
     // prefixes are claimed and mapped back inside the route.
     aliases: ["/_b/"],
     hosts: [],
+    // The mirror loads its own client layer from x-network.lol/api/scripts, so that
+    // host is allowed for code, styles and data while the ad networks stay refused.
     policy: [
       "default-src 'self' data: blob:",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self' data:",
-      "media-src 'self' blob:",
-      "connect-src 'self' https://*.x-network.lol wss://*.x-network.lol",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://x-network.lol https://*.x-network.lol",
+      "style-src 'self' 'unsafe-inline' https://x-network.lol https://*.x-network.lol",
+      "img-src 'self' data: blob: https://x-network.lol https://*.x-network.lol https://*.blooket.com",
+      "font-src 'self' data: https://x-network.lol https://*.x-network.lol",
+      "media-src 'self' blob: https://*.x-network.lol",
+      "connect-src 'self' https://x-network.lol https://*.x-network.lol wss://*.x-network.lol https://media.blooket.com",
       "frame-src 'self' blob:",
       "worker-src 'self' blob:",
       "base-uri 'self'",
