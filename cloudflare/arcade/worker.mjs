@@ -2095,85 +2095,181 @@ async function serveNowgg(request, url) {
   return new Response(nowGgRewrite(source), { status: upstream.status, headers: out });
 }
 
-/* ---------------------------------------------------------- xGUI clients --- */
+/* --------------------------------------------------------- site mirrors --- */
 
-// The X-Network launcher pages (clients.x-network.lol/blooket and /kahoot) sit
-// behind Cloudflare, so the relay's sockets cannot reach them and the player
-// used to fall back to framing the publisher's page. They are mirrored here
-// instead: the page, its scripts, icons, manifest and /api/config are fetched
-// from this origin and rewritten into the site's route, so nothing on the
-// launcher comes from clients.x-network.lol.
-//
-// The page then opens the game from X-Network's own proxied origin in a frame.
-// That build is a full web application with its own service worker, and its
-// asset tree addresses clients-<site>.x-network.lol by absolute URL, so it stays
-// on their already-proxied host rather than being mirrored path by path here.
-const XGUI_ORIGIN = "https://clients.x-network.lol";
-const XGUI_ROOT = "/approved-games/xgui/";
-const XGUI_SITES = new Set(["blooket", "kahoot"]);
-const XGUI_FORWARD_HEADERS = ["accept", "accept-language", "range", "if-none-match"];
-const XGUI_COPY_HEADERS = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges"];
-const XGUI_CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
-  "font-src 'self' data:",
-  "manifest-src 'self'",
-  "connect-src 'self'",
-  "frame-src https://clients-blooket.x-network.lol https://clients-kahoot.x-network.lol",
-  "base-uri 'self'",
-  "form-action 'self'"
-].join("; ");
-const xguiRoute = site => XGUI_ROOT + site + "/";
+// Kahoot and Blooket are served from this origin the way now.gg is: the page,
+// its own files and its asset hosts are fetched and rewritten by the Worker, so
+// the player no longer depends on the X-Network launcher pointing at its own
+// proxied builds. Each mirror answers with a policy that names the hosts the
+// page needs and refuses the ad, consent and page-metric networks by omission.
+const SITE_MIRROR_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
+// Everything the page sends is forwarded, minus the headers that describe this
+// hop. Without content-type and the page's own origin, a server action or a JSON
+// call is rejected upstream.
+const SITE_MIRROR_SKIP = new Set(["host", "connection", "content-length", "accept-encoding", "origin", "referer", "cf-connecting-ip", "cf-ipcountry", "cf-ray", "cdn-loop", "x-forwarded-for", "x-forwarded-proto", "x-real-ip", "keep-alive", "te", "upgrade", "proxy-connection"]);
+const SITE_MIRROR_COPY = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges"];
+const SITE_MIRROR_HOSTS = "https://*.kahoot.it";
+const BLOOKET_HOSTS = "https://*.blooket.com";
 
-// The client page asks for its own files by root-relative path and its only
-// fetch is /api/config, so both are moved inside the site's route; the Google
-// Fonts link is dropped because the mirror fetches from nowhere else.
-function xguiRewrite(source, site) {
-  const route = xguiRoute(site);
-  return source
-    .replace(/<link\b[^>]*fonts\.googleapis\.com[^>]*>/gi, "")
-    .replace(/((?:src|href)\s*=\s*["'])\/(?!\/)/g, "$1" + route)
-    .replace(/(["'])\/api\/config(["'])/g, "$1" + route + "api/config$2");
+const SITE_MIRRORS = {
+  // kahoot.it is a module-script SPA whose code lives on assets-cdn.kahoot.it:
+  // that host answers without CORS, so its files are brought inside the route
+  // and the page loads them same-origin.
+  kahoot: {
+    root: "/approved-games/kahoot",
+    origin: "https://kahoot.it",
+    entry: "/",
+    // The page's router navigates to these paths on this origin by script, which
+    // the shim cannot see; they are sent back into the route.
+    navPaths: ["/controller/", "/challenges/", "/join/"],
+    hosts: [
+      ["https://assets-cdn.kahoot.it/", "/approved-games/kahoot/assets-cdn/"],
+      ["https://files-cdn.kahoot.it/", "/approved-games/kahoot/files-cdn/"]
+    ],
+    policy: [
+      "default-src 'self' " + SITE_MIRROR_HOSTS,
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: " + SITE_MIRROR_HOSTS,
+      "style-src 'self' 'unsafe-inline' " + SITE_MIRROR_HOSTS,
+      "img-src 'self' data: blob: " + SITE_MIRROR_HOSTS,
+      "font-src 'self' data: " + SITE_MIRROR_HOSTS,
+      "media-src 'self' blob: " + SITE_MIRROR_HOSTS,
+      // The live quiz keeps a socket to its own host.
+      "connect-src 'self' " + SITE_MIRROR_HOSTS + " wss://*.kahoot.it",
+      "frame-src 'self' blob: " + SITE_MIRROR_HOSTS,
+      "worker-src 'self' blob:",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'"
+    ].join("; "),
+    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|amplitude|segment\.io|hotjar|cloudflareinsights|adservice)/i
+  },
+  // The join page runs on play.blooket.com and ships its Next.js build from
+  // ac.blooket.com; identity stays absolute in the page but only its own
+  // subdomains are allowed.
+  blooket: {
+    root: "/approved-games/blooket",
+    origin: "https://play.blooket.com",
+    entry: "/play",
+    navPaths: ["/play/"],
+    hosts: [
+      ["https://ac.blooket.com/", "/approved-games/blooket/ac/"],
+      ["https://id.blooket.com/", "/approved-games/blooket/id/"]
+    ],
+    policy: [
+      "default-src 'self' " + BLOOKET_HOSTS + " https://unpkg.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: " + BLOOKET_HOSTS + " https://unpkg.com",
+      "style-src 'self' 'unsafe-inline' " + BLOOKET_HOSTS,
+      "img-src 'self' data: blob: " + BLOOKET_HOSTS + " https://unpkg.com",
+      "font-src 'self' data: " + BLOOKET_HOSTS,
+      "media-src 'self' blob: " + BLOOKET_HOSTS,
+      "connect-src 'self' " + BLOOKET_HOSTS + " wss://*.blooket.com",
+      "frame-src 'self' blob: " + BLOOKET_HOSTS,
+      "worker-src 'self' blob:",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'"
+    ].join("; "),
+    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|cdn-cookieyes|cloudflareinsights|adservice|criteo|taboola|outbrain)/i
+  }
+};
+
+const SITE_MIRROR_LIST = Object.values(SITE_MIRRORS);
+
+function isSiteNavPath(site, pathname) {
+  return (site.navPaths || []).some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix));
 }
 
-async function serveXgui(request, url) {
-  if (request.method === "OPTIONS") return preflight(request);
-  const rest = url.pathname.slice(XGUI_ROOT.length);
-  const site = (rest.split("/")[0] || "").toLowerCase();
-  if (!XGUI_SITES.has(site)) return textError(404, "Unknown xGUI client");
-  const tail = rest.slice(site.length + 1);
-  // The launcher page lives at /<site>, but everything it references is
-  // root-relative on its own origin (/common.js, /app.js, /icons/…,
-  // /blooket/manifest.webmanifest), and the rewrite moved those under this
-  // route. So a request inside the route maps back to the origin root, and only
-  // the page itself maps to /<site>.
-  const target = XGUI_ORIGIN + (tail ? "/" + tail : "/" + site) + url.search;
-  const headers = new Headers();
-  for (const name of XGUI_FORWARD_HEADERS) {
-    const value = request.headers.get(name);
-    if (value) headers.set(name, value);
+function isSiteMirrorPath(site, pathname) {
+  return pathname === site.root || pathname.startsWith(site.root + "/");
+}
+
+// Route path -> upstream path. The site's asset hosts keep their own prefixes so
+// a fetch of the page's code never leaves this origin.
+function siteMirrorTarget(site, pathname) {
+  if (pathname === site.root || pathname === site.root + "/") return site.origin + site.entry;
+  for (const [host, route] of site.hosts) {
+    if (pathname.startsWith(route)) return host + pathname.slice(route.length);
   }
+  if (pathname.startsWith(site.root + "/")) return site.origin + "/" + pathname.slice(site.root.length + 1);
+  return site.origin + site.entry;
+}
+
+// The page, its code and its styles are moved inside the route; tags that only
+// exist to load ads, consent walls or page metrics are dropped.
+function siteMirrorRewrite(source, site, html) {
+  let out = source;
+  for (const [host, route] of site.hosts) out = out.split(host).join(route);
+  out = out.split(site.origin + "/").join(site.root + "/");
+  if (!html) return out;
+  out = out.replace(/<script\b[^>]*\bsrc=["'][^"']*["'][^>]*>\s*<\/script>/gi, tag => (site.ads.test(tag) ? "" : tag));
+  out = out.replace(/<link\b[^>]*>/gi, tag => (site.ads.test(tag) ? "" : tag));
+  out = out.replace(/((?:src|href|content|poster|action)\s*=\s*["'])\/(?!\/|approved-games\/)/g, "$1" + site.root + "/");
+  return out.replace(/<\/head>/i, siteMirrorScript(site) + "</head>");
+}
+
+// The page builds request paths at runtime, and a path that starts at "/" would
+// leave the route and hit this worker's own root. This maps those back inside
+// the route before any request leaves the page.
+function siteMirrorScript(site) {
+  const route = site.root + "/";
+  const hosts = JSON.stringify(site.hosts);
+  const origin = JSON.stringify(site.origin + "/");
+  return "<script>(function(){" +
+    "var R=" + JSON.stringify(route) + ",M=" + hosts + ",O=" + origin + ";" +
+    "function t(u){if(typeof u!=='string'||!u)return u;" +
+    "for(var i=0;i<M.length;i++){if(u.indexOf(M[i][0])===0)return M[i][1]+u.slice(M[i][0].length);}" +
+    "if(u.indexOf(O)===0)return R+u.slice(O.length);" +
+    "if(u.charAt(0)!=='/'||u.charAt(1)==='/')return u;" +
+    "if(u.indexOf(R)===0)return u;" +
+    "return R.slice(0,-1)+u;}" +
+    "var f=window.fetch;if(f)window.fetch=function(a,b){try{if(typeof a==='string')a=t(a);" +
+    "else if(a&&a.url){var m=t(a.url);if(m!==a.url)a=new Request(m,a);}}catch(e){}return f.call(this,a,b);};" +
+    "var x=window.XMLHttpRequest&&XMLHttpRequest.prototype.open;" +
+    "if(x)XMLHttpRequest.prototype.open=function(m,u){try{arguments[1]=t(u);}catch(e){}return x.apply(this,arguments);};" +
+    "var W=window.WebSocket;if(W){var N=function(u,p){return p===undefined?new W(t(u)):new W(t(u),p);};" +
+    "N.prototype=W.prototype;window.WebSocket=N;}" +
+    "var B=navigator.sendBeacon;if(B)navigator.sendBeacon=function(u,d){return B.call(navigator,t(u),d);};" +
+    "})();</script>";
+}
+
+async function serveSiteMirror(request, url, site) {
+  if (request.method === "OPTIONS") return preflight(request);
+  const target = siteMirrorTarget(site, url.pathname) + url.search;
+  const headers = new Headers();
+  for (const [name, value] of request.headers) {
+    if (!SITE_MIRROR_SKIP.has(name)) headers.set(name, value);
+  }
+  // Blooket's edge refuses a request without a browser user agent.
+  headers.set("user-agent", SITE_MIRROR_UA);
+  // Same-origin checks upstream must see the site's own origin, not this route.
+  headers.set("origin", site.origin);
+  headers.set("referer", site.origin + siteMirrorTarget(site, url.pathname));
+  if (!headers.has("accept")) headers.set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+  if (!headers.has("accept-language")) headers.set("accept-language", "en-US,en;q=0.9");
+  const init = { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(45000) };
+  if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
   let upstream;
   try {
-    upstream = await fetch(target, { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(30000) });
+    upstream = await fetch(target, init);
   } catch (error) {
-    console.warn("xGUI mirror failed", url.pathname, String(error));
-    return textError(502, "The X-Network client could not be reached");
+    console.warn("site mirror failed", site.root, url.pathname, String(error));
+    return textError(502, "This site could not be reached");
   }
   const out = new Headers();
-  for (const name of XGUI_COPY_HEADERS) {
+  for (const name of SITE_MIRROR_COPY) {
     const value = upstream.headers.get(name);
     if (value) out.set(name, value);
   }
-  out.set("x-content-type-options", "nosniff");
   const type = (out.get("content-type") || "").toLowerCase();
-  const html = type.includes("text/html");
-  const textual = html || type.includes("javascript") || type.includes("application/json");
+  const encoding = upstream.headers.get("content-encoding");
+  const encoded = !!encoding;
+  const html = !encoded && type.includes("text/html");
+  const textual = !encoded && (html || type.includes("javascript") || type.includes("text/css"));
+  if (encoded) out.set("content-encoding", encoding);
   out.set("cache-control", html ? "no-cache, must-revalidate" : "public, max-age=3600");
+  out.set("x-content-type-options", "nosniff");
   if (html) {
-    out.set("content-security-policy", XGUI_CSP);
+    out.set("content-security-policy", site.policy);
     out.set("referrer-policy", "no-referrer");
   }
   if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
@@ -2182,13 +2278,10 @@ async function serveXgui(request, url) {
   try {
     source = await upstream.text();
   } catch (error) {
-    console.warn("xGUI mirror read failed", url.pathname, String(error));
-    return textError(502, "The X-Network client returned an unreadable file");
+    console.warn("site mirror read failed", site.root, url.pathname, String(error));
+    return textError(502, "This site returned an unreadable file");
   }
-  // /api/config stays as it is: its origins are absolute URLs to the per-site
-  // hosts that serve the launched game, and those are deliberately left alone.
-  const body = type.includes("application/json") ? source : xguiRewrite(source, site);
-  return new Response(body, { status: upstream.status, headers: out });
+  return new Response(siteMirrorRewrite(source, site, html), { status: upstream.status, headers: out });
 }
 
 /* ------------------------------------------------------------- entrypoint --- */
@@ -2257,12 +2350,19 @@ export default {
       }
     }
 
-    if (pathname === XGUI_ROOT.slice(0, -1) || pathname.startsWith(XGUI_ROOT)) {
+    for (const site of SITE_MIRROR_LIST) {
+      if (!isSiteNavPath(site, pathname) || isSiteMirrorPath(site, pathname)) continue;
+      const back = new URL(site.root + pathname + url.search, url.origin);
+      return withCors(request, new Response(null, { status: 302, headers: { location: back.toString() } }));
+    }
+
+    for (const site of SITE_MIRROR_LIST) {
+      if (!isSiteMirrorPath(site, pathname)) continue;
       try {
-        return withCors(request, await serveXgui(request, url));
+        return withCors(request, await serveSiteMirror(request, url, site));
       } catch (error) {
-        console.error("xGUI route failed", pathname, String(error));
-        return withCors(request, textError(502, "The xGUI route failed"));
+        console.error("site mirror failed", site.root, pathname, String(error));
+        return withCors(request, textError(502, "The " + site.root.split("/").pop() + " route failed"));
       }
     }
 
