@@ -1975,6 +1975,102 @@ async function serveTwoVTwo(request, url) {
   return new Response(twoVTwoRewrite(source), { status: upstream.status, headers: out });
 }
 
+/* ---------------------------------------------------------- xGUI clients --- */
+
+// The X-Network launcher pages (clients.x-network.lol/blooket and /kahoot) sit
+// behind Cloudflare, so the relay's sockets cannot reach them and the player
+// used to fall back to framing the publisher's page. They are mirrored here
+// instead: the page, its scripts, icons, manifest and /api/config are fetched
+// from this origin and rewritten into the site's route, so nothing on the
+// launcher comes from clients.x-network.lol.
+//
+// The page then opens the game from X-Network's own proxied origin in a frame.
+// That build is a full web application with its own service worker, and its
+// asset tree addresses clients-<site>.x-network.lol by absolute URL, so it stays
+// on their already-proxied host rather than being mirrored path by path here.
+const XGUI_ORIGIN = "https://clients.x-network.lol";
+const XGUI_ROOT = "/approved-games/xgui/";
+const XGUI_SITES = new Set(["blooket", "kahoot"]);
+const XGUI_FORWARD_HEADERS = ["accept", "accept-language", "range", "if-none-match"];
+const XGUI_COPY_HEADERS = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges"];
+const XGUI_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "manifest-src 'self'",
+  "connect-src 'self'",
+  "frame-src https://clients-blooket.x-network.lol https://clients-kahoot.x-network.lol",
+  "base-uri 'self'",
+  "form-action 'self'"
+].join("; ");
+const xguiRoute = site => XGUI_ROOT + site + "/";
+
+// The client page asks for its own files by root-relative path and its only
+// fetch is /api/config, so both are moved inside the site's route; the Google
+// Fonts link is dropped because the mirror fetches from nowhere else.
+function xguiRewrite(source, site) {
+  const route = xguiRoute(site);
+  return source
+    .replace(/<link\b[^>]*fonts\.googleapis\.com[^>]*>/gi, "")
+    .replace(/((?:src|href)\s*=\s*["'])\/(?!\/)/g, "$1" + route)
+    .replace(/(["'])\/api\/config(["'])/g, "$1" + route + "api/config$2");
+}
+
+async function serveXgui(request, url) {
+  if (request.method === "OPTIONS") return preflight(request);
+  const rest = url.pathname.slice(XGUI_ROOT.length);
+  const site = (rest.split("/")[0] || "").toLowerCase();
+  if (!XGUI_SITES.has(site)) return textError(404, "Unknown xGUI client");
+  const tail = rest.slice(site.length + 1);
+  // The launcher page lives at /<site>, but everything it references is
+  // root-relative on its own origin (/common.js, /app.js, /icons/…,
+  // /blooket/manifest.webmanifest), and the rewrite moved those under this
+  // route. So a request inside the route maps back to the origin root, and only
+  // the page itself maps to /<site>.
+  const target = XGUI_ORIGIN + (tail ? "/" + tail : "/" + site) + url.search;
+  const headers = new Headers();
+  for (const name of XGUI_FORWARD_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  let upstream;
+  try {
+    upstream = await fetch(target, { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(30000) });
+  } catch (error) {
+    console.warn("xGUI mirror failed", url.pathname, String(error));
+    return textError(502, "The X-Network client could not be reached");
+  }
+  const out = new Headers();
+  for (const name of XGUI_COPY_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  out.set("x-content-type-options", "nosniff");
+  const type = (out.get("content-type") || "").toLowerCase();
+  const html = type.includes("text/html");
+  const textual = html || type.includes("javascript") || type.includes("application/json");
+  out.set("cache-control", html ? "no-cache, must-revalidate" : "public, max-age=3600");
+  if (html) {
+    out.set("content-security-policy", XGUI_CSP);
+    out.set("referrer-policy", "no-referrer");
+  }
+  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+  if (!textual) return new Response(upstream.body, { status: upstream.status, headers: out });
+  let source;
+  try {
+    source = await upstream.text();
+  } catch (error) {
+    console.warn("xGUI mirror read failed", url.pathname, String(error));
+    return textError(502, "The X-Network client returned an unreadable file");
+  }
+  // /api/config stays as it is: its origins are absolute URLs to the per-site
+  // hosts that serve the launched game, and those are deliberately left alone.
+  const body = type.includes("application/json") ? source : xguiRewrite(source, site);
+  return new Response(body, { status: upstream.status, headers: out });
+}
+
 /* ------------------------------------------------------------- entrypoint --- */
 
 export default {
@@ -2030,6 +2126,15 @@ export default {
     // lives at this root and must keep every other path.
     if (pathname.startsWith("/StreamingAssets/aa0.0.2798/")) {
       return withCors(request, await serveTwoVTwo(request, new URL(TWOV2_ROOT + pathname + url.search, url.origin)));
+    }
+
+    if (pathname === XGUI_ROOT.slice(0, -1) || pathname.startsWith(XGUI_ROOT)) {
+      try {
+        return withCors(request, await serveXgui(request, url));
+      } catch (error) {
+        console.error("xGUI route failed", pathname, String(error));
+        return withCors(request, textError(502, "The xGUI route failed"));
+      }
     }
 
     if (pathname === TWOV2_ROOT || pathname.startsWith(TWOV2_ROUTE)) {

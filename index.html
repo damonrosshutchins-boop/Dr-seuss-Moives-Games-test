@@ -96,7 +96,7 @@ const library=[
 {id:'the-man-in-the-window',kind:'game',name:'The Man in the Window (Web Port)',desc:'Short horror game in Unity WebGL, hosted on a Surge shard and played through the proxy.',icon:'🪟',bg:'linear-gradient(130deg,#14161c,#5d6470)',url:'https://seuss-games-a5.surge.sh/the-man-in-the-window/index.html'},
 {id:'bergentruck',kind:'game',name:'Bergentruck 201X (Web Port)',desc:'Bergentruck fan game on its own Surge shard, played through the proxy with its data, wasm and pck served from the mirror.',icon:'🚚',bg:'linear-gradient(130deg,#241d16,#8a7355)',url:'https://seuss-games-a5.surge.sh/bergentruck/index.html'},
 {id:'fnae',kind:'game',name:"Five Night's at BIG E",desc:'Unity WebGL game loaded inside the Arcade with pinned game files through Cloudflare.',icon:'🌙',bg:'linear-gradient(130deg,#2f2f2f,#7a7a7a)',url:'./games/fnae/index.html',local:true},
-{id:'2v2',kind:'game',name:'2v2.io',desc:'Building-simulator battle royale loaded straight from 2v2.io, because the relay cannot open sockets to Cloudflare-hosted pages. Online matchmaking and the publisher ad slots are the original site.',icon:'🔫',bg:'linear-gradient(130deg,#1f2937,#6b7280)',url:'https://2v2.io/',direct:true},
+{id:'2v2',kind:'game',name:'2v2.io',desc:'Building-simulator battle royale carried by the arcade relay: the shell, its build files and the SDK are fetched and rewritten by the Worker, which also turns the game ad stack off. Matchmaking still reaches the game own servers.',icon:'🔫',bg:'linear-gradient(130deg,#1f2937,#6b7280)',url:'https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/2v2/',direct:true},
 {id:'happywheels',kind:'game',name:'Happy Wheels',desc:'HTML5 port of Happy Wheels; its whole asset library streams through the approved Cloudflare route, so no third-party host is contacted.',icon:'🚲',bg:'linear-gradient(130deg,#3f3f46,#8a8a93)',url:'./games/happywheels/index.html',local:true},
 {id:'dispatch',kind:'game',name:'Dispatch',desc:'Unreal Engine browser port whose game data streams through the approved Cloudflare route. Needs a browser with WebAssembly JSPI enabled.',icon:'🚓',bg:'linear-gradient(130deg,#1f2937,#6b7280)',url:'./games/dispatch/index.html',local:true},
 {id:'find-the-needle',kind:'game',name:'Find The Needle',desc:'Large Godot game whose 103 split parts (about 1.7 GB) stream through the approved Cloudflare route in an isolated tab. The first open is long.',icon:'🪡',bg:'linear-gradient(130deg,#2a2a35,#7c7c8a)',url:'https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/needle/',direct:true,needsIsolation:true},
@@ -129,8 +129,8 @@ const library=[
 {id:'fish',kind:'game',name:'FISH (Unity web port)',desc:'Run bundled Unity game files from this site.',icon:'🐟',bg:'linear-gradient(130deg,#404040,#888888)',url:'./games/fish/index.html',local:true},
 {id:'geometry-dash-webport',kind:'game',name:'Geometry Dash (Webport)',desc:'Geometry Dash web port played through the proxy from its own GitHub Pages mirror, which serves the page as HTML; the engine files load from the pinned jsDelivr and raw.githubusercontent payload paths. Needs a browser with WebAssembly JSPI support. First open takes several minutes.',icon:'🟨',bg:'linear-gradient(130deg,#1d2b53,#4a6fd4)',url:'https://damonrosshutchins-boop.github.io/Geometry-Dash-webport/'},
 {id:'shuttle',kind:'movie',name:'ShuttleTV',desc:'Browse the external entertainment site.',icon:'🎬',bg:'linear-gradient(130deg,#4a4a4a,#a4a4a4)',url:'https://shuttletv.pk/'},
-{id:'xgui-blooket',kind:'xgui',name:'Blooket (xGUI)',desc:'X-Network Blooket client. It goes through the restricted proxy first; because the client sits behind Cloudflare, which the relay cannot open sockets to, it falls back to framing the approved page directly when the proxy reports that.',icon:'🟦',bg:'linear-gradient(130deg,#152b4d,#3f7bd4)',url:'https://clients.x-network.lol/blooket',proxyFallback:true},
-{id:'xgui-kahoot',kind:'xgui',name:'Kahoot (xGUI)',desc:'X-Network Kahoot client. It goes through the restricted proxy first and falls back to framing the approved page directly when the relay cannot reach its Cloudflare front.',icon:'🟪',bg:'linear-gradient(130deg,#2a1040,#8a5ad4)',url:'https://clients.x-network.lol/kahoot',proxyFallback:true},
+{id:'xgui-blooket',kind:'xgui',name:'Blooket (xGUI)',desc:'X-Network Blooket client mirrored by the arcade relay: the launcher page, its scripts, icons and config are served from this site, and the game it opens is X-Network own proxied Blooket build.',icon:'🟦',bg:'linear-gradient(130deg,#152b4d,#3f7bd4)',url:'https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/xgui/blooket/',direct:true},
+{id:'xgui-kahoot',kind:'xgui',name:'Kahoot (xGUI)',desc:'X-Network Kahoot client mirrored by the arcade relay: the launcher page and its config come from this site, and the game it opens is X-Network own proxied Kahoot build.',icon:'🟪',bg:'linear-gradient(130deg,#2a1040,#8a5ad4)',url:'https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/xgui/kahoot/',direct:true},
 {id:'projection',kind:'movie',name:'Projection Studios',desc:'Movies, TV, anime and manga; the site, its catalogue calls and its watch-party chat all run through the Cloudflare relay.',icon:'📽️',bg:'linear-gradient(130deg,#3d3d3d,#a2a2a2)',url:'https://seuss-arcade-relay.damonrosshutchins.workers.dev/movies/projection/',direct:true}
 ];
 const $=id=>document.getElementById(id);let filter='all',selected=null,activeId=null;
@@ -189,7 +189,10 @@ function renderHero(item){
   $('heroTitle').textContent=item.name;
   $('heroDesc').textContent=item.desc;
   $('heroPlay').textContent=item.kind==='movie'?'▶ Watch':'▶ Play';
-  const route=item.local?'Local build':item.direct?'Direct frame':'Proxied';
+  // A page served by the arcade relay is proxied even though the player frames
+  // it directly: the Worker fetches and rewrites that site for the browser.
+  const relayHost='seuss-arcade-relay.damonrosshutchins.workers.dev';
+  const route=item.local?'Local build':new URL(item.url,location.href).hostname===relayHost?'Proxied by arcade':item.direct?'Direct frame':'Proxied';
   for(const label of [route,item.kind==='movie'?'Movies & TV':item.kind==='xgui'?'Web clients':'Games',item.needsIsolation?'Full tab':'In player']){
     const chip=document.createElement('span');
     chip.textContent=label;
@@ -389,17 +392,6 @@ async function openItem(x){
       $('viewerStatus').textContent='Player started · loading content';
   }catch(err){
     if(session!==playerSession)return;
-    // A few approved pages sit behind Cloudflare. The relay's sockets cannot
-    // reach Cloudflare's own addresses (libcurl reports error 35), so those
-    // entries ask for the proxy first and then frame the approved page itself.
-    if(x.proxyFallback&&/error code 35|SSL connect error|could not be loaded through the proxy/i.test(String(err.message||err))){
-      updatePlayerProgress('Proxy cannot reach this host · opening the approved page');
-      $('viewerStatus').textContent='Proxy cannot reach this host · opened directly';
-      $('viewerAlert').classList.add('hidden');
-      frame.addEventListener('load',()=>{if(session!==playerSession)return;finishPlayerLoading(session,'Game opened');},{once:true});
-      frame.src=new URL(x.url,location.href).href;
-      return;
-    }
     $('viewerStatus').textContent='Unable to load game';
     updatePlayerProgress('Unable to load game');
     $('viewerAlert').textContent=err.message||String(err);
