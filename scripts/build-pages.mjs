@@ -108,6 +108,13 @@ for(const slug of ["balatro","happywheels","dispatch"]){
 // 242 MB Unity build downloads from the source rather than the Wisp relay.
 await fs.mkdir(path.join(out,"games","peak"),{recursive:true});
 await fs.copyFile(path.join("games","peak","index.html"),path.join(out,"games","peak","index.html"));
+// Three Unity ports whose builds stay on a pinned mirror; only the launcher page
+// is published here, and each one downloads its own data on first open.
+for(const slug of ["amanda-the-adventurer","fears-to-fathom","getting-over-it"]){
+  const dir=path.join(out,"games",slug);
+  await fs.mkdir(dir,{recursive:true});
+  await fs.copyFile(path.join("games",slug,"index.html"),path.join(dir,"index.html"));
+}
 // Publish the four imported game launchers on GitHub Pages. The browser
 // stays inside the arcade; large game binaries are fetched from pinned
 // approved Render routes rather than copied into the Pages artifact.
