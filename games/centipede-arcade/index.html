@@ -53,7 +53,7 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
 <h1>Centipede (Arcade)</h1>
 <p>Runs inside Seuss Arcade using EmulatorJS 4.2.3. The game file and runtime load from this page's own folder when it is published together with them, and from the approved Cloudflare route when it is served without them.</p>
 <label for="core">Emulator core</label>
-<select id="core"><option value="fbneo">FinalBurn Neo</option><option value="mame2003_plus">MAME 2003 Plus</option></select>
+<select id="core"><option value="mame2003_plus">MAME 2003 Plus</option><option value="fbneo">FinalBurn Neo</option></select>
 <label><input id="legacy" type="checkbox"> Use legacy WebGL 1 (try if video is black)</label>
 <p>If the game has sound but a black screen, try the alternate emulator or use <strong>Open directly in this tab</strong> to avoid the nested arcade frame.</p>
 <button id="start" type="button">Start Centipede</button>
@@ -105,9 +105,14 @@ document.getElementById("directSetup").addEventListener("click",directLaunch);
 document.getElementById("directGame").addEventListener("click",directLaunch);
 const coreSelect=document.getElementById("core");
 const CORE_KEY="seuss-centipede-core";
+// The two romsets need different cores: the bundled centtime.zip runs on MAME
+// 2003 Plus, and the approved route's romset only paints frames on FinalBurn
+// Neo. A core the player picked is kept; otherwise the default follows whichever
+// asset source this copy turned out to have.
+let storedCore=null;
 try{
- const savedCore=sessionStorage.getItem(CORE_KEY);
- if(savedCore==="fbneo"||savedCore==="mame2003_plus")coreSelect.value=savedCore;
+ storedCore=sessionStorage.getItem(CORE_KEY);
+ if(storedCore==="fbneo"||storedCore==="mame2003_plus")coreSelect.value=storedCore;
 }catch{}
 document.getElementById("restart").addEventListener("click",()=>{
  const next=coreSelect.value==="fbneo"?"mame2003_plus":"fbneo";
@@ -166,6 +171,7 @@ async function launch(){
  report("Checking the game file and EmulatorJS…");
  try{
   const source=await chooseAssets();
+  if(!storedCore)coreSelect.value=source==="bundle"?"mame2003_plus":"fbneo";
   const loader=await request(runtime+"loader.js");
   if(!loader.ok)throw Error("EmulatorJS runtime unavailable (HTTP "+loader.status+")");
   const gameCheck=await request(game);
