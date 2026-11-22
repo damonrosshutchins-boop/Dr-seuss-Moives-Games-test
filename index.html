@@ -195,7 +195,9 @@ function renderHero(item){
   fav.textContent=saved?'♥':'♡';
   fav.title=saved?'Remove from favorites':'Add to favorites';
 }
-document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-filter]').forEach(n=>n.classList.remove('active'));b.classList.add('active');filter=b.dataset.filter;render()});$('search').oninput=render;$('explore').onclick=()=>$('cards').scrollIntoView({behavior:'smooth'});
+// Switching collection starts the new list from its first item, so the banner
+// never describes a game that the visible shelf does not lead with.
+document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-filter]').forEach(n=>n.classList.remove('active'));b.classList.add('active');filter=b.dataset.filter;activeId=null;$('railList').scrollTop=0;render()});$('search').oninput=render;$('explore').onclick=()=>$('cards').scrollIntoView({behavior:'smooth'});
 // A fresh iframe per session ensures Unity/Godot/WebAssembly apps are unloaded
 // when the player closes. Session IDs invalidate pending async navigation.
 let playerSession=0;
