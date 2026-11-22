@@ -1975,6 +1975,126 @@ async function serveTwoVTwo(request, url) {
   return new Response(twoVTwoRewrite(source), { status: upstream.status, headers: out });
 }
 
+/* ------------------------------------------------------------- now.gg --- */
+
+// now.gg is served from this origin so the arcade's own proxy carries it and
+// the page runs under a policy that refuses the ad and consent networks. Its
+// page addresses itself by root-relative path and its art by absolute URL, so
+// the page and its code are moved under the route while cdn.now.gg (the asset
+// host) stays absolute and is allowed explicitly.
+const NOWGG_ROOT = "/approved-games/nowgg";
+const NOWGG_ROUTE = NOWGG_ROOT + "/";
+const NOWGG_ORIGIN = "https://now.gg";
+const NOWGG_FORWARD_HEADERS = ["accept", "accept-language", "range", "if-none-match", "x-requested-with"];
+const NOWGG_COPY_HEADERS = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges"];
+const NOWGG_CSP = [
+  "default-src 'self' https://now.gg https://*.now.gg",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://now.gg https://*.now.gg",
+  "style-src 'self' 'unsafe-inline' https://now.gg https://*.now.gg https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https://now.gg https://*.now.gg",
+  "font-src 'self' data: https://now.gg https://*.now.gg https://fonts.gstatic.com",
+  "media-src 'self' blob: https://now.gg https://*.now.gg",
+  // The play client opens its own sockets and talks to its account service, so
+  // connections stay open while scripts, frames and images (where the ads live)
+  // remain restricted.
+  "connect-src 'self' https: wss: ws: data: blob:",
+  "frame-src 'self' blob: https://now.gg https://*.now.gg https://www.youtube.com",
+  "worker-src 'self' blob: https://now.gg https://*.now.gg",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'"
+].join("; ");
+// The site's asset CDN answers for nowgg-static (its icon font lives there,
+// and cross-origin font loads are refused without CORS, so those go through the
+// route too). Everything else the page asks for is on now.gg itself.
+const NOWGG_CDN_ORIGIN = "https://cdn.now.gg";
+const NOWGG_CDN_PATH = "/nowgg-static/";
+// Paths the page builds at runtime as absolute paths of its own origin. They
+// arrive without the route in front, so the mirror answers them as well.
+const NOWGG_OWN_PATHS = ["/oapi/", "/1/", "/_next/", "/api/", "/assets/", "/play/", "/games/", "/apps/", "/static/", NOWGG_CDN_PATH];
+// Tags that only exist to load ads, consent walls or page metrics.
+const NOWGG_AD_TAG = /<script\b[^>]*src=["'][^"']*(?:googletagmanager|google-analytics|doubleclick|googlesyndication|cmp\.inmobi|requestmetrics)[^"']*["'][^>]*>\s*<\/script>/gi;
+
+function nowGgRewrite(source) {
+  return source
+    .replace(NOWGG_AD_TAG, "")
+    .replaceAll(NOWGG_CDN_ORIGIN + NOWGG_CDN_PATH, NOWGG_ROUTE + NOWGG_CDN_PATH.slice(1))
+    .replaceAll(NOWGG_ORIGIN + "/", NOWGG_ROUTE)
+    .replaceAll('"' + NOWGG_ORIGIN, '"' + NOWGG_ROOT)
+    // Root-relative attributes are the page's own files.
+    .replace(/((?:src|href|content|poster|action)\s*=\s*["'])\/(?!\/|approved-games\/nowgg(?:\/|"|'))/g, "$1" + NOWGG_ROUTE);
+}
+
+// now.gg joins its own asset prefix with paths the page builds at runtime, so a
+// route segment can arrive in the middle of a path instead of in front of it.
+// Take the route out wherever it sits and keep the rest as the upstream path.
+function nowGgUpstreamPath(pathname) {
+  if (pathname === NOWGG_ROOT || pathname === NOWGG_ROOT + "/") return "/";
+  if (pathname.startsWith(NOWGG_ROUTE)) return "/" + pathname.slice(NOWGG_ROUTE.length);
+  const at = pathname.indexOf(NOWGG_ROUTE);
+  if (at > 0) {
+    const head = pathname.slice(0, at);
+    const tail = pathname.slice(at + NOWGG_ROUTE.length);
+    return (head.endsWith("/") ? head : head + "/") + tail;
+  }
+  return pathname.startsWith("/") ? pathname : "/" + pathname;
+}
+
+function isNowggPath(pathname) {
+  if (pathname === NOWGG_ROOT || pathname.includes(NOWGG_ROUTE)) return true;
+  return NOWGG_OWN_PATHS.some(prefix => pathname.startsWith(prefix));
+}
+
+async function serveNowgg(request, url) {
+  if (request.method === "OPTIONS") return preflight(request);
+  const upstreamPath = nowGgUpstreamPath(url.pathname);
+  const origin = upstreamPath.startsWith(NOWGG_CDN_PATH) ? NOWGG_CDN_ORIGIN : NOWGG_ORIGIN;
+  const target = origin + upstreamPath + url.search;
+  const headers = new Headers();
+  for (const name of NOWGG_FORWARD_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  const init = { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(45000) };
+  if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+  let upstream;
+  try {
+    upstream = await fetch(target, init);
+  } catch (error) {
+    console.warn("now.gg mirror failed", url.pathname, String(error));
+    return textError(502, "now.gg could not be reached");
+  }
+  const out = new Headers();
+  for (const name of NOWGG_COPY_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  const type = (out.get("content-type") || "").toLowerCase();
+  const encoded = /[.](br|gz|wasm|woff2?|png|jpe?g|webp|avif|gif|svg|mp4|webm|zip)$/i.test(url.pathname) || !!upstream.headers.get("content-encoding");
+  const html = type.includes("text/html") && !encoded;
+  const textual = !encoded && (html || type.includes("javascript") || type.includes("text/css"));
+  if (encoded) {
+    const encoding = upstream.headers.get("content-encoding");
+    if (encoding) out.set("content-encoding", encoding);
+  }
+  out.set("cache-control", html ? "no-cache, must-revalidate" : "public, max-age=3600");
+  out.set("x-content-type-options", "nosniff");
+  if (html) {
+    out.set("content-security-policy", NOWGG_CSP);
+    out.set("referrer-policy", "no-referrer");
+  }
+  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+  if (!textual) return new Response(upstream.body, { status: upstream.status, headers: out });
+  let source;
+  try {
+    source = await upstream.text();
+  } catch (error) {
+    console.warn("now.gg mirror read failed", url.pathname, String(error));
+    return textError(502, "now.gg returned an unreadable file");
+  }
+  return new Response(nowGgRewrite(source), { status: upstream.status, headers: out });
+}
+
 /* ---------------------------------------------------------- xGUI clients --- */
 
 // The X-Network launcher pages (clients.x-network.lol/blooket and /kahoot) sit
@@ -2126,6 +2246,15 @@ export default {
     // lives at this root and must keep every other path.
     if (pathname.startsWith("/StreamingAssets/aa0.0.2798/")) {
       return withCors(request, await serveTwoVTwo(request, new URL(TWOV2_ROOT + pathname + url.search, url.origin)));
+    }
+
+    if (isNowggPath(pathname)) {
+      try {
+        return withCors(request, await serveNowgg(request, url));
+      } catch (error) {
+        console.error("now.gg route failed", pathname, String(error));
+        return withCors(request, textError(502, "The now.gg route failed"));
+      }
     }
 
     if (pathname === XGUI_ROOT.slice(0, -1) || pathname.startsWith(XGUI_ROOT)) {
