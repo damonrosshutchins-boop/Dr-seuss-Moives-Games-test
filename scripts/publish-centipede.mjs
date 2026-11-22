@@ -109,11 +109,13 @@ run("surge", [surgeSite, "seuss-arcade-games.surge.sh"], workspace);
 run("surge", [join(surgeSite, "centipede"), "seuss-centipede.surge.sh"], workspace);
 
 const mirror = join(workspace, "gh-mirror");
+// git is a real executable on every platform, so it is spawned directly: a
+// shell would join the arguments and split a multi-line commit message into
+// pathspecs.
 const git = (gitArgs) =>
   spawnSync("git", ["-c", "core.autocrlf=false", "-c", "user.name=damonrosshutchins-boop", "-c", "user.email=damonrosshutchins@icloud.com", ...gitArgs], {
     cwd: mirror,
     stdio: "inherit",
-    shell: process.platform === "win32",
   });
 if (git(["add", "-A"]).status !== 0) process.exit(1);
 const pending = spawnSync("git", ["diff", "--cached", "--quiet"], { cwd: mirror });
