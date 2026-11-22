@@ -160,7 +160,7 @@ function railRow(item){
   name.textContent=item.name;
   const kind=document.createElement('span');
   kind.className='rail-kind';
-  kind.textContent=item.kind==='movie'?'MOVIE':'GAME';
+  kind.textContent=item.kind==='movie'?'MOVIE':item.kind==='xgui'?'XGUI':'GAME';
   row.append(thumb,name,kind);
   row.onclick=()=>{activeId=item.id;render();};
   return row;
