@@ -2107,39 +2107,42 @@ const SITE_MIRROR_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/53
 // call is rejected upstream.
 const SITE_MIRROR_SKIP = new Set(["host", "connection", "content-length", "accept-encoding", "origin", "referer", "cf-connecting-ip", "cf-ipcountry", "cf-ray", "cdn-loop", "x-forwarded-for", "x-forwarded-proto", "x-real-ip", "keep-alive", "te", "upgrade", "proxy-connection"]);
 const SITE_MIRROR_COPY = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges"];
-const SITE_MIRROR_HOSTS = "https://*.kahoot.it";
 
 const SITE_MIRRORS = {
-  // kahoot.it is a module-script SPA whose code lives on assets-cdn.kahoot.it:
-  // that host answers without CORS, so its files are brought inside the route
-  // and the page loads them same-origin.
+  // The Kahoot client on clients-kahoot.x-network.lol keeps its controller build
+  // under /_b/assets-cdn.kahoot.it and loads its own client layer from
+  // x-network.lol. Its edge refuses the relay's raw sockets, so the page is
+  // proxied here and every path-based request stays on this origin.
   kahoot: {
     root: "/approved-games/kahoot",
-    origin: "https://kahoot.it",
+    origin: "https://clients-kahoot.x-network.lol",
     entry: "/",
-    // The page's router navigates to these paths on this origin by script, which
-    // the shim cannot see; they are sent back into the route.
+    // The controller navigates to these paths by script, which the shim cannot
+    // see; they are sent back into the route.
     navPaths: ["/controller/", "/challenges/", "/join/"],
-    hosts: [
-      ["https://assets-cdn.kahoot.it/", "/approved-games/kahoot/assets-cdn/"],
-      ["https://files-cdn.kahoot.it/", "/approved-games/kahoot/files-cdn/"]
-    ],
+    // Its build and art are fetched from the origin root; the prefixes name the
+    // upstream host so another mirror's /_b/ request is never claimed here.
+    aliases: ["/_b/assets-cdn.kahoot.it/", "/_b/files-cdn.kahoot.it/", "/_b/kahoot.it/", "/_b/apis.kahoot.it/", "/reserve/", "/cometd/"],
+    // The controller builds its server URLs from absolute config values.
+    rawScripts: true,
+    hosts: [],
     policy: [
-      "default-src 'self' " + SITE_MIRROR_HOSTS,
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: " + SITE_MIRROR_HOSTS,
-      "style-src 'self' 'unsafe-inline' " + SITE_MIRROR_HOSTS,
-      "img-src 'self' data: blob: " + SITE_MIRROR_HOSTS,
-      "font-src 'self' data: " + SITE_MIRROR_HOSTS,
-      "media-src 'self' blob: " + SITE_MIRROR_HOSTS,
-      // The live quiz keeps a socket to its own host.
-      "connect-src 'self' " + SITE_MIRROR_HOSTS + " wss://*.kahoot.it",
-      "frame-src 'self' blob: " + SITE_MIRROR_HOSTS,
+      "default-src 'self' data: blob:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://x-network.lol https://*.x-network.lol",
+      "style-src 'self' 'unsafe-inline' https://x-network.lol https://*.x-network.lol",
+      "img-src 'self' data: blob: https://x-network.lol https://*.x-network.lol https://*.kahoot.it",
+      "font-src 'self' data: https://x-network.lol https://*.x-network.lol https://*.kahoot.it",
+      "media-src 'self' blob: https://*.x-network.lol",
+      // The client's flag service answers on apis.kahoot.it and the live quiz
+      // keeps its socket on Kahoot's own host.
+      "connect-src 'self' https://x-network.lol https://*.x-network.lol wss://*.x-network.lol https://apis.kahoot.it https://*.kahoot.it wss://*.kahoot.it",
+      "frame-src 'self' blob:",
       "worker-src 'self' blob:",
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'"
     ].join("; "),
-    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|amplitude|segment\.io|hotjar|cloudflareinsights|adservice)/i
+    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|amplitude|segment\.io|hotjar|cloudflareinsights|adservice|cookieyes)/i
   },
   // The Blooket client on clients-blooket.x-network.lol already points its build,
   // its assets and its API calls at its own origin. That edge refuses the relay's
@@ -2152,7 +2155,7 @@ const SITE_MIRRORS = {
     navPaths: ["/play"],
     // Its Next.js runtime loads chunks and art from the origin root, so those
     // prefixes are claimed and mapped back inside the route.
-    aliases: ["/_b/"],
+    aliases: ["/_b/ac.blooket.com/", "/_b/id.blooket.com/", "/_b/blooket.com/"],
     hosts: [],
     // The mirror loads its own client layer from x-network.lol/api/scripts, so that
     // host is allowed for code, styles and data while the ad networks stay refused.
@@ -2200,10 +2203,18 @@ function siteMirrorTarget(site, pathname) {
 function siteMirrorRewrite(source, site, html) {
   let out = source;
   for (const [host, route] of site.hosts) out = out.split(host).join(route);
-  out = out.split(site.origin + "/").join(site.root + "/");
+  // A script's own absolute URLs must sometimes keep their scheme and host: the
+  // Kahoot bundle builds URLs with `new URL` from its config, where a bare path
+  // throws. Its site sets rawScripts; others have their paths moved inside the
+  // route so a script never reaches the origin directly.
+  if (html || !site.rawScripts) out = out.split(site.origin + "/").join(site.root + "/");
   if (!html) return out;
   out = out.replace(/<script\b[^>]*\bsrc=["'][^"']*["'][^>]*>\s*<\/script>/gi, tag => (site.ads.test(tag) ? "" : tag));
   out = out.replace(/<link\b[^>]*>/gi, tag => (site.ads.test(tag) ? "" : tag));
+  // Cloudflare's bot-detection bootstrap re-injects itself on the parent origin
+  // and spins against a challenger that does not exist behind this route. It is
+  // inline, so it is matched without crossing a closing tag and dropped.
+  out = out.replace(/<script\b[^>]*>(?:(?!<\/script>)[\s\S])*cdn-cgi\/challenge-platform(?:(?!<\/script>)[\s\S])*<\/script>/gi, "");
   out = out.replace(/((?:src|href|content|poster|action)\s*=\s*["'])\/(?!\/|approved-games\/)/g, "$1" + site.root + "/");
   return out.replace(/<\/head>/i, siteMirrorScript(site) + "</head>");
 }
