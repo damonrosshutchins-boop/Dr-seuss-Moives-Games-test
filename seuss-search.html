@@ -411,7 +411,9 @@
 
 <script src="./library.js"></script>
 <script type="module">
-import { browse, resolveTarget, relayEndpoint, relayHttpOrigin, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=5";
+// The ?v= keeps returning visitors off a cached copy of the client, so a new
+// search endpoint or transport change reaches them on the next load.
+import { browse, resolveTarget, relayEndpoint, relayHttpOrigin, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=6";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");
