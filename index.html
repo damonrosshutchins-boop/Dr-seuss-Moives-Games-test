@@ -227,6 +227,18 @@ async function toggleGameFullscreen(){
     $('viewerAlert').classList.remove('hidden');
   }finally{updateGameFullscreenButton();}
 }
+// A game opened from Seuss Search closes back to that search, not to the shelf:
+// the reader loses their query otherwise. The shelf links carry ?from=search,
+// because the search page sends no referrer at all.
+const searchPageUrl=new URL('./seuss-search.html',location.href).href;
+const cameFromSearch=document.referrer.startsWith(searchPageUrl)||new URLSearchParams(location.search).get('from')==='search';
+if(cameFromSearch)$('closeViewer').title='Exit game and return to Seuss Search';
+function returnToSearch(){
+  // history.back() restores the search page with its query still in place.
+  if(document.referrer.startsWith(searchPageUrl)&&history.length>1){history.back();return false;}
+  location.assign(searchPageUrl);
+  return false;
+}
 function closePlayer(){
   playerSession++;
   releaseGameControls();
@@ -237,6 +249,7 @@ function closePlayer(){
   updatePlayerProgress('Ready',0);
   $('playerProgress').classList.add('hidden');
   $('viewerAlert').classList.add('hidden');
+  if(cameFromSearch){returnToSearch();return;}
   $('explore').focus();
 }
 async function openItem(x){

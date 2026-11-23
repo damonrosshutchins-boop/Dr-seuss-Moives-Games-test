@@ -37,7 +37,11 @@ function pickEndpoint() {
 
 const endpoint = pickEndpoint();
 export const relaySource = onLoopback && endpoint === loopbackEndpoint ? "local" : "remote";
-const SEARCH_ENDPOINT = "https://www.bing.com/search?q=";
+// DuckDuckGo's HTML endpoint rather than the main duckduckgo.com app: it answers
+// with a plain results page instead of a JavaScript shell that has to boot inside
+// the proxied frame, and the app endpoint replies to relay traffic with a bot
+// challenge (HTTP 202) where this one still returns results.
+const SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/?q=";
 const MAX_STARTUP_MS = 20000;
 let controller;
 let initialization;
@@ -275,7 +279,16 @@ export async function browse(iframe, raw, onStage) {
   }
   report("Opening page…", onStage);
   if (!frame) frame = controller.createFrame(iframe);
-  await timeout(Promise.resolve(frame.go(target.href)), "Starting page");
+  try {
+    await timeout(Promise.resolve(frame.go(target.href)), "Starting page");
+  } catch (error) {
+    // A wisp socket that drops during the request usually recovers on the second
+    // attempt, and the controller is already up, so retrying costs one request
+    // instead of making the reader type the address again.
+    report("First attempt failed, retrying…", onStage);
+    await new Promise(resolve => setTimeout(resolve, 700));
+    await timeout(Promise.resolve(frame.go(target.href)), "Starting page");
+  }
   return target;
 }
 
