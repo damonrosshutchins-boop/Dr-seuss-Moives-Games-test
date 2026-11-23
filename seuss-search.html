@@ -24,6 +24,7 @@
     --a-card:rgba(244,249,255,.94);--a-card-solid:#f4f9ff;
     --a-blue:#3f7fd6;--a-blue-deep:#2f66b3;    --a-badge:#dceaf9;--a-wash:#e8f2fd;--a-placeholder:#93aec7;
     --a-dim:#8a8a8a;--a-dim-soft:#7c7c7c;--a-dim-ink:#9a9a9a;
+    --a-slow:#a9731b;--a-down:#bf4331;
     --a-warn-ink:#8a5320;--a-warn-line:#f0c99b;--a-warn-bg:#fff4e6;
     --a-shadow:0 12px 26px -18px rgba(33,71,110,.55),0 2px 6px -3px rgba(33,71,110,.2);
     --a-shadow-panel:0 40px 120px -60px rgba(23,52,84,.9);
@@ -52,6 +53,10 @@
 
   /* ---------- chrome ---------- */
   .app{position:relative;z-index:2;display:flex;flex-direction:column;height:100dvh}
+  /* The stage owns the scrolling, so the disclaimer bar stays at the bottom of
+     the screen instead of being pushed past the fold by the library. */
+  .stage{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow-y:auto}
+  .stage > .landing,.stage > .library{flex:0 0 auto}
   .bar{display:flex;align-items:center;gap:12px;padding:14px clamp(12px,2.2vw,24px);
     border-bottom:1px solid var(--a-line);background:var(--a-card);backdrop-filter:blur(12px)}
   .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--a-ink);flex:0 0 auto}
@@ -122,10 +127,20 @@
     font-size:11px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
   .speed:hover{background:var(--a-blue);color:var(--a-white);border-color:var(--a-blue-deep)}
   .speed:disabled{opacity:.65;cursor:progress}
-  .speed::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--a-blue)}
-  .speed[data-quality="fast"]::before{box-shadow:0 0 9px rgba(63,127,214,.5)}
-  .speed[data-quality="slow"]::before{background:var(--a-dim);box-shadow:none}
-  .speed[data-quality="down"]::before{background:transparent;border:1px solid var(--a-dim)}
+  /* The status dot carries the reading: blue for a good link, amber when it is
+     slow, red when the relay is down. Each one has a white ring so it also
+     stays visible while the pill is hovered and turns blue. */
+  .speed::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--a-blue);
+    box-shadow:0 0 0 1.5px var(--a-white),0 0 0 2.5px rgba(63,127,214,.35)}
+  .speed[data-quality="fast"]::before{box-shadow:0 0 0 1.5px var(--a-white),0 0 9px rgba(63,127,214,.7)}
+  .speed[data-quality="ok"]::before{background:var(--a-blue)}
+  .speed[data-quality="slow"]::before{background:var(--a-slow);
+    box-shadow:0 0 0 1.5px var(--a-white),0 0 0 2.5px rgba(169,115,27,.4)}
+  .speed[data-quality="down"]::before{background:var(--a-down);
+    box-shadow:0 0 0 1.5px var(--a-white),0 0 0 2.5px rgba(191,67,49,.4)}
+  .speed:hover::before{background:var(--a-white);box-shadow:0 0 0 1.5px rgba(255,255,255,.55)}
+  .speed:hover[data-quality="slow"]::before{background:#ffd08d}
+  .speed:hover[data-quality="down"]::before{background:#ffb4a6}
   .quick{padding:13px 13px 9px;display:flex;flex-direction:column;gap:8px}
   .quick h2{margin:1px 0 3px;font-size:9.5px;letter-spacing:1.8px;color:var(--a-mut);font-weight:800}
   .ql-list{display:flex;flex-direction:column;gap:6px}
@@ -243,7 +258,7 @@
 
 <div class="app">
   <header class="bar">
-    <a class="brand" href="./" title="Back to the library">
+    <a class="brand" href="./index.html#library" title="Back to the library">
       <span class="mark">✦</span>
       <b>Seuss<span>Search</span></b>
       <span class="pill">V2</span>
@@ -254,7 +269,7 @@
       <button type="submit">Go</button>
     </form>
     <div class="actions">
-      <a href="./" id="toLibrary" title="Back to the games library">🎮 <span>Library</span></a>
+      <a href="./index.html#library" id="toLibrary" title="Back to the games library">🎮 <span>Library</span></a>
       <button type="button" id="back" title="Back" aria-label="Back">←</button>
       <button type="button" id="forward" title="Forward" aria-label="Forward">→</button>
       <button type="button" id="reload" title="Reload page" aria-label="Reload">↻</button>
@@ -300,7 +315,7 @@
         </aside>
       </div>
       <div class="row row-bottom">
-        <a class="card mini" href="./index.html" title="Open the games library">
+        <a class="card mini" href="./index.html#library" title="Open the games library">
           <span class="mini-icon" aria-hidden="true">🎮</span>
           <span class="mini-text"><b>Games</b><small id="gameCount">79 games</small></span>
           <span class="mini-arrow" aria-hidden="true">→</span>
@@ -330,7 +345,7 @@
 
   <footer class="foot">
     <span>Pages load through your relay, not a direct link.</span>
-    <a href="./">← Games library</a>
+    <a href="./index.html#library">← Games library</a>
     <code id="endpoint" class="foot-code">wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/</code>
     <span>No DRM, logins or paid content is bypassed.</span>
   </footer>
@@ -630,6 +645,19 @@ $("chips").addEventListener("click", event => {
 });
 $("home").addEventListener("click", () => {
   hero.style.display = ""; view.classList.remove("on"); clearError(); q.focus();
+});
+// "Open cloaked" puts a real blank tab in front and renames this one, so the tab
+// strip does not read Seuss Search. Following the link inline used to replace
+// this page with about:blank and lose the search with it.
+const cloakLink = document.querySelector(".cloaked a");
+if (cloakLink) cloakLink.addEventListener("click", event => {
+  event.preventDefault();
+  const blank = window.open("about:blank", "_blank");
+  if (blank) {
+    try { blank.opener = null; } catch {}
+    try { blank.focus(); } catch {}
+  }
+  document.title = "New Tab";
 });
 $("reload").addEventListener("click", () => {
   if (!view.classList.contains("on")) return;
