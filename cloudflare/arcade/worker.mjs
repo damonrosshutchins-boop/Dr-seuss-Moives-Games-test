@@ -2307,6 +2307,38 @@ const SITE_MIRRORS = {
       "object-src 'none'"
     ].join("; "),
     ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|amp-api|cloudflareinsights|adservice|cookieyes|popads|propellerads|onclickads)/i
+  },
+  // YouShows is a Next.js film and TV catalogue. Its page, its chunks and its own
+  // catalogue API come back through this origin; the TMDB art it renders and the
+  // players it embeds are named in the policy, while the ad, consent and metric
+  // networks stay refused by omission.
+  youshows: {
+    root: "/movies/youshows",
+    origin: "https://youshows.org",
+    entry: "/",
+    // The app routes on the client; these paths are what a reload lands on.
+    navPaths: ["/movie/", "/tv/", "/watch/", "/person/", "/genre/", "/trending/", "/discover/", "/search"],
+    aliases: ["/icon-"],
+    referrer: "strict-origin-when-cross-origin",
+    // Its Turbopack runtime derives every chunk path from "/_next/", so those
+    // tags stay at the origin root and are routed here by the page referer.
+    rootAssets: true,
+    hosts: [],
+    policy: [
+      "default-src 'self' data: blob: https:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:",
+      "style-src 'self' 'unsafe-inline' https:",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data: https:",
+      "media-src 'self' blob: https:",
+      "connect-src 'self' https: wss:",
+      "frame-src 'self' blob: https:",
+      "worker-src 'self' blob:",
+      "base-uri 'self'",
+      "form-action 'self' https:",
+      "object-src 'none'"
+    ].join("; "),
+    ads: /(?:enjellyclysma|googletagmanager|googlesyndication|doubleclick|google-analytics|cloudflareinsights|adservice|cookieyes|popads|propellerads|onclickads)/i
   }
 };
 
@@ -2348,8 +2380,10 @@ function siteMirrorRewrite(source, site, html) {
   // and spins against a challenger that does not exist behind this route. It is
   // inline, so it is matched without crossing a closing tag and dropped.
   out = out.replace(/<script\b[^>]*>(?:(?!<\/script>)[\s\S])*cdn-cgi\/challenge-platform(?:(?!<\/script>)[\s\S])*<\/script>/gi, "");
+  if (site.rootAssets) out = out.replace(/((?:src|href|content|poster|action)\s*=\s*["'])\/_next\//g, "$1_next/");
   out = out.replace(/((?:src|href|content|poster|action)\s*=\s*["'])\/(?!\/|approved-games\/)/g, "$1" + site.root + "/");
-  return out.replace(/<\/head>/i, siteMirrorScript(site) + "</head>");
+  if (site.rootAssets) out = out.split("").join("/");
+  return out.replace(/<\/head>/i, (site.noShim ? "" : siteMirrorScript(site)) + "</head>");
 }
 
 // The page builds request paths at runtime, and a path that starts at "/" would
@@ -2515,7 +2549,12 @@ export default {
       }
     }
 
-    for (const site of SITE_MIRROR_LIST) {
+    // Two mirrors can share a nav path ("/watch/"), so a hard navigation out of
+    // one of them is sent back to the page it came from rather than the first
+    // site that also claims the path.
+    const navReferer = request.headers.get("referer") || "";
+    const navFrom = SITE_MIRROR_LIST.filter((site) => navReferer.includes(site.root + "/") && isSiteNavPath(site, pathname));
+    for (const site of [...navFrom, ...SITE_MIRROR_LIST]) {
       if (!isSiteNavPath(site, pathname) || isSiteMirrorPath(site, pathname)) continue;
       const back = new URL(site.root + pathname + url.search, url.origin);
       return withCors(request, new Response(null, { status: 302, headers: { location: back.toString() } }));
