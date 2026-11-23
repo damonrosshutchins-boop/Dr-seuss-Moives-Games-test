@@ -336,7 +336,7 @@ for(const [slug,title,source] of [
 {
   const folder=path.join(out,"games","portal-1");
   await fs.mkdir(folder,{recursive:true});
-  const portalLanding='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Portal 1 · Launch</title>'+
+  const portalLanding='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Portal 1 · Launch</title><script src="../../cloak.js"></script>'+
     '<style>:root{color-scheme:dark}body{background:#0d141d;color:#e8f5ff;font:15px/1.6 system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}main{max-width:650px;background:#17283d;border:1px solid #4b758b;border-radius:15px;padding:26px}a{color:#8ce2ff}a:focus-visible{outline:3px solid #ffde9a;outline-offset:3px}</style>'+
     '<main><h1>Launching Portal 1</h1><p>This game requires cross-origin isolation and must run as a top-level page rather than inside the arcade iframe. It runs on the original publisher site and downloads substantial game assets.</p>'+
     '<p id="state" role="status">Opening the original Portal build in this tab…</p>'+
@@ -458,6 +458,12 @@ try {
       document.addEventListener('fullscreenchange',sync);
     })();
   </script>`);
+  // Luigi opens as a top-level page, so the arcade's tab disguise has to follow
+  // it here. Same shared script the arcade and the search page load.
+  if(!html.includes("cloak.js")){
+    const title=html.match(/<title[^>]*>[\s\S]*?<\/title>/);
+    if(title)html=html.slice(0,title.index+title[0].length)+'<script src="../../cloak.js"></script>'+html.slice(title.index+title[0].length);
+  }
   await fs.writeFile(path.join(dest,"index.html"),html);
   for(const file of ["lm.js","lm-page.js","lm.data","sw.js","disc.rvz.part0001","disc.rvz.part0008","lm.wasm.part0001","lm.wasm.part0003"]){
     if(!await exists(path.join(dest,file)))throw new Error("Luigi's Mansion bundle missing "+file);
