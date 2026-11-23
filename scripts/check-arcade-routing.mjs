@@ -76,7 +76,7 @@ for(const entry of entries){
 }
 for(const [label,source,required] of [
   ["Viewer restricted remote launcher",html,["await openProxied(frame,x.url","frame.src=path.href","location.assign(localUrl.href)","if(path.origin!==location.origin)"]],
-  ["Tab disguise on the arcade",html,["src=\"./cloak.js\"","id=\"cloakOpts\"","data-cloak=\"off\"","syncCloakButtons"]],
+  ["Tab disguise on the arcade",html,["src=\"./cloak.js\"","id=\"cloakOpts\"","id=\"cloakButton\"","id=\"cloakPop\"","data-cloak=\"off\"","syncCloakButtons"]],
   ["Tab disguise on the search page",searchPage,["src=\"./cloak.js\""]],
   ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","Only approved games and movie destinations"]],
   ["Cloudflare relay policy",arcadeWorker,["isPrivateHost","connect({ hostname: host, port })","function denyOrigin","ALLOW_PRIVATE_IPS","const SELF_ORIGIN"]],
