@@ -152,20 +152,40 @@
   // clicking straight back into an unfocused window does, at the exact moment
   // the cover lifts, so that press has to be absorbed.
   let coverReason = "";
-  let swallowUntil = 0;
+  // Timestamp of the focus event that may own a press. The click that brings the
+  // window back arrives with its press attached, a fraction of a millisecond
+  // after that focus, so only a press whose own input timestamp falls in that
+  // instant belongs to the cover. Alt+Tab focuses the window with no press, and
+  // the click that follows it is therefore left alone.
+  let returnPress = 0;
+  const RETURN_PRESS_MS = 120;
+  let absorbingPress = false;
+  let pressTimer = 0;
   const PRESSES = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "auxclick", "dblclick", "contextmenu", "touchstart", "touchend"];
   // Only an activation event ends the press: clearing on pointerup would let the
   // mouseup and click of the same press through.
   const ENDS_PRESS = new Set(["click", "auxclick", "contextmenu"]);
+  const RELEASE = new Set(["pointerup", "mouseup", "touchend"]);
   // Presses land on whatever is behind the cover, so they are caught here in the
   // window's capture phase, before any page handler can act on them. The whole
   // press is swallowed, from pointerdown to click, so a button behind the photo
   // cannot focus or activate.
   function swallowFirstPress(event) {
-    if (!coverShown && !(swallowUntil && performance.now() < swallowUntil)) return;
+    if (!coverShown && !absorbingPress) {
+      if (!returnPress || event.timeStamp - returnPress > RETURN_PRESS_MS) return;
+      absorbingPress = true;
+      returnPress = 0;
+      // The release is not delivered if the button comes up outside the window,
+      // so the absorb must never outlive the press it belongs to.
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(() => { absorbingPress = false; }, 2000);
+    }
     event.stopImmediatePropagation();
     event.preventDefault();
-    if (!coverShown && ENDS_PRESS.has(event.type)) swallowUntil = 0;
+    if (ENDS_PRESS.has(event.type)) { absorbingPress = false; returnPress = 0; }
+    // Once a press is absorbed the rest of it stays absorbed however long the
+    // button is held, so a slow click cannot activate anything either.
+    else if (RELEASE.has(event.type)) setTimeout(() => { absorbingPress = false; returnPress = 0; }, 0);
   }
   for (const type of PRESSES) addEventListener(type, swallowFirstPress, true);
   function awayCover() {
@@ -189,7 +209,7 @@
     (document.body || document.documentElement).append(cover);
     return cover;
   }
-  function syncAwayCover() {
+  function syncAwayCover(event) {
     if (document.hidden || !document.hasFocus()) {
       if (!coverShown) coverReason = document.hidden ? "hidden" : "blur";
       coverShown = true;
@@ -200,7 +220,7 @@
       coverShown = false;
       // Only a window that kept the page visible is re-entered with a press on
       // the page; that click belongs to the cover, not to the page beneath it.
-      if (coverReason === "blur") swallowUntil = performance.now() + 900;
+      if (coverReason === "blur" && event && event.type === "focus") returnPress = event.timeStamp;
       coverReason = "";
     }
     if (cover) cover.style.display = "none";
