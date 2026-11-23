@@ -1,6 +1,7 @@
 // Seuss Search v2 client: unrestricted public-web navigation through the
 // Cloudflare-hosted Wisp relay. Any http(s) destination the relay can resolve.
 // The curated player (proxy-client.js) keeps its own allowlist for games.
+import { browserLikeTransport } from "./proxy-headers.js";
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
 // Relay choice lives in localStorage so Settings can switch between the default
@@ -248,7 +249,7 @@ async function createController(onStage) {
   // page pulls dozens of files from a single host.
   const instance = new window.$scramjetController.Controller({
     serviceworker: worker,
-    transport: new LibcurlClient({ wisp: endpoint, connections: [120, 96, 16] }),
+    transport: new (browserLikeTransport(LibcurlClient))({ wisp: endpoint, connections: [120, 96, 16] }),
     config: {
       scramjetPath: asset("scram/scramjet.js"),
       wasmPath: asset("scram/scramjet.wasm"),

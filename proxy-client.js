@@ -1,5 +1,6 @@
 // Curated game/movie player. Static assets run on GitHub Pages.
 // Its configured transport connects to the separately hosted Cloudflare Wisp service.
+import { browserLikeTransport } from "./proxy-headers.js";
 let controller;
 let initialization;
 let currentStage = "Not started";
@@ -154,7 +155,9 @@ async function createController(onProgress) {
   if (typeof LibcurlClient !== "function") {
     throw new Error("Libcurl transport module did not export a client.");
   }
-  const transport = new LibcurlClient({wisp: endpoint});
+  // Every outbound request leaves with Chrome-shaped headers and no proxy headers.
+  const BrowserLibcurl = browserLikeTransport(LibcurlClient);
+  const transport = new BrowserLibcurl({wisp: endpoint});
   const instance = new window.$scramjetController.Controller({
     serviceworker: worker,
     transport,
