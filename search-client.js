@@ -2,6 +2,7 @@
 // Cloudflare-hosted Wisp relay. Any http(s) destination the relay can resolve.
 // The curated player (proxy-client.js) keeps its own allowlist for games.
 import { browserLikeTransport } from "./proxy-headers.js";
+import { politeTransport } from "./proxy-politeness.js";
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
 // Relay choice lives in localStorage so Settings can switch between the default
@@ -246,10 +247,12 @@ async function createController(onStage) {
   if (typeof LibcurlClient !== "function") throw new Error("Libcurl transport module did not export a client.");
   // libcurl defaults to 50 connections, a 40-entry connection cache and only
   // 6 sockets per host, which serialises asset-heavy pages: a search results
-  // page pulls dozens of files from a single host.
+  // page pulls dozens of files from a single host. The middle figure keeps more
+  // sockets open than the 6 a browser uses, without the 120-wide burst that a
+  // destination sees as one machine hammering it.
   const instance = new window.$scramjetController.Controller({
     serviceworker: worker,
-    transport: new (browserLikeTransport(LibcurlClient))({ wisp: endpoint, connections: [120, 96, 16] }),
+    transport: new (politeTransport(browserLikeTransport(LibcurlClient)))({ wisp: endpoint, connections: [64, 48, 8] }),
     config: {
       scramjetPath: asset("scram/scramjet.js"),
       wasmPath: asset("scram/scramjet.wasm"),

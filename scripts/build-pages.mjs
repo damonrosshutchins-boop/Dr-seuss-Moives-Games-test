@@ -36,7 +36,7 @@ async function copyRuntime(name,root,entry){
 }
 await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
-for(const file of ["index.html","library.js","proxy-client.js","proxy-headers.js","sw.js","calls.js","calls.css","glass.css","arctic-tokens.css","arctic.css","cloak.js","seuss-search.html","search-client.js"])
+for(const file of ["index.html","library.js","proxy-client.js","proxy-headers.js","proxy-politeness.js","sw.js","calls.js","calls.css","glass.css","arctic-tokens.css","arctic.css","cloak.js","seuss-search.html","search-client.js"])
  await fs.copyFile(file,path.join(out,file));
 // Disguise artwork is Google's own product icon set, kept local so the tab icon
 // and the pickers work offline and from any page depth.
