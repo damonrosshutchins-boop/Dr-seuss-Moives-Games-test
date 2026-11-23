@@ -9,17 +9,14 @@
   const KEY = "seuss-cloak";
   // Whatever the page is actually called, remembered before any disguise.
   const realTitle = document.title || "Seuss";
-  const icon = svg => "data:image/svg+xml," + encodeURIComponent(svg);
   // The disguise artwork is Google's official product icon set, saved locally so
   // the tab icon works offline and from any page depth (root or games/<slug>/).
   const base = (document.currentScript && document.currentScript.src) || location.href;
   const art = name => new URL("assets/cloak/" + name + ".png", base).href;
   const CLOAKS = {
     blank: {
-      title: "about:blank",
-      // A blank tab has no artwork, so this is an empty white tile.
-      icon: icon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" fill="#fff"/></svg>'),
-      type: "image/svg+xml"
+      title: "about:blank"
+      // Deliberately no icon: a blank tab shows the browser's own empty icon.
     },
     classroom: {
       title: "Google Classroom",
@@ -54,7 +51,7 @@
     const preset = CLOAKS[current];
     document.title = titleFor();
     let link = document.querySelector("link[data-seuss-cloak]");
-    if (preset) {
+    if (preset && preset.icon) {
       if (!link) {
         link = document.createElement("link");
         link.rel = "icon";
@@ -78,7 +75,8 @@
     apply,
     current: () => current,
     titles: CLOAKS,
-    icons: Object.fromEntries(Object.entries(CLOAKS).map(([name, preset]) => [name, preset.icon]))
+    // Only disguises with artwork; about:blank intentionally has none.
+    icons: Object.fromEntries(Object.entries(CLOAKS).filter(([, preset]) => preset.icon).map(([name, preset]) => [name, preset.icon]))
   };
   let stored = "off";
   try { stored = localStorage.getItem(KEY) || "off"; } catch { /* private mode */ }
