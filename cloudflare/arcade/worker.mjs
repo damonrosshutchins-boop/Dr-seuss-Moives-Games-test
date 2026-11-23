@@ -2293,20 +2293,27 @@ const SITE_MIRRORS = {
     referrer: "strict-origin-when-cross-origin",
     hosts: [],
     policy: [
-      "default-src 'self' data: blob: https:",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:",
-      "style-src 'self' 'unsafe-inline' https:",
-      "img-src 'self' data: blob: https:",
-      "font-src 'self' data: https:",
-      "media-src 'self' blob: https:",
-      "connect-src 'self' https: wss:",
-      "frame-src 'self' blob: https:",
+      "default-src 'self' data: blob:",
+      // The app's own code plus the scripts it pulls in: the player's own
+      // bootstrap and user API, and the YouTube trailer widget.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vidy.st https://*.vidy.st https://www.youtube.com",
+      "style-src 'self' 'unsafe-inline'",
+      // Art is served through the image proxy and TMDB; some of it comes from
+      // the site's own storage bucket.
+      "img-src 'self' data: blob: https://wsrv.nl https://image.tmdb.org https://db.wecollege.net",
+      "font-src 'self' data:",
+      "media-src 'self' blob:",
+      // Votes answer on the site's backend, comments on its self-hosted API and
+      // the player reports usage to its own users host.
+      "connect-src 'self' https://backend.movy.sx https://api.wecollege.net https://vidy.st https://*.vidy.st",
+      // The player and the trailer are framed from their own origins.
+      "frame-src 'self' blob: https://vidy.st https://*.vidy.st https://www.youtube.com https://www.youtube-nocookie.com",
       "worker-src 'self' blob:",
       "base-uri 'self'",
-      "form-action 'self' https:",
+      "form-action 'self'",
       "object-src 'none'"
     ].join("; "),
-    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|amp-api|cloudflareinsights|adservice|cookieyes|popads|propellerads|onclickads)/i
+    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|cloudflareinsights|adservice|cookieyes|popads|propellerads|onclickads)/i
   },
   // YouShows is a Next.js film and TV catalogue. Its page, its chunks and its own
   // catalogue API come back through this origin; the TMDB art it renders and the
