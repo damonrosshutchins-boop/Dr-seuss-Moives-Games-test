@@ -47,6 +47,16 @@ await fs.copyFile("assets/tab-away.png",path.join(out,"assets","tab-away.png"));
 // 14 MB of gzipped wasm and data, and it opens in its own tab so its service
 // worker can make the page cross-origin isolated without any relay in the URL.
 await fs.cp(path.join("games","gow-sparta"),path.join(out,"games","gow-sparta"),{recursive:true});
+// Rocket League ships as the supplied single-file shell; its multi-gigabyte game
+// data is fetched from the port's own Cloudflare Pages host at runtime. The build
+// uses real wasm threads, so the page needs cross-origin isolation, which Pages
+// cannot send as headers: the same scoped service worker God of Sparta uses is
+// published beside it and reloads the page once it is in control.
+await fs.cp(path.join("games","rocket-legue"),path.join(out,"games","rocket-legue"),{recursive:true});
+for(const file of ["index.html","coi-serviceworker.js"])
+  if(!await exists(path.join(out,"games","rocket-legue",file)))
+    throw new Error("Rocket League bundle missing "+file);
+console.log("Published Rocket League shell; game data streams from its own host.");
 // Two fixed-route Minecraft 1.8 launchers, plus the Legacy Console launcher.
 for(const slug of ["minecraft-18-wrust","minecraft-18-mods","old-minecraft"]){
   const dir=path.join(out,"games",slug);
