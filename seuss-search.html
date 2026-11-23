@@ -227,9 +227,33 @@
   @media (max-width:860px){
     .brand b,.pill{display:none}
     .actions a span{display:none}
-    .actions button:nth-child(3),.actions button:nth-child(4){display:none}
+    .actions #forward,.actions #reload{display:none}
     .row-top,.row-bottom{grid-template-columns:1fr}
     .quick{order:2}
+  }
+  /* Phones: the toolbar kept its six controls on one line and pushed the last
+     ones past the right edge (the page scrolled sideways and Settings sat off
+     screen). The address gets its own row, the wordmark stops wrapping, and the
+     small panels get touch-sized rows. */
+  @media (max-width:480px){
+    .bar{flex-wrap:wrap;row-gap:9px}
+    .addr{order:3;flex:1 1 100%;min-width:0}
+    .actions{margin-left:auto;gap:5px}
+    .actions button,.actions a{height:40px;min-width:40px}
+    .wordmark{font-size:18px;gap:7px}
+    .wordmark .snow{font-size:20px}
+    .hero-top{flex-wrap:wrap;row-gap:2px}
+    .clock{font-size:12px}
+    .hero-card{padding:14px 15px 12px}
+    .finder{padding:6px 6px 6px 13px}
+    .hero-actions{gap:8px}
+    .cta{padding:11px 16px}
+    .ql-list button{min-height:40px}
+    .ghost{min-height:40px;padding:9px 16px}
+    .chips button{min-height:34px}
+    .lib-tile{min-height:46px}
+    .landing,.library{width:calc(100% - 16px)}
+    .library{padding:12px}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -253,6 +277,7 @@
       <button type="button" id="forward" title="Forward" aria-label="Forward">→</button>
       <button type="button" id="reload" title="Reload page" aria-label="Reload">↻</button>
       <button type="button" id="home" title="New search" aria-label="New search">⌂</button>
+      <button type="button" id="cloakNow" title="Open a blank tab and rename this one" aria-label="Open cloaked">👻</button>
       <button type="button" id="settingsOpen" title="Settings" aria-label="Settings">⚙</button>
     </div>
   </header>
@@ -618,16 +643,19 @@ $("home").addEventListener("click", () => {
 // "Open cloaked" puts a real blank tab in front and renames this one, so the tab
 // strip does not read Seuss Search. Following the link inline used to replace
 // this page with about:blank and lose the search with it.
-const cloakLink = document.querySelector(".cloaked a");
-if (cloakLink) cloakLink.addEventListener("click", event => {
-  event.preventDefault();
+// The landing card is hidden while a game is open, so the toolbar keeps its own
+// button: cloaking has to stay possible with the player on screen.
+function openCloakedTab() {
   const blank = window.open("about:blank", "_blank");
   if (blank) {
     try { blank.opener = null; } catch {}
     try { blank.focus(); } catch {}
   }
   document.title = "New Tab";
-});
+}
+const cloakLink = document.querySelector(".cloaked a");
+if (cloakLink) cloakLink.addEventListener("click", event => { event.preventDefault(); openCloakedTab(); });
+$("cloakNow").addEventListener("click", openCloakedTab);
 $("reload").addEventListener("click", () => {
   if (!view.classList.contains("on")) return;
   try { frame.contentWindow.location.reload(); } catch { if (addr.value) open(addr.value); }
