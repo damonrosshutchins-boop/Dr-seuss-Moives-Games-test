@@ -136,6 +136,10 @@ try{
   const spartaPage=await fs.readFile(path.join("games","gow-sparta","index.html"),"utf8");
   if(/seuss-arcade-relay\.damonrosshutchins\.workers\.dev/.test(spartaPage))errors.push("God of Sparta page still points at the relay");
 }catch{}
+// The relay kept a PSP rewrite and file route after the game moved here. It is
+// gone now, so a reappearing handler means the retired copy is back.
+if(arcadeWorker.includes("/approved-games/gow-sparta"))errors.push("arcade worker still carries the retired God of Sparta route");
+if(arcadeWorker.includes("psp-web-damon.surge.sh"))errors.push("arcade worker still reads the retired PSP Surge source");
 // Every disguise shows Google's own product artwork, so each preset needs its
 // file present in the published build.
 for(const name of ["classroom","docs","slides","drive","sheets","search","gmail","kahoot","canva","canvas","iready"]){

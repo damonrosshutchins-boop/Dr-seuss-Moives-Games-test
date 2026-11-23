@@ -80,15 +80,11 @@ The uncompressed `index.wasm` and `index.data` variants (about 105 MB) are the
 fallback for browsers without `DecompressionStream` and are not published, to
 stay inside the GitHub Pages size limit.
 
-The copy above was taken once from the Surge source; the published build no longer contacts it. A GitHub Actions source audit fetched the root HTML successfully (HTTP 200) and found no statically embedded absolute URL hosts in that HTML; this does not verify runtime dependencies. Some games use
-external CDNs, root-absolute JavaScript paths, special response headers,
-websockets or service workers that cannot be verified without inspecting the
-live upstream page; those dependencies are not automatically proxied.
-The launcher reports an unavailable source instead of silently redirecting.
-The successful Pages build/Cloudflare deploy alone does not verify gameplay.
-
-
-The PSP site's first-party root-relative fetch/XHR URLs and first-party absolute asset references are rewritten to stay inside the fixed Cloudflare game route. Any dynamic third-party endpoints must be inspected and independently approved; arbitrary domains are not automatically granted proxy access.
+The copy above was taken once from the Surge source, and the published build no
+longer contacts it. The relay keeps no PSP route now: `cloudflare/arcade/worker.mjs`
+has no `gow-sparta` handler, rewrite or status probe, and the `audit-psp.yml`
+workflow that tested that route was removed with it. A later change to this game
+is a plain file copy into `games/gow-sparta/`.
 
 
 ## Minecraft 1.8 Wrust Mod and Minecraft 1.8 Mods

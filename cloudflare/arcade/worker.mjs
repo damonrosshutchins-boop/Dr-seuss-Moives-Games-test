@@ -486,10 +486,6 @@ const cheeseCheckFiles = ["index.html", "Build/CheeseRollingWeb.loader.js", "Bui
 
 const horizonRoot = "https://raw.githubusercontent.com/AlexBoops/mc-rust-onweb/b21a7ae704b415182631429a7e71c797287661df/";
 
-const spartaUpstream = "https://psp-web-damon.surge.sh/";
-const spartaRoute = "/approved-games/gow-sparta/";
-const SPARTA_ORIGIN = "https://seuss-arcade-relay.damonrosshutchins.workers.dev";
-
 const mc18Sources = new Map([
   ["minecraft-18-wrust", {
     id: "1TBtrBMMw9w9lqc3Z3aw4CARG_O04abIM",
@@ -643,49 +639,6 @@ function approvedUnityMirrorFile(raw) {
 
 /* ------------------------------------------------------------- rewrites --- */
 
-function spartaRewriteRootPaths(source) {
-  return source
-    .replaceAll(spartaUpstream, SPARTA_ORIGIN + spartaRoute)
-    .replace(/\b(src|href|poster|data|action|srcset)\s*=\s*(["'])\/(?!\/)/gi,
-      (_full, attr, quote) => attr + "=" + quote + spartaRoute)
-    .replace(/url\(\s*(["']?)\/(?!\/)/gi,
-      (_full, quote) => "url(" + quote + spartaRoute);
-}
-
-function spartaRewriteHtml(html) {
-  let page = spartaRewriteRootPaths(html);
-  page = page.replace(/\b(fetch|Worker|SharedWorker|register)\s*\(\s*(["'])\/(?!\/)/g,
-    (_full, fn, quote) => fn + "(" + quote + spartaRoute);
-  const bridge = "<script>(()=>{" +
-    "const upstream=\"" + spartaUpstream.replace(/\/$/, "") + "\";" +
-    "const route=\"" + spartaRoute + "\";" +
-    "const reroute=(input)=>{try{const value=String(input);" +
-    "if(value.startsWith(route))return value;" +
-    "if(value.startsWith(\"/\")&&!value.startsWith(\"//\"))return route+value.slice(1);" +
-    "const u=new URL(value,location.href);" +
-    "if(u.origin===upstream)return route+u.pathname.replace(/^\\//,\"\")+u.search+u.hash;" +
-    "}catch(e){}return input;};" +
-    "const nativeFetch=window.fetch;window.fetch=function(resource,options){" +
-    "if(typeof resource===\"string\"||resource instanceof URL)" +
-    "return nativeFetch.call(this,reroute(resource),options);" +
-    "if(resource instanceof Request){const rewritten=reroute(resource.url);" +
-    "if(rewritten!==resource.url)return nativeFetch.call(this,new Request(rewritten,resource),options);}" +
-    "return nativeFetch.call(this,resource,options);};" +
-    "const originalOpen=XMLHttpRequest.prototype.open;" +
-    "XMLHttpRequest.prototype.open=function(method,url,...rest){return originalOpen.call(this,method,reroute(url),...rest);};" +
-    "})();</script>";
-  const base = "<base href=\"" + spartaRoute + "\">" + bridge;
-  if (/<head\b[^>]*>/i.test(page)) page = page.replace(/<head\b[^>]*>/i, match => match + "\n" + base);
-  else page = base + page;
-  const back = "<nav id=\"seuss-sparta-back\" style=\"position:fixed;z-index:2147483646;top:8px;left:8px\">" +
-    "<a href=\"" + PAGES_ORIGIN + "/Dr-seuss-Moives-Games-test/\" " +
-    "style=\"display:inline-block;padding:8px 11px;background:#152821ef;color:#fff;" +
-    "border:1px solid #82c9a1;border-radius:8px;font:13px system-ui;text-decoration:none\">" +
-    "← Back to Seuss Arcade</a></nav>";
-  if (/<body\b[^>]*>/i.test(page)) page = page.replace(/<body\b[^>]*>/i, match => match + "\n" + back);
-  return page;
-}
-
 /* -------------------------------------------------------------- routing --- */
 
 function approvedGambleFile(raw) {
@@ -769,19 +722,6 @@ async function handleApproved(request, env, url) {
       note: ok ? "Pinned Unity game entry, loader and first data part reachable" : "One or more pinned game files are unavailable"
     }, ok ? 200 : 502);
   }
-  if (pathname === "/approved-games/gow-sparta/status") {
-    try {
-      const response = await fetch(spartaUpstream, { redirect: "manual", signal: AbortSignal.timeout(12000) });
-      try { await response.body?.cancel(); } catch {}
-      return json({
-        ok: response.ok, upstreamStatus: response.status, source: "fixed Surge game host",
-        note: response.ok ? "Surge source reachable" : "Surge source returned an error"
-      }, response.ok ? 200 : 502);
-    } catch (error) {
-      console.warn("sparta status failed", String(error));
-      return json({ ok: false, note: "The approved Surge game source is not reachable from Cloudflare" }, 502);
-    }
-  }
   for (const [slug, item] of mc18Sources) {
     if (pathname === "/approved-games/" + slug + "/status") {
       try {
@@ -828,15 +768,6 @@ async function handleApproved(request, env, url) {
   }
 
   /* ---------------------------------------------------------------- games --- */
-
-  if (pathname === "/approved-games/gow-sparta" || pathname === "/approved-games/gow-sparta/") {
-    if (pathname === "/approved-games/gow-sparta") return Response.redirect(url.origin + spartaRoute, 308);
-    // Fall through to the wildcard handler with an empty remainder.
-    return serveSparta(request, url, "");
-  }
-  if (pathname.startsWith(spartaRoute) && !pathname.startsWith(spartaRoute + "status")) {
-    return serveSparta(request, url, pathname.slice(spartaRoute.length));
-  }
 
   if (pathname.startsWith("/approved-games/cheese/")) {
     const file = pathname.slice("/approved-games/cheese/".length);
@@ -1033,75 +964,6 @@ async function handleApproved(request, env, url) {
   }
 
   return textError(404, "Not an approved arcade route");
-}
-
-function spartaFileUrl(raw, search) {
-  if (!safeAssetPath(raw || "index.html")) return null;
-  const file = raw || "index.html";
-  const target = new URL(file, spartaUpstream);
-  if (target.origin !== new URL(spartaUpstream).origin) return null;
-  target.search = search; // a query may select an asset version, never a hostname
-  return target.href;
-}
-
-async function serveSparta(request, url, remainder) {
-  const upstreamUrl = spartaFileUrl(remainder, url.search);
-  if (!upstreamUrl) return textError(404, "Not an approved PSP game file");
-  const headers = new Headers({ "accept-encoding": "identity" });
-  const range = request.headers.get("Range");
-  if (range) {
-    if (!RANGE.test(range)) return textError(416, "Unsupported byte range");
-    headers.set("range", range);
-  }
-  let upstream;
-  try {
-    upstream = await fetch(upstreamUrl, {
-      method: request.method === "HEAD" ? "HEAD" : "GET",
-      headers, redirect: "manual", signal: AbortSignal.timeout(120000)
-    });
-  } catch (error) {
-    console.warn("sparta fetch failed", upstreamUrl, String(error));
-    return textError(502, "The approved Surge game file could not be fetched");
-  }
-  if (!upstream.ok) {
-    try { await upstream.body?.cancel(); } catch {}
-    return textError(502, "The approved Surge game file is unavailable (" + upstream.status + ")");
-  }
-  const contentType = upstream.headers.get("content-type") || "application/octet-stream";
-  const contentLength = Number(upstream.headers.get("content-length") || 0);
-  if (/text\/html/i.test(contentType) && (!contentLength || contentLength <= 8000000)) {
-    const html = await upstream.text();
-    if (html.length > 8000000) return textError(502, "Game HTML exceeds safe rewrite size");
-    return new Response(spartaRewriteHtml(html), {
-      status: 200,
-      headers: corsHeaders(request, {
-        "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff"
-      })
-    });
-  }
-  if (/text\/css/i.test(contentType) && (!contentLength || contentLength <= 2000000)) {
-    const css = await upstream.text();
-    if (css.length > 2000000) return textError(502, "Game CSS exceeds safe rewrite size");
-    return new Response(spartaRewriteRootPaths(css), {
-      status: 200,
-      headers: corsHeaders(request, {
-        "content-type": "text/css; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff"
-      })
-    });
-  }
-  const out = corsHeaders(request, {
-    "content-type": contentType, "cache-control": "public, max-age=300", "x-content-type-options": "nosniff"
-  });
-  const contentRange = upstream.headers.get("content-range");
-  if (contentRange) out.set("content-range", contentRange);
-  const acceptRanges = upstream.headers.get("accept-ranges");
-  if (acceptRanges) out.set("accept-ranges", acceptRanges);
-  if (upstream.status === 206) {
-    const length = upstream.headers.get("content-length");
-    if (length) out.set("content-length", length);
-  }
-  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
-  return new Response(upstream.body, { status: upstream.status, headers: out });
 }
 
 // 1v1.LOL's Unity manifest points its own build files straight at the CDN, so
