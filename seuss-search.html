@@ -34,10 +34,6 @@
   button{cursor:pointer;border:0;background:none}
   :focus-visible{outline:2px solid var(--a-blue);outline-offset:3px}
 
-  /* The drifting field, haze and vignette were the old night sky. The Arctic
-     background is the snow above, so they stay in the markup unpainted. */
-  #field,.haze,.vignette{display:none}
-
   /* ---------- chrome ---------- */
   .app{position:relative;z-index:2;display:flex;flex-direction:column;height:100dvh}
   /* The stage owns the scrolling, so the disclaimer bar stays at the bottom of
@@ -239,10 +235,6 @@
 </style>
 </head>
 <body>
-<canvas id="field" aria-hidden="true"></canvas>
-<div class="haze"></div>
-<div class="vignette"></div>
-
 <div class="app">
   <header class="bar">
     <a class="brand" href="./index.html#library" title="Back to the library">
@@ -344,16 +336,6 @@
       <h2 id="settingsTitle">Settings</h2>
       <button type="button" id="settingsClose" aria-label="Close settings">✕</button>
     </header>
-
-    <section>
-      <h3>BACKGROUND</h3>
-      <div class="opts" id="bgOpts">
-        <button type="button" data-bg="matrix">Dot matrix</button>
-        <button type="button" data-bg="grid">Grid</button>
-        <button type="button" data-bg="rings">Rings</button>
-        <button type="button" data-bg="off">Plain</button>
-      </div>
-    </section>
 
     <section>
       <h3>RELAY</h3>
@@ -677,9 +659,6 @@ const initial = params.get("q") || params.get("url");
 if (initial) open(initial);
 
 /* ---------------- settings ---------------- */
-const BG_KEY = "seuss-bg";
-const BG_MODES = ["matrix", "grid", "rings", "off"];
-let bgMode = BG_MODES.includes(localStorage.getItem(BG_KEY)) ? localStorage.getItem(BG_KEY) : "matrix";
 let pendingRelay = readRelay();
 
 function markActive(containerId, attribute, value) {
@@ -688,7 +667,6 @@ function markActive(containerId, attribute, value) {
   }
 }
 function syncSettings() {
-  markActive("bgOpts", "bg", bgMode);
   markActive("relayOpts", "relay", pendingRelay.mode || (location.hostname === "localhost" ? "" : "arcade"));
   $("cfUrl").value = pendingRelay.cloudflare || "";
   $("customUrl").value = pendingRelay.custom || "";
@@ -700,14 +678,6 @@ $("settingsOpen").addEventListener("click", openSettings);
 $("quickSettings").addEventListener("click", openSettings);
 $("settingsClose").addEventListener("click", closeSettings);
 $("settings").addEventListener("click", event => { if (event.target === $("settings")) closeSettings(); });
-$("bgOpts").addEventListener("click", event => {
-  const button = event.target.closest("button[data-bg]");
-  if (!button) return;
-  bgMode = button.dataset.bg;
-  try { localStorage.setItem(BG_KEY, bgMode); } catch {}
-  markActive("bgOpts", "bg", bgMode);
-  restartBackground();
-});
 $("relayOpts").addEventListener("click", event => {
   const button = event.target.closest("button[data-relay]");
   if (!button) return;
@@ -723,161 +693,8 @@ $("settingsApply").addEventListener("click", () => {
 $("settingsReset").addEventListener("click", () => {
   pendingRelay = { mode: null, cloudflare: "", custom: "" };
   writeRelay(pendingRelay);
-  try { localStorage.removeItem(BG_KEY); } catch {}
   location.reload();
 });
-
-/* ---------------- interactive backgrounds ---------------- */
-const canvas = document.getElementById("field");
-const ctx = canvas.getContext("2d", { alpha: true });
-const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const REACH = 150;
-const NEUTRAL = "#8a8a8a";
-let width = 0, height = 0, dpr = 1, dots = [], rings = [], raf = 0, lastRing = 0;
-const pointer = { x: -9999, y: -9999, on: false };
-
-function sizeCanvas() {
-  dpr = Math.min(devicePixelRatio || 1, 2);
-  width = innerWidth; height = innerHeight;
-  canvas.width = Math.round(width * dpr);
-  canvas.height = Math.round(height * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  seedMatrix();
-}
-function seedMatrix() {
-  dots = [];
-  const spacing = 26;
-  const cols = Math.ceil(width / spacing) + 1;
-  const rows = Math.ceil(height / spacing) + 1;
-  const ox = (width - (cols - 1) * spacing) / 2;
-  const oy = (height - (rows - 1) * spacing) / 2;
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      dots.push({ ox: ox + col * spacing, oy: oy + row * spacing, dx: 0, dy: 0, e: 0 });
-    }
-  }
-}
-
-// Dot matrix: dots slide away from the pointer and brighten as it nears them.
-function drawMatrix() {
-  for (const dot of dots) {
-    let tx = 0, ty = 0, energy = 0;
-    if (pointer.on) {
-      const px = dot.ox + dot.dx, py = dot.oy + dot.dy;
-      const dx = px - pointer.x, dy = py - pointer.y;
-      const distance = Math.hypot(dx, dy) || 0.001;
-      if (distance < REACH) {
-        const force = 1 - distance / REACH;
-        tx = (dx / distance) * force * 14;
-        ty = (dy / distance) * force * 14;
-        energy = force;
-      }
-    }
-    for (const ring of rings) {
-      const distance = Math.hypot(dot.ox - ring.x, dot.oy - ring.y);
-      const closeness = Math.abs(distance - ring.r);
-      if (closeness < 34) energy = Math.max(energy, (1 - closeness / 34) * ring.life);
-    }
-    dot.dx += (tx - dot.dx) * 0.16;
-    dot.dy += (ty - dot.dy) * 0.16;
-    dot.e += (energy - dot.e) * 0.16;
-    const radius = 1.05 + dot.e * 2.1;
-    ctx.fillStyle = dot.e > 0.02 ? "#fff" : NEUTRAL;
-    ctx.globalAlpha = 0.2 + dot.e * 0.8;
-    ctx.beginPath(); ctx.arc(dot.ox + dot.dx, dot.oy + dot.dy, radius, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-// Grid: engineering grid, with the lines and nodes near the pointer lit up.
-function drawGrid() {
-  const step = 34;
-  ctx.lineWidth = 1;
-  for (let x = -step; x <= width + step; x += step) {
-    const near = pointer.on ? Math.max(0, 1 - Math.abs(x - pointer.x) / 220) : 0;
-    ctx.strokeStyle = `rgba(255,255,255,${0.05 + near * 0.16})`;
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-  }
-  for (let y = -step; y <= height + step; y += step) {
-    const near = pointer.on ? Math.max(0, 1 - Math.abs(y - pointer.y) / 220) : 0;
-    ctx.strokeStyle = `rgba(255,255,255,${0.05 + near * 0.16})`;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-  }
-  if (!pointer.on) return;
-  for (let x = 0; x <= width; x += step) {
-    for (let y = 0; y <= height; y += step) {
-      const distance = Math.hypot(x - pointer.x, y - pointer.y);
-      if (distance > REACH) continue;
-      const energy = 1 - distance / REACH;
-      ctx.fillStyle = "#fff";
-      ctx.globalAlpha = 0.15 + energy * 0.85;
-      ctx.beginPath(); ctx.arc(x, y, 1 + energy * 2.4, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-  ctx.globalAlpha = 1;
-}
-
-// Rings: slow concentric pulses that ripple out from the pointer.
-function drawRings() {
-  const cx = pointer.on ? pointer.x : width / 2;
-  const cy = pointer.on ? pointer.y : height / 2;
-  const now = performance.now();
-  if (now - lastRing > 760) {
-    lastRing = now;
-    rings.push({ x: cx, y: cy, r: 0, life: 1, growth: 2.6 });
-  }
-  for (const ring of rings) {
-    ring.r += ring.growth;
-    ctx.strokeStyle = `rgba(255,255,255,${ring.life * 0.5})`;
-    ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2); ctx.stroke();
-  }
-  ctx.fillStyle = "#fff";
-  ctx.globalAlpha = 0.75;
-  ctx.beginPath(); ctx.arc(cx, cy, 2.4, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
-}
-
-function paint() {
-  ctx.clearRect(0, 0, width, height);
-  if (bgMode === "matrix") drawMatrix();
-  else if (bgMode === "grid") drawGrid();
-  else if (bgMode === "rings") drawRings();
-  for (const ring of rings) { ring.r += 2; ring.life -= 0.012; }
-  rings = rings.filter(ring => ring.life > 0);
-  raf = requestAnimationFrame(paint);
-}
-
-function restartBackground() {
-  cancelAnimationFrame(raf);
-  raf = 0;
-  rings = [];
-  ctx.clearRect(0, 0, width, height);
-  if (bgMode === "off") return;
-  if (reduce) {
-    // One static frame when motion is not wanted.
-    if (bgMode === "matrix") drawMatrix();
-    else if (bgMode === "grid") drawGrid();
-    return;
-  }
-  raf = requestAnimationFrame(paint);
-}
-
-addEventListener("resize", () => { sizeCanvas(); restartBackground(); });
-addEventListener("pointermove", event => {
-  pointer.x = event.clientX; pointer.y = event.clientY; pointer.on = true;
-}, { passive: true });
-addEventListener("pointerleave", () => { pointer.on = false; });
-addEventListener("pointerdown", event => {
-  rings.push({ x: event.clientX, y: event.clientY, r: 0, life: 1, growth: bgMode === "rings" ? 2.6 : 6 });
-}, { passive: true });
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
-  else if (!raf && bgMode !== "off" && !reduce) raf = requestAnimationFrame(paint);
-});
-
-sizeCanvas();
-restartBackground();
 
 /* ---------------- shared game library ---------------- */
 // The catalogue lives in library.js, so the arcade and this page never drift.
