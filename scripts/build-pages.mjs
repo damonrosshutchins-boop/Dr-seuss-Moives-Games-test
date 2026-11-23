@@ -41,6 +41,8 @@ for(const file of ["index.html","library.js","proxy-client.js","proxy-headers.js
 // Disguise artwork is Google's own product icon set, kept local so the tab icon
 // and the pickers work offline and from any page depth.
 await fs.cp("assets/cloak",path.join(out,"assets","cloak"),{recursive:true});
+// The photo that covers the page while the window is unfocused.
+await fs.copyFile("assets/tab-away.png",path.join(out,"assets","tab-away.png"));
 // Ghost of Sparta is proxied only by Render's fixed-origin route.
 // Publish a same-site launcher, never a direct iframe of the Surge source.
 await fs.mkdir(path.join(out,"games","gow-sparta"),{recursive:true});

@@ -143,6 +143,45 @@
   // and a proxied page can rename the tab as soon as it loads.
   document.addEventListener("visibilitychange", () => { if (!document.hidden) assertDisguise(); });
   addEventListener("focus", assertDisguise);
+  // Whenever the window is not focused or the tab is in the background, cover the
+  // whole page with a supplied photo, so a glance at the screen shows that instead
+  // of the arcade. It lifts again the moment the page is focused.
+  let cover = null;
+  function awayCover() {
+    if (cover) return cover;
+    cover = document.createElement("img");
+    cover.alt = "";
+    cover.setAttribute("aria-hidden", "true");
+    cover.dataset.seussAway = "1";
+    Object.assign(cover.style, {
+      position: "fixed",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      background: "#101010",
+      zIndex: "2147483646",
+      pointerEvents: "none",
+      display: "none"
+    });
+    cover.src = new URL("assets/tab-away.png", base).href;
+    (document.body || document.documentElement).append(cover);
+    return cover;
+  }
+  function syncAwayCover() {
+    if (document.hidden || !document.hasFocus()) awayCover().style.display = "block";
+    else if (cover) cover.style.display = "none";
+  }
+  document.addEventListener("visibilitychange", syncAwayCover);
+  addEventListener("blur", syncAwayCover);
+  addEventListener("focus", syncAwayCover);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", syncAwayCover, { once: true });
+  else syncAwayCover();
+  // Warm the photo once the page is idle, so the cover is instant when needed.
+  addEventListener("load", () => {
+    if ("requestIdleCallback" in window) requestIdleCallback(awayCover, { timeout: 4000 });
+    else setTimeout(awayCover, 1500);
+  });
   window.SeussCloak = {
     apply,
     current: () => current,

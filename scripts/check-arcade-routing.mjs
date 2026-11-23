@@ -128,6 +128,8 @@ for(const name of ["classroom","docs","slides","drive","sheets","search","gmail"
   try{await fs.access(path.join("assets","cloak",name+".png"));}
   catch{errors.push("Missing disguise artwork: assets/cloak/"+name+".png");}
 }
+try{await fs.access(path.join("assets","tab-away.png"));}
+catch{errors.push("Missing unfocused-tab cover: assets/tab-away.png");}
 if(errors.length){
   for(const error of errors)console.error("ROUTING CHECK FAILED:",error);
   process.exitCode=1;
