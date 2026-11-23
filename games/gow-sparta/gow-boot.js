@@ -3,9 +3,10 @@
    The recompiled game allocates a shared WebAssembly memory for its threads,
    and every browser only allows that in a cross-origin isolated page. GitHub
    Pages cannot send COOP/COEP headers, so coi-serviceworker supplies them from
-   a service worker and reloads once. Firefox has no service workers at all in
-   a private window, so that reload never happens there and the page would
-   otherwise sit on a black screen with nothing to go on. */
+   a service worker and reloads once. A private window cannot keep that worker:
+   Firefox below 139 hides the API there, and 139 and later expose it with
+   nothing registered, so the reload never happens and the page would otherwise
+   sit on a black screen with nothing to go on. */
 (function () {
   "use strict";
 
@@ -238,13 +239,34 @@
   /* ------------------------------------------------------ isolation warning --- */
   function isolationState() {
     if (window.crossOriginIsolated) return "isolated";
-    if (!window.navigator.serviceWorker) return "private";
+    var container = window.navigator && window.navigator.serviceWorker;
+    if (!container) return "private";
+    if (container.controller) return "blocked";
     var failed = false;
     try { failed = !!window.sessionStorage.getItem("coiCoepHasFailed"); } catch (error) {}
     return failed ? "blocked" : "pending";
   }
 
-  function buildCard(privateWindow) {
+  /* Firefox 139 and later do expose navigator.serviceWorker in a private window,
+     so the object being there no longer proves the isolation worker can run:
+     ask for the registrations too, and treat none as a window that cannot keep
+     one. Without the API at all the page is already known to be a private one. */
+  function reasonWithoutIsolation(callback) {
+    var container = window.navigator && window.navigator.serviceWorker;
+    if (!container || !container.getRegistrations) { callback("private"); return; }
+    var settled = false;
+    function done(registered) {
+      if (settled) return;
+      settled = true;
+      callback(registered ? "blocked" : "private");
+    }
+    window.setTimeout(function () { done(false); }, 1500);
+    container.getRegistrations().then(function (list) {
+      done(!!(list && list.length));
+    }, function () { done(false); });
+  }
+
+  function buildCard(reason) {
     var card = document.createElement("div");
     card.id = "coi-failure";
     card.setAttribute("role", "alertdialog");
@@ -252,20 +274,25 @@
     card.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:#0b0b0df2;color:#fff;font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif";
     var panel = document.createElement("div");
     panel.style.cssText = "max-width:560px;width:100%;background:#1b1b1f;border:1px solid #4a4a55;border-radius:14px;padding:26px;box-shadow:0 20px 60px #000a";
+    var container = window.navigator && window.navigator.serviceWorker;
     panel.innerHTML =
-      '<h1 style="margin:0 0 10px;font-size:21px">God of War cannot start in this window</h1>' +
+      '<h1 style="margin:0 0 10px;font-size:21px">God of War needs a normal window to start</h1>' +
       '<p style="margin:0 0 12px;color:#d6d6de">The game runs its threads on shared memory, ' +
       'and browsers only allow that in a cross-origin isolated page. This page gets the ' +
       'isolation from a service worker, and ' +
-      (privateWindow
-        ? 'this window has none: Firefox turns service workers off in private windows. ' +
-          'Open the game in a normal window and it will start.'
-        : 'this window has not received one yet. Reload the page once: the worker installs ' +
-          'on the first load and the reload isolates the page.') +
+      (reason === "private"
+        ? 'this window has none: Firefox turns service workers off in private windows, and ' +
+          'in normal windows that clear cookies and site data when they close. Open the game ' +
+          'in a normal window rather than a private one and it will start.'
+        : 'the worker it registered did not isolate the page, so the ' +
+          'Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers it sends were ' +
+          'stripped on the way here. Open the page in a normal window of its own, not inside ' +
+          'another page, and reload; a proxy, VPN or extension that removes those headers has ' +
+          'to be off for it to start.') +
       '</p>' +
       '<p style="margin:0 0 16px;font:12px/1.4 ui-monospace,Consolas,monospace;color:#9a9aa6">' +
-      'crossOriginIsolated=false &middot; serviceWorker=' +
-      (window.navigator.serviceWorker ? 'yes' : 'no') + '</p>';
+      'crossOriginIsolated=false &middot; serviceWorker=' + (container ? 'yes' : 'no') +
+      ' &middot; controller=' + (container && container.controller ? 'yes' : 'no') + '</p>';
     var actions = document.createElement("div");
     actions.style.cssText = "display:flex;gap:10px;flex-wrap:wrap;align-items:center";
     var reload = document.createElement("button");
@@ -284,20 +311,24 @@
     return card;
   }
 
-  function showCard(privateWindow) {
+  function showCard(reason) {
     if (document.getElementById("coi-failure")) return;
-    var card = buildCard(privateWindow);
+    var card = buildCard(reason);
     function mount() { (document.body || document.documentElement).appendChild(card); }
     if (document.body) mount();
     else document.addEventListener("DOMContentLoaded", mount);
   }
 
   var state = isolationState();
+  if (state === "isolated") return;
   if (state === "private" || state === "blocked") {
-    showCard(state === "private");
-  } else if (state === "pending") {
-    window.setTimeout(function () {
-      if (!window.crossOriginIsolated) showCard(false);
-    }, 10000);
+    showCard(state);
+    return;
   }
+  /* The first load in a normal window is not isolated until the worker has
+     installed and reloaded the page, so give that a moment before failing. */
+  window.setTimeout(function () {
+    if (window.crossOriginIsolated) return;
+    reasonWithoutIsolation(function (reason) { showCard(reason); });
+  }, 4000);
 })();

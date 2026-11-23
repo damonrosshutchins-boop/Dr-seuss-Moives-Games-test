@@ -84,8 +84,12 @@ GitHub Pages size limit.
 
 The page also fails visibly instead of showing a black screen: when
 `crossOriginIsolated` is false it draws a message explaining that the game needs
-a normal window, because Firefox turns service workers off in private windows
-and the isolation comes from one.
+a normal window, because the isolation comes from a service worker that a
+private window cannot keep. Firefox below 139 hides `navigator.serviceWorker`
+there, and 139 and later expose it with nothing registered, so the check asks for
+the registrations rather than trusting the object; when a worker is registered
+but the page is still not isolated, the message says the COOP/COEP headers were
+stripped in front of the site instead.
 
 The copy above was taken once from the Surge source, and the published build no
 longer contacts it. The relay keeps no PSP route now: `cloudflare/arcade/worker.mjs`
