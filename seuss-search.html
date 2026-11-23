@@ -238,6 +238,12 @@
     background:var(--a-wash);border:1px solid var(--a-line);font-size:12px}
   .lib-name{min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
     overflow:hidden;overflow-wrap:anywhere}
+  .lib-tile[hidden]{display:none}
+  /* Typing in the main box also filters the shelf, so 79 tiles do not have to
+     be scanned by eye; the count says how many survive and an empty shelf
+     points at the web search instead. */
+  .lib-name mark{background:rgba(63,127,214,.2);color:inherit;border-radius:3px;padding:0 1px}
+  .library-empty{margin:10px 2px 0;font-size:12px;color:var(--a-mut)}
   /* Browsing hides the shelf so the viewport gets the room. */
   .app:has(.view.on) .library{display:none}
 
@@ -352,6 +358,7 @@
     <section class="library" id="library" aria-label="Game library">
       <div class="library-head"><h2>Game library</h2><span id="libraryCount"></span></div>
       <div class="library-grid" id="libraryGrid"></div>
+      <p class="library-empty" id="libraryEmpty" hidden></p>
     </section>
 
     <section class="view" id="view">
@@ -806,9 +813,12 @@ $("settingsReset").addEventListener("click", () => {
 /* ---------------- shared game library ---------------- */
 // The catalogue lives in library.js, so the arcade and this page never drift.
 const libraryGrid = $("libraryGrid");
+const libraryTiles = [];
 if (libraryGrid && Array.isArray(window.SEUSS_LIBRARY)) {
-  $("libraryCount").textContent = window.SEUSS_LIBRARY.length + " items";
-  $("gameCount").textContent = window.SEUSS_LIBRARY.length + " games";
+  const total = window.SEUSS_LIBRARY.length;
+  const idleCount = total + " items";
+  $("libraryCount").textContent = idleCount;
+  $("gameCount").textContent = total + " games";
   const shelf = document.createDocumentFragment();
   for (const item of window.SEUSS_LIBRARY) {
     const tile = document.createElement("a");
@@ -825,8 +835,54 @@ if (libraryGrid && Array.isArray(window.SEUSS_LIBRARY)) {
     name.textContent = item.name;
     tile.append(icon, name);
     shelf.append(tile);
+    libraryTiles.push({ el: tile, nameEl: name, label: item.name,
+      hay: (item.name + " " + (item.desc || "") + " " + item.kind).toLowerCase() });
   }
   libraryGrid.append(shelf);
+
+  const shelfEmpty = $("libraryEmpty");
+  function paintName(tile, needle) {
+    if (!needle) { tile.nameEl.textContent = tile.label; return; }
+    const at = tile.label.toLowerCase().indexOf(needle);
+    if (at < 0) { tile.nameEl.textContent = tile.label; return; }
+    const mark = document.createElement("mark");
+    mark.textContent = tile.label.slice(at, at + needle.length);
+    tile.nameEl.replaceChildren(tile.label.slice(0, at), mark, tile.label.slice(at + needle.length));
+  }
+  function filterLibrary(raw) {
+    const tokens = raw.trim().toLowerCase().split(/s+/).filter(Boolean);
+    let shown = 0;
+    for (const tile of libraryTiles) {
+      const keep = tokens.every(token => tile.hay.includes(token));
+      tile.el.hidden = !keep;
+      if (keep) shown += 1;
+      paintName(tile, tokens.length === 1 ? tokens[0] : "");
+    }
+    $("libraryCount").textContent = tokens.length ? shown + " of " + total + " items" : idleCount;
+    if (shelfEmpty) {
+      shelfEmpty.hidden = !tokens.length || shown > 0;
+      shelfEmpty.textContent = shown ? "" :
+        "No games match “" + raw.trim() + "”. Press Enter to search the web for it instead.";
+    }
+  }
+  if (q) {
+    q.addEventListener("input", () => filterLibrary(q.value));
+    q.addEventListener("keydown", event => {
+      if (event.key === "Escape" && q.value) {
+        event.stopPropagation();
+        q.value = "";
+        filterLibrary("");
+      }
+    });
+  }
+  // "/" jumps into the search box from anywhere, the way a search page should.
+  document.addEventListener("keydown", event => {
+    if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+    const active = document.activeElement;
+    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
+    event.preventDefault();
+    q.focus();
+  });
 }
 
 /* ---------------- ?target= hand-off from the arcade ---------------- */
