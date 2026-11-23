@@ -388,7 +388,7 @@
 
 <script src="./library.js"></script>
 <script type="module">
-import { browse, resolveTarget, relayEndpoint, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=5";
+import { browse, resolveTarget, relayEndpoint, relayHttpOrigin, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=5";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");
@@ -509,6 +509,22 @@ async function open(raw) {
   let target;
   try { target = resolveTarget(raw); }
   catch (error) { showError(error.message); return; }
+  // The relay's own pages cannot be tunnelled by that same relay (the Wisp
+  // handshake to its Cloudflare host fails with SSL 35), so a mirrored site is
+  // framed directly instead of through Scramjet.
+  if (target.origin === relayHttpOrigin()) {
+    clearError();
+    hero.style.display = "none";
+    view.classList.add("on");
+    addr.value = target.href;
+    q.value = raw;
+    viewTitle.textContent = target.hostname + (target.pathname === "/" ? "" : target.pathname);
+    viewStage.textContent = "Direct relay mirror";
+    frame.setAttribute("sandbox", "allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-modals allow-popups allow-downloads");
+    frame.src = target.href;
+    rememberRecent(target.href);
+    return;
+  }
   clearError();
   hero.style.display = "none";
   view.classList.add("on");
