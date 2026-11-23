@@ -2191,6 +2191,40 @@ const SITE_MIRRORS = {
       "object-src 'none'"
     ].join("; "),
     ads: /(?:cookieyes|googletagmanager|googlesyndication|doubleclick|google-analytics|cloudflareinsights|adservice|criteo|taboola|outbrain)/i
+  },
+  // Movy is a Next.js film and TV catalogue on its own host, with its data and
+  // media served by a separate API host. The page, its chunks and its art come
+  // back through this origin; the API host, TMDB art and the players it embeds
+  // are named in the policy so the catalogue can hydrate, while the ad and
+  // consent networks stay refused by omission.
+  movy: {
+    root: "/movies/movy",
+    origin: "https://www.movy.sx",
+    entry: "/",
+    // The app routes on the client; these paths are what a reload lands on.
+    navPaths: ["/movie/", "/tv/", "/watch/", "/genre/", "/trending/", "/anime/"],
+    // Its Next.js runtime loads art and its icons from the origin root, outside
+    // the route, so those prefixes are claimed and moved back inside it. Chunks
+    // are requested at the root too, but now.gg claims /_next/ there, so those
+    // are routed by the referer of the page that asked.
+    aliases: ["/img/", "/icon-"],
+    referrer: "strict-origin-when-cross-origin",
+    hosts: [],
+    policy: [
+      "default-src 'self' data: blob: https:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:",
+      "style-src 'self' 'unsafe-inline' https:",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data: https:",
+      "media-src 'self' blob: https:",
+      "connect-src 'self' https: wss:",
+      "frame-src 'self' blob: https:",
+      "worker-src 'self' blob:",
+      "base-uri 'self'",
+      "form-action 'self' https:",
+      "object-src 'none'"
+    ].join("; "),
+    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|amp-api|cloudflareinsights|adservice|cookieyes|popads|propellerads|onclickads)/i
   }
 };
 
@@ -2299,7 +2333,9 @@ async function serveSiteMirror(request, url, site) {
   out.set("x-content-type-options", "nosniff");
   if (html) {
     out.set("content-security-policy", site.policy);
-    out.set("referrer-policy", "no-referrer");
+    // The default refuses referers, but a page whose runtime asks for root-level
+    // chunks needs its own route named in them, so it can choose.
+    out.set("referrer-policy", site.referrer || "no-referrer");
   }
   if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
   if (!textual) return new Response(upstream.body, { status: upstream.status, headers: out });
@@ -2368,6 +2404,23 @@ export default {
     // lives at this root and must keep every other path.
     if (pathname.startsWith("/StreamingAssets/aa0.0.2798/")) {
       return withCors(request, await serveTwoVTwo(request, new URL(TWOV2_ROOT + pathname + url.search, url.origin)));
+    }
+
+    // Next.js builds some of its chunk URLs from the origin root, which more than
+    // one mirror can claim. The referer names the page that asked, so the chunk
+    // goes back to that page's mirror.
+    if (pathname.startsWith("/_next/")) {
+      const referer = request.headers.get("referer") || "";
+      for (const site of SITE_MIRROR_LIST) {
+        if (!referer.includes(site.root + "/")) continue;
+        const aliased = new URL(request.url);
+        aliased.pathname = site.root + pathname;
+        try {
+          return withCors(request, await serveSiteMirror(request, aliased, site));
+        } catch (error) {
+          console.error("site mirror root chunk failed", site.root, pathname, String(error));
+        }
+      }
     }
 
     const nowggSite = nowGgSiteFor(pathname);
