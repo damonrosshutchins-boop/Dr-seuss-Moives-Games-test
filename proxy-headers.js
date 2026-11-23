@@ -18,12 +18,18 @@ const DROP = new Set([
   "via", "forwarded", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto",
   "x-real-ip", "proxy-connection", "x-proxy-id", "x-scramjet"
 ]);
+// Privacy, not disguise: the referer a proxied request would carry is this site's
+// own address (Scramjet rebuilds it from the frame URL), so every destination a
+// reader visits would learn where they came from. The browser offers the same
+// control as Referrer-Policy: no-referrer, which is what this does for the
+// tunnel. Nothing is forged; the header is simply not sent.
 
 function normalize(headers) {
   const out = [];
   for (const entry of headers || []) {
     const name = entry && entry[0];
-    if (!name || DROP.has(String(name).toLowerCase())) continue;
+    const lower = String(name || "").toLowerCase();
+    if (!name || DROP.has(lower) || lower === "referer") continue;
     out.push([name, entry[1]]);
   }
   return out;

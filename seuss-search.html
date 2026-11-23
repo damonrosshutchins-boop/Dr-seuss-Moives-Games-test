@@ -358,7 +358,7 @@
       <div class="viewbar"><b id="viewTitle">Page</b><span id="viewStage">Connecting…</span></div>
       <div class="err" id="err" role="alert"><span id="errText"></span><button type="button" id="errRetry" hidden>↻ Try again</button></div>
       <iframe id="frame" title="Seuss Search viewport"
-        allow="clipboard-write; autoplay; fullscreen; gamepad; encrypted-media"
+        allow="clipboard-write; autoplay; fullscreen; gamepad; encrypted-media; camera 'none'; microphone 'none'; geolocation 'none'; display-capture 'none'; midi 'none'; usb 'none'; serial 'none'; hid 'none'; bluetooth 'none'; payment 'none'; idle-detection 'none'"
         allowfullscreen referrerpolicy="no-referrer"
         sandbox="allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-modals allow-downloads"></iframe>
     </section>
@@ -439,7 +439,7 @@
 <script type="module">
 // The ?v= keeps returning visitors off a cached copy of the client, so a new
 // search endpoint or transport change reaches them on the next load.
-import { browse, resolveTarget, relayEndpoint, relayHttpOrigin, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=7";
+import { browse, resolveTarget, relayEndpoint, relayHttpOrigin, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=8";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");
