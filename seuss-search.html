@@ -13,6 +13,7 @@
 <link rel="preload" as="script" href="scram/scramjet.js">
 <link rel="modulepreload" href="libcurl/index.mjs">
 <link rel="stylesheet" href="./arctic-tokens.css">
+<script src="./cloak.js"></script>
 <style>
   /* Seuss Search v2 is an Arctic page: one theme, no override layer. The palette
      is arctic-tokens.css, which the arcade loads too, so the two pages cannot
@@ -689,79 +690,36 @@ $("chips").addEventListener("click", event => {
 $("home").addEventListener("click", () => {
   hero.style.display = ""; view.classList.remove("on"); clearError(); q.focus();
 });
-// Tab disguise. The tab strip is what a passer-by reads, so the title and icon
-// are set here and then kept in place: proxied pages are served from this origin
-// and can rename the tab, and a reload would otherwise restore the real title.
-const CLOAK_KEY = "seuss-cloak";
-const PAGE_TITLE = "Seuss Search v2";
-const cloakIcon = svg => "data:image/svg+xml," + encodeURIComponent(svg);
-const CLOAKS = {
-  blank: {
-    title: "about:blank",
-    // A blank tab has no artwork at all, so this is an empty white tile.
-    icon: cloakIcon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" fill="#fff"/></svg>')
-  },
-  classroom: {
-    title: "Google Classroom",
-    icon: cloakIcon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0f9d58"/><rect x="8.5" y="9" width="15" height="10.5" rx="1.6" fill="none" stroke="#fff" stroke-width="2"/><rect x="12" y="23" width="8" height="2.4" rx="1.2" fill="#fff"/></svg>')
-  },
-  docs: {
-    title: "Google Docs",
-    icon: cloakIcon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="5" y="2" width="22" height="28" rx="3" fill="#1a73e8"/><g fill="#fff"><rect x="10" y="9" width="12" height="2.4" rx="1.2"/><rect x="10" y="14" width="12" height="2.4" rx="1.2"/><rect x="10" y="19" width="7.5" height="2.4" rx="1.2"/></g></svg>')
-  }
-};
-let cloak = "off";
-let cloakGuard = 0;
-const cloakTitle = () => (CLOAKS[cloak] ? CLOAKS[cloak].title : PAGE_TITLE);
-function assertCloakTitle() { if (document.title !== cloakTitle()) document.title = cloakTitle(); }
+// Tab disguise. The disguise itself lives in cloak.js, which the arcade loads
+// too, so the tab stays cloaked when a game opens on that page. This half is
+// only the picker in Settings plus the buttons that trigger it.
 function markCloakButtons() {
   const host = $("cloakOpts");
   if (!host) return;
+  const cloak = SeussCloak.current();
   for (const button of host.querySelectorAll("button[data-cloak]"))
     button.setAttribute("aria-pressed", String(button.dataset.cloak === cloak));
 }
-function applyCloak(name, persist = true) {
-  cloak = CLOAKS[name] ? name : "off";
-  if (persist) { try { localStorage.setItem(CLOAK_KEY, cloak); } catch { /* private mode */ } }
-  const preset = CLOAKS[cloak];
-  document.title = preset ? preset.title : PAGE_TITLE;
-  let link = document.querySelector("link[data-seuss-cloak]");
-  if (preset) {
-    if (!link) {
-      link = document.createElement("link");
-      link.rel = "icon";
-      link.dataset.seussCloak = "1";
-      document.head.append(link);
-    }
-    link.type = "image/svg+xml";
-    link.href = preset.icon;
-  } else if (link) {
-    link.remove();
-  }
-  markCloakButtons();
-  clearInterval(cloakGuard);
-  cloakGuard = preset ? setInterval(assertCloakTitle, 700) : 0;
-}
+function applyCloak(name) { SeussCloak.apply(name); }
+document.addEventListener("seuss-cloak-change", markCloakButtons);
+markCloakButtons();
 // "Open cloaked" puts a real blank tab in front and disguises this one, so the
 // tab strip does not read Seuss Search. Following the link inline used to
 // replace this page with about:blank and lose the search with it.
 // The landing card is hidden while a game is open, so the toolbar keeps its own
 // button: cloaking has to stay possible with the player on screen.
 function openCloakedTab() {
-  if (cloak === "off") applyCloak("blank");
+  if (SeussCloak.current() === "off") applyCloak("blank");
   const blank = window.open("about:blank", "_blank");
   if (blank) {
     try { blank.opener = null; } catch {}
     try { blank.focus(); } catch {}
   }
 }
-try { applyCloak(localStorage.getItem(CLOAK_KEY) || "off", false); } catch { applyCloak("off", false); }
 $("cloakOpts").addEventListener("click", event => {
   const button = event.target.closest("button[data-cloak]");
   if (button) applyCloak(button.dataset.cloak);
 });
-// A tab that was hidden can come back with a title the page set while it was away.
-document.addEventListener("visibilitychange", () => { if (!document.hidden) assertCloakTitle(); });
 const cloakLink = document.querySelector(".cloaked a");
 if (cloakLink) cloakLink.addEventListener("click", event => { event.preventDefault(); openCloakedTab(); });
 $("cloakNow").addEventListener("click", openCloakedTab);
