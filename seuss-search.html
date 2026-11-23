@@ -77,55 +77,92 @@
   .actions button:hover,.actions a:hover{background:var(--a-wash);border-color:var(--a-blue);color:var(--a-blue-deep);transform:translateY(-1px)}
   .actions a{font-weight:700;font-size:13px}
 
-  /* ---------- hero ---------- */
-  .stage{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
-  .hero{margin:16px auto;width:min(980px,100%);text-align:center;
-    background:var(--a-card);border:1px solid var(--a-line);border-radius:18px;
-    box-shadow:var(--a-shadow);backdrop-filter:blur(12px);
-    padding:clamp(18px,3vh,34px) clamp(18px,4vw,38px) 30px}
-  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:2.6px;font-weight:800;
-    color:var(--a-mut);padding:6px 12px;border:1px solid var(--a-line);border-radius:999px;background:var(--a-white)}
-  .eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--a-blue);box-shadow:0 0 10px rgba(63,127,214,.6);font-style:normal}
-  h1{margin:20px 0 10px;font-family:var(--pixel);font-size:clamp(30px,5vw,48px);line-height:1.16;
-    letter-spacing:.01em;font-weight:800;color:var(--a-ink)}
-  h1 span{color:var(--a-blue)}
-  .tag{margin:0 auto;max-width:520px;color:var(--a-mut);font-size:15px;line-height:1.65}
-  .finder{position:relative;display:flex;align-items:center;gap:10px;margin:30px auto 0;width:min(720px,100%);
-    padding:8px 8px 8px 20px;border-radius:22px;border:1px solid var(--a-line);background:var(--a-white);
-    box-shadow:0 18px 40px -30px rgba(33,71,110,.8);transition:border-color .25s,box-shadow .25s}
+  /* ---------- landing: Arctic's new-tab card layout ---------- */
+  .landing{width:min(860px,calc(100% - 24px));margin:12px auto;display:flex;flex-direction:column;gap:12px}
+  .landing .row{display:grid;gap:14px;align-items:stretch}
+  .row-top{grid-template-columns:minmax(0,1fr) 252px}
+  .row-bottom{grid-template-columns:252px minmax(0,1fr)}
+  .card{background:var(--a-card);border:1px solid var(--a-line);border-radius:18px;
+    box-shadow:var(--a-shadow);backdrop-filter:blur(12px)}
+  .hero-card{padding:16px 20px 14px;display:flex;flex-direction:column;gap:12px}
+  .hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .wordmark{display:flex;align-items:center;gap:9px;font-family:var(--pixel);font-size:21px;
+    letter-spacing:.02em;color:var(--a-ink)}
+  .wordmark .snow{font-size:23px;line-height:1;color:var(--a-blue)}
+  .wordmark b{font-weight:800}
+  .wordmark b span{font-weight:400;color:var(--a-mut)}
+  .clock{font-family:var(--pixel);font-size:14px;letter-spacing:.06em;color:var(--a-soft);white-space:nowrap}
+  .finder{position:relative;display:flex;align-items:center;gap:10px;margin:0;width:100%;
+    padding:7px 7px 7px 16px;border-radius:16px;border:1px solid var(--a-line);background:var(--a-white);
+    box-shadow:inset 0 1px 2px rgba(33,71,110,.06);transition:border-color .25s,box-shadow .25s}
   .finder:focus-within{border-color:var(--a-blue);box-shadow:0 0 0 3px rgba(63,127,214,.16)}
-  .finder .magnifier{font-size:18px;opacity:.5}
-  .finder input{flex:1;min-width:0;height:46px;border:0;background:none;outline:none;font-size:16px;color:var(--a-ink)}
+  .finder .magnifier{font-size:17px;opacity:.5}
+  .finder input{flex:1;min-width:0;height:40px;border:0;background:none;outline:none;font-size:14px;color:var(--a-ink)}
   .finder input::placeholder{color:var(--a-placeholder)}
-  .finder button{display:flex;align-items:center;gap:8px;height:46px;padding:0 20px;border-radius:16px;
-    font-weight:800;font-size:14px;color:var(--a-white);background:var(--a-blue);
+  .finder button{display:grid;place-items:center;width:40px;height:40px;padding:0;border-radius:50%;
+    font-family:var(--pixel);font-size:15px;font-weight:800;color:var(--a-white);background:var(--a-blue);
     box-shadow:0 8px 16px -12px rgba(47,102,179,.9);transition:transform .18s,opacity .18s}
   .finder button:hover{transform:translateY(-1px);opacity:.88}
-  kbd{font:inherit;font-size:11px;padding:2px 6px;border-radius:6px;background:var(--a-wash);color:var(--a-blue-deep)}
-  .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin:22px auto 0;max-width:660px}
-  .chips button{padding:9px 15px;border-radius:999px;border:1px solid var(--a-line-soft);background:var(--a-white);
-    color:var(--a-soft);font-size:13px;font-weight:600;transition:background .18s,color .18s,transform .18s,border-color .18s}
+  .note{margin:0;font-size:11.5px;line-height:1.65;color:var(--a-mut)}
+  .note b{font-weight:700;color:var(--a-soft)}
+  .hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+  .cta{padding:10px 18px;border-radius:999px;background:var(--a-blue);color:var(--a-white);
+    font-size:13px;font-weight:800;text-decoration:none;box-shadow:0 10px 20px -16px rgba(47,102,179,.95);
+    transition:transform .18s,opacity .18s}
+  .cta:hover{transform:translateY(-1px);opacity:.9}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:0}
+  .chips button{padding:5px 10px;border-radius:999px;border:1px solid var(--a-line-soft);background:var(--a-white);
+    color:var(--a-soft);font-size:11px;font-weight:600;transition:background .18s,color .18s,border-color .18s}
   .chips button:hover{background:var(--a-blue);color:var(--a-white);border-color:var(--a-blue-deep)}
-  .chips .recent-label{display:inline-flex;align-items:center;font-size:10.5px;letter-spacing:1.6px;
+  .chips .recent-label{display:inline-flex;align-items:center;font-size:10px;letter-spacing:1.4px;
     font-weight:800;color:var(--a-mut);text-transform:uppercase;padding:0 2px}
-  .meta{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 18px;margin-top:26px;font-size:12px;color:var(--a-mut)}
-  .meta code{font-size:11.5px;padding:3px 8px;border-radius:8px;border:1px solid var(--a-line-soft);background:var(--a-white);color:var(--a-blue-deep)}
-  .dot{display:inline-flex;align-items:center;gap:7px}
-  .dot::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--a-blue);box-shadow:0 0 9px rgba(63,127,214,.5)}
-  .speed{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;
+  kbd{font:inherit;font-size:11px;padding:2px 6px;border-radius:6px;background:var(--a-wash);color:var(--a-blue-deep)}
+  .speed{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;
     border:1px solid var(--a-line-soft);background:var(--a-white);color:var(--a-soft);font:inherit;
-    font-size:11.5px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+    font-size:11px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
   .speed:hover{background:var(--a-blue);color:var(--a-white);border-color:var(--a-blue-deep)}
   .speed:disabled{opacity:.65;cursor:progress}
-  .speed::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--a-white)}
+  .speed::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--a-blue)}
+  .speed[data-quality="fast"]::before{box-shadow:0 0 9px rgba(63,127,214,.5)}
   .speed[data-quality="slow"]::before{background:var(--a-dim);box-shadow:none}
   .speed[data-quality="down"]::before{background:transparent;border:1px solid var(--a-dim)}
+  .quick{padding:13px 13px 9px;display:flex;flex-direction:column;gap:8px}
+  .quick h2{margin:1px 0 3px;font-size:9.5px;letter-spacing:1.8px;color:var(--a-mut);font-weight:800}
+  .ql-list{display:flex;flex-direction:column;gap:6px}
+  .ql-list button{display:flex;align-items:center;gap:9px;width:100%;padding:5px 8px;border-radius:9px;
+    border:1px solid var(--a-line-soft);background:var(--a-white);color:var(--a-soft);
+    font-size:11.5px;font-weight:650;text-align:left;transition:background .15s,border-color .15s}
+  .ql-list button:hover{background:var(--a-wash);border-color:var(--a-blue)}
+  .ql-icon{flex:0 0 auto;display:grid;place-items:center;width:23px;height:23px;border-radius:7px;
+    background:#5d7c99;border:1px solid transparent;color:#fff;font-size:11px;font-weight:800}
+  .ql-discord{background:#5865f2}.ql-youtube{background:#ff0033}.ql-reddit{background:#ff4500}
+  .ql-tiktok{background:#111}.ql-github{background:#24292f}.ql-wikipedia{background:#3366cc}
+  .ql-hn{background:#ff6600}.ql-archive{background:#4a6572}
+  .ql-edit{margin-top:auto;align-self:center;padding:6px 10px;font-size:10.5px;font-weight:700;color:var(--a-mut)}
+  .ql-edit:hover{color:var(--a-blue-deep)}
+  .mini{display:flex;align-items:center;gap:11px;padding:13px 14px;text-decoration:none;color:var(--a-ink);
+    transition:transform .18s,border-color .18s}
+  .mini:hover{transform:translateY(-1px);border-color:var(--a-blue)}
+  .mini-icon{flex:0 0 auto;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;
+    font-size:15px;color:var(--a-blue);background:var(--a-badge);border:1px solid var(--a-line)}
+  .mini-text{display:flex;flex-direction:column;line-height:1.3}
+  .mini-text b{font-size:13px;font-weight:800}
+  .mini-text small{font-size:10.5px;color:var(--a-mut)}
+  .mini-arrow{margin-left:auto;font-size:15px;color:var(--a-mut)}
+  .cloaked{padding:14px 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center}
+  .cloaked h2{margin:0;font-size:11px;letter-spacing:1.4px;font-weight:800;color:var(--a-soft)}
+  .cloaked p{margin:0;max-width:380px;font-size:10.5px;line-height:1.6;color:var(--a-mut)}
+  .ghost{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;
+    border:1px solid var(--a-line);background:var(--a-white);color:var(--a-soft);
+    font-size:11px;font-weight:700;text-decoration:none;transition:background .15s,border-color .15s}
+  .ghost:hover{background:var(--a-wash);border-color:var(--a-blue);color:var(--a-blue-deep)}
   .rows{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
   .rows .row{display:flex;justify-content:space-between;gap:12px;font-size:11.5px;color:var(--a-soft);
     padding:7px 10px;border:1px solid var(--a-line-soft);border-radius:9px;background:var(--a-white)}
   .rows .row b{font-weight:600;color:var(--a-ink)}
   .rows .row[data-state="down"]{color:var(--a-dim-soft);border-style:dashed}
   .rows .row[data-state="down"] b{color:var(--a-dim-ink)}
+  .foot-code{font-size:10.5px;color:var(--a-mut);word-break:break-all}
 
   /* ---------- viewport ---------- */
   .view{flex:1;min-height:0;display:none;flex-direction:column;padding:0 clamp(8px,1.6vw,16px) 10px}
@@ -169,22 +206,23 @@
   .panel footer button:hover{opacity:.86}
 
   /* ---------- library grid at the top of the page ---------- */
-  .library{width:min(1180px,calc(100% - 24px));margin:12px auto 0;
+  .library{width:min(1180px,calc(100% - 24px));margin:10px auto 0;
     background:var(--a-card);border:1px solid var(--a-line);border-radius:18px;padding:14px 16px;
     box-shadow:var(--a-shadow)}
   .library-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
   .library-head h2{margin:0;font-family:var(--pixel);font-size:13px;letter-spacing:.05em;color:var(--a-ink)}
   .library-head span{font-size:11px;font-weight:700;color:var(--a-mut);background:var(--a-white);
     border:1px solid var(--a-line);border-radius:999px;padding:3px 10px}
-  .library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:7px;
-    max-height:34vh;overflow:auto;padding-right:4px;scrollbar-width:thin}
-  .lib-tile{display:flex;align-items:center;gap:9px;padding:7px 9px;background:var(--a-white);
+  .library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(184px,1fr));gap:8px;
+    max-height:30vh;overflow:auto;padding-right:4px;scrollbar-width:thin}
+  .lib-tile{display:flex;align-items:center;gap:9px;padding:7px 10px;background:var(--a-white);
     border:1px solid var(--a-line-soft);border-radius:11px;text-decoration:none;color:var(--a-soft);
-    font-size:11.5px;font-weight:650;transition:background .15s,border-color .15s}
+    font-size:11.5px;font-weight:650;line-height:1.3;transition:background .15s,border-color .15s}
   .lib-tile:hover{background:var(--a-wash);border-color:var(--a-blue)}
-  .lib-icon{flex:0 0 auto;display:grid;place-items:center;width:24px;height:24px;border-radius:7px;
+  .lib-icon{flex:0 0 auto;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;
     background:var(--a-wash);border:1px solid var(--a-line);font-size:12px}
-  .lib-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lib-name{min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+    overflow:hidden;overflow-wrap:anywhere}
   /* Browsing hides the shelf so the viewport gets the room. */
   .app:has(.view.on) .library{display:none}
 
@@ -192,7 +230,8 @@
     .brand b,.pill{display:none}
     .actions a span{display:none}
     .actions button:nth-child(3),.actions button:nth-child(4){display:none}
-    h1{letter-spacing:-1.4px}
+    .row-top,.row-bottom{grid-template-columns:1fr}
+    .quick{order:2}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -225,36 +264,58 @@
   </header>
 
   <div class="stage">
+    <section class="landing" id="hero">
+      <div class="row row-top">
+        <div class="card hero-card">
+          <div class="hero-top">
+            <div class="wordmark"><span class="snow" aria-hidden="true">❄</span><b>Seuss <span>Search</span></b></div>
+            <div class="clock" id="clock" aria-label="Current time">--:--:--</div>
+          </div>
+          <form class="finder" id="searchForm" autocomplete="off">
+            <span class="magnifier" aria-hidden="true">⌕</span>
+            <input id="q" name="q" aria-label="Search the web or enter a URL" placeholder="Search the web or enter a link" spellcheck="false" autofocus>
+            <button type="submit" aria-label="Search">→</button>
+          </form>
+          <p class="note"><b>note:</b> pages load through your relay, not a direct link. Searches run on Bing, and the tab stays on your site.</p>
+          <div class="hero-actions">
+            <a class="cta" href="https://github.com/damonrosshutchins-boop/Dr-seuss-Moives-Games-test" target="_blank" rel="noopener">↗ Source on GitHub</a>
+            <button type="button" class="speed" id="relaySpeed" title="Test this relay's connection speed">Testing relay…</button>
+            <button type="button" class="speed" id="cfSpeed" title="Cloudflare relay latency">Cloudflare · checking…</button>
+          </div>
+          <div class="chips" id="recent" hidden></div>
+        </div>
+        <aside class="card quick" aria-label="Quick links">
+          <h2>QUICK LINKS</h2>
+          <div class="ql-list" id="chips">
+            <button type="button" data-go="discord.com"><span class="ql-icon ql-discord" aria-hidden="true">D</span>Discord</button>
+            <button type="button" data-go="youtube.com"><span class="ql-icon ql-youtube" aria-hidden="true">Y</span>YouTube</button>
+            <button type="button" data-go="reddit.com"><span class="ql-icon ql-reddit" aria-hidden="true">R</span>Reddit</button>
+            <button type="button" data-go="tiktok.com"><span class="ql-icon ql-tiktok" aria-hidden="true">T</span>TikTok</button>
+            <button type="button" data-go="github.com"><span class="ql-icon ql-github" aria-hidden="true">G</span>GitHub</button>
+            <button type="button" data-go="wikipedia.org"><span class="ql-icon ql-wikipedia" aria-hidden="true">W</span>Wikipedia</button>
+            <button type="button" data-go="news.ycombinator.com"><span class="ql-icon ql-hn" aria-hidden="true">Y</span>Hacker News</button>
+            <button type="button" data-go="archive.org"><span class="ql-icon ql-archive" aria-hidden="true">A</span>Internet Archive</button>
+          </div>
+          <button type="button" class="ql-edit" id="quickSettings">✎ Relay settings</button>
+        </aside>
+      </div>
+      <div class="row row-bottom">
+        <a class="card mini" href="./index.html" title="Open the games library">
+          <span class="mini-icon" aria-hidden="true">🎮</span>
+          <span class="mini-text"><b>Games</b><small id="gameCount">79 games</small></span>
+          <span class="mini-arrow" aria-hidden="true">→</span>
+        </a>
+        <div class="card cloaked">
+          <h2>Open cloaked</h2>
+          <p>Open a blank tab so this one isn’t left showing Seuss Search on your screen.</p>
+          <a class="ghost" href="about:blank" target="_blank" rel="noopener">↗ about:blank</a>
+        </div>
+      </div>
+    </section>
+
     <section class="library" id="library" aria-label="Game library">
       <div class="library-head"><h2>Game library</h2><span id="libraryCount"></span></div>
       <div class="library-grid" id="libraryGrid"></div>
-    </section>
-    <section class="hero" id="hero">
-      <div class="eyebrow"><i></i>RELAY · UNRESTRICTED WEB</div>
-      <h1>Seuss <span>Search</span></h1>
-      <p class="tag">Search anywhere and browse the open web through your own relay. Pages render in this window — the tab stays on your site.</p>
-      <form class="finder" id="searchForm" autocomplete="off">
-        <span class="magnifier" aria-hidden="true">⌕</span>
-        <input id="q" name="q" aria-label="Search the web or enter a URL" placeholder="Search the web, or type a URL…" spellcheck="false" autofocus>
-        <button type="submit">Search <kbd>↵</kbd></button>
-      </form>
-      <div class="chips" id="chips">
-        <button type="button" data-go="wikipedia.org">Wikipedia</button>
-        <button type="button" data-go="github.com">GitHub</button>
-        <button type="button" data-go="news.ycombinator.com">Hacker News</button>
-        <button type="button" data-go="reddit.com">Reddit</button>
-        <button type="button" data-go="youtube.com">YouTube</button>
-        <button type="button" data-go="archive.org">Internet Archive</button>
-        <button type="button" data-go="weather.gov">Weather</button>
-      </div>
-      <div class="chips" id="recent" hidden></div>
-      <div class="meta">
-        <span class="dot">Relay ready</span>
-        <button type="button" class="speed" id="relaySpeed" title="Test this relay's connection speed">Testing relay…</button>
-        <button type="button" class="speed" id="cfSpeed" title="Cloudflare relay latency">Cloudflare · checking…</button>
-        <span>Searches run on Bing</span>
-        <code id="endpoint">wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/</code>
-      </div>
     </section>
 
     <section class="view" id="view">
@@ -270,6 +331,7 @@
   <footer class="foot">
     <span>Pages load through your relay, not a direct link.</span>
     <a href="./">← Games library</a>
+    <code id="endpoint" class="foot-code">wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/</code>
     <span>No DRM, logins or paid content is bypassed.</span>
   </footer>
 </div>
@@ -588,6 +650,13 @@ addEventListener("keydown", event => {
   }
 });
 
+const clock = $("clock");
+function tickClock() {
+  clock.textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}
+tickClock();
+setInterval(tickClock, 1000);
+
 const params = new URLSearchParams(location.search);
 const initial = params.get("q") || params.get("url");
 if (initial) open(initial);
@@ -613,6 +682,7 @@ function openSettings() { syncSettings(); $("settings").hidden = false; }
 function closeSettings() { $("settings").hidden = true; }
 
 $("settingsOpen").addEventListener("click", openSettings);
+$("quickSettings").addEventListener("click", openSettings);
 $("settingsClose").addEventListener("click", closeSettings);
 $("settings").addEventListener("click", event => { if (event.target === $("settings")) closeSettings(); });
 $("bgOpts").addEventListener("click", event => {
@@ -799,12 +869,13 @@ restartBackground();
 const libraryGrid = $("libraryGrid");
 if (libraryGrid && Array.isArray(window.SEUSS_LIBRARY)) {
   $("libraryCount").textContent = window.SEUSS_LIBRARY.length + " items";
+  $("gameCount").textContent = window.SEUSS_LIBRARY.length + " games";
   const shelf = document.createDocumentFragment();
   for (const item of window.SEUSS_LIBRARY) {
     const tile = document.createElement("a");
     tile.className = "lib-tile";
     tile.href = "./index.html?play=" + encodeURIComponent(item.id);
-    tile.title = item.desc || item.name;
+    tile.title = item.desc ? item.name + " — " + item.desc : item.name;
     const icon = document.createElement("span");
     icon.className = "lib-icon";
     icon.textContent = item.icon;
