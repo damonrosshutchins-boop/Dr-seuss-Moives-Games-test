@@ -126,6 +126,16 @@ for(const name of await fs.readdir("games")){
   const hit=source.match(directHost);
   if(hit)errors.push(file+": still loads "+hit[0]+" directly instead of through the Worker");
 }
+// God of Sparta is published from this site now, so the page and its gzipped
+// build must be in the deployed folder and nothing may point at the relay.
+for(const file of ["index.html","index.js","index.wasm.gz","index.data.gz","coi-serviceworker.js"]){
+  try{await fs.access(path.join("dist","games","gow-sparta",file));}
+  catch{errors.push("God of Sparta build is missing: games/gow-sparta/"+file);}
+}
+try{
+  const spartaPage=await fs.readFile(path.join("games","gow-sparta","index.html"),"utf8");
+  if(/seuss-arcade-relay\.damonrosshutchins\.workers\.dev/.test(spartaPage))errors.push("God of Sparta page still points at the relay");
+}catch{}
 // Every disguise shows Google's own product artwork, so each preset needs its
 // file present in the published build.
 for(const name of ["classroom","docs","slides","drive","sheets","search","gmail","kahoot","canva","canvas","iready"]){

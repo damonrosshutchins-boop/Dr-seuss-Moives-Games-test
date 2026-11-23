@@ -43,10 +43,10 @@ for(const file of ["index.html","library.js","proxy-client.js","proxy-headers.js
 await fs.cp("assets/cloak",path.join(out,"assets","cloak"),{recursive:true});
 // The photo that covers the page while the window is unfocused.
 await fs.copyFile("assets/tab-away.png",path.join(out,"assets","tab-away.png"));
-// Ghost of Sparta is proxied only by Render's fixed-origin route.
-// Publish a same-site launcher, never a direct iframe of the Surge source.
-await fs.mkdir(path.join(out,"games","gow-sparta"),{recursive:true});
-await fs.copyFile(path.join("games","gow-sparta","index.html"),path.join(out,"games","gow-sparta","index.html"));
+// Ghost of Sparta is published from this site: its recompiled build is about
+// 14 MB of gzipped wasm and data, and it opens in its own tab so its service
+// worker can make the page cross-origin isolated without any relay in the URL.
+await fs.cp(path.join("games","gow-sparta"),path.join(out,"games","gow-sparta"),{recursive:true});
 // Two fixed-route Minecraft 1.8 launchers, plus the Legacy Console launcher.
 for(const slug of ["minecraft-18-wrust","minecraft-18-mods","old-minecraft"]){
   const dir=path.join(out,"games",slug);

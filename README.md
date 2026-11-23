@@ -67,19 +67,20 @@ The server-side restriction does not permit arbitrary URL fetches.
 Build success does not guarantee playability on every WebGPU device.
 
 
-## God of War: Ghost of Sparta (approved Surge source via Cloudflare)
+## God of War: Ghost of Sparta (recompiled build published from this site)
 
-The current owner-supplied PSP game source is `https://psp-web-damon.surge.sh/`.
-The Arcade card opens `games/gow-sparta/index.html`, which checks the pinned
-Cloudflare endpoint and navigates in the same browser tab to
-`https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/gow-sparta/`.
-Only game files on this exact Surge hostname are fetched by the new Cloudflare
-route; request paths are checked and redirects are rejected. The server streams
-ordinary assets, passes through simple byte ranges (important for large game
-files), and rewrites common HTML/CSS root-relative URLs to stay under the
-approved route. This does **not** provide a general web proxy.
+The owner-supplied PSP build at `https://psp-web-damon.surge.sh/` is published
+from this site under `games/gow-sparta/`: `index.html`, `index.js`,
+`index.wasm.gz`, `index.data.gz` and `coi-serviceworker.js`, about 14 MB in
+total. The Arcade card opens `games/gow-sparta/index.html` in its own tab, so the
+page is top-level and its service worker can answer with COOP/COEP and make it
+cross-origin isolated; the recompiled game needs that for `SharedArrayBuffer`.
+No file in the page points at the relay, so the address bar stays on this site.
+The uncompressed `index.wasm` and `index.data` variants (about 105 MB) are the
+fallback for browsers without `DecompressionStream` and are not published, to
+stay inside the GitHub Pages size limit.
 
-The PSP site must exist and be reachable at its Surge source. A GitHub Actions source audit fetched the root HTML successfully (HTTP 200) and found no statically embedded absolute URL hosts in that HTML; this does not verify runtime dependencies. Some games use
+The copy above was taken once from the Surge source; the published build no longer contacts it. A GitHub Actions source audit fetched the root HTML successfully (HTTP 200) and found no statically embedded absolute URL hosts in that HTML; this does not verify runtime dependencies. Some games use
 external CDNs, root-absolute JavaScript paths, special response headers,
 websockets or service workers that cannot be verified without inspecting the
 live upstream page; those dependencies are not automatically proxied.
