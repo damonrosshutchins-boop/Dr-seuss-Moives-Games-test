@@ -147,6 +147,27 @@
   // whole page with a supplied photo, so a glance at the screen shows that instead
   // of the arcade. It lifts again the moment the page is focused.
   let cover = null;
+  let coverShown = false;
+  // Why the cover went up: a tab switch never delivers a click to the page, but
+  // clicking straight back into an unfocused window does, at the exact moment
+  // the cover lifts, so that press has to be absorbed.
+  let coverReason = "";
+  let swallowUntil = 0;
+  const PRESSES = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "auxclick", "dblclick", "contextmenu", "touchstart", "touchend"];
+  // Only an activation event ends the press: clearing on pointerup would let the
+  // mouseup and click of the same press through.
+  const ENDS_PRESS = new Set(["click", "auxclick", "contextmenu"]);
+  // Presses land on whatever is behind the cover, so they are caught here in the
+  // window's capture phase, before any page handler can act on them. The whole
+  // press is swallowed, from pointerdown to click, so a button behind the photo
+  // cannot focus or activate.
+  function swallowFirstPress(event) {
+    if (!coverShown && !(swallowUntil && performance.now() < swallowUntil)) return;
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    if (!coverShown && ENDS_PRESS.has(event.type)) swallowUntil = 0;
+  }
+  for (const type of PRESSES) addEventListener(type, swallowFirstPress, true);
   function awayCover() {
     if (cover) return cover;
     cover = document.createElement("img");
@@ -169,8 +190,20 @@
     return cover;
   }
   function syncAwayCover() {
-    if (document.hidden || !document.hasFocus()) awayCover().style.display = "block";
-    else if (cover) cover.style.display = "none";
+    if (document.hidden || !document.hasFocus()) {
+      if (!coverShown) coverReason = document.hidden ? "hidden" : "blur";
+      coverShown = true;
+      awayCover().style.display = "block";
+      return;
+    }
+    if (coverShown) {
+      coverShown = false;
+      // Only a window that kept the page visible is re-entered with a press on
+      // the page; that click belongs to the cover, not to the page beneath it.
+      if (coverReason === "blur") swallowUntil = performance.now() + 900;
+      coverReason = "";
+    }
+    if (cover) cover.style.display = "none";
   }
   document.addEventListener("visibilitychange", syncAwayCover);
   addEventListener("blur", syncAwayCover);
