@@ -71,14 +71,21 @@ Build success does not guarantee playability on every WebGPU device.
 
 The owner-supplied PSP build at `https://psp-web-damon.surge.sh/` is published
 from this site under `games/gow-sparta/`: `index.html`, `index.js`,
-`index.wasm.gz`, `index.data.gz` and `coi-serviceworker.js`, about 14 MB in
+`index.wasm.gz`, `index.data.gz`, `coi-serviceworker.js` and `gow-boot.js`,
+about 14 MB in
 total. The Arcade card opens `games/gow-sparta/index.html` in its own tab, so the
 page is top-level and its service worker can answer with COOP/COEP and make it
 cross-origin isolated; the recompiled game needs that for `SharedArrayBuffer`.
 No file in the page points at the relay, so the address bar stays on this site.
-The uncompressed `index.wasm` and `index.data` variants (about 105 MB) are the
-fallback for browsers without `DecompressionStream` and are not published, to
-stay inside the GitHub Pages size limit.
+`gow-boot.js` decompresses both archives itself when the browser has no
+`DecompressionStream` (Firefox before 113), so the uncompressed `index.wasm` and
+`index.data` variants (about 105 MB) are still not published, to stay inside the
+GitHub Pages size limit.
+
+The page also fails visibly instead of showing a black screen: when
+`crossOriginIsolated` is false it draws a message explaining that the game needs
+a normal window, because Firefox turns service workers off in private windows
+and the isolation comes from one.
 
 The copy above was taken once from the Surge source, and the published build no
 longer contacts it. The relay keeps no PSP route now: `cloudflare/arcade/worker.mjs`

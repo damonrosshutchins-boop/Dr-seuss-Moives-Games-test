@@ -128,13 +128,14 @@ for(const name of await fs.readdir("games")){
 }
 // God of Sparta is published from this site now, so the page and its gzipped
 // build must be in the deployed folder and nothing may point at the relay.
-for(const file of ["index.html","index.js","index.wasm.gz","index.data.gz","coi-serviceworker.js"]){
+for(const file of ["index.html","gow-boot.js","index.js","index.wasm.gz","index.data.gz","coi-serviceworker.js"]){
   try{await fs.access(path.join("dist","games","gow-sparta",file));}
   catch{errors.push("God of Sparta build is missing: games/gow-sparta/"+file);}
 }
 try{
   const spartaPage=await fs.readFile(path.join("games","gow-sparta","index.html"),"utf8");
   if(/seuss-arcade-relay\.damonrosshutchins\.workers\.dev/.test(spartaPage))errors.push("God of Sparta page still points at the relay");
+  if(!/src="?gow-boot.js/.test(spartaPage))errors.push("God of Sparta page does not load gow-boot.js");
 }catch{}
 // The relay kept a PSP rewrite and file route after the game moved here. It is
 // gone now, so a reappearing handler means the retired copy is back.
