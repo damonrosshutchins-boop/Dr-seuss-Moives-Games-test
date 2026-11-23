@@ -10,27 +10,36 @@
   // Whatever the page is actually called, remembered before any disguise.
   const realTitle = document.title || "Seuss";
   const icon = svg => "data:image/svg+xml," + encodeURIComponent(svg);
+  // The disguise artwork is Google's official product icon set, saved locally so
+  // the tab icon works offline and from any page depth (root or games/<slug>/).
+  const base = (document.currentScript && document.currentScript.src) || location.href;
+  const art = name => new URL("assets/cloak/" + name + ".png", base).href;
   const CLOAKS = {
     blank: {
       title: "about:blank",
       // A blank tab has no artwork, so this is an empty white tile.
-      icon: icon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" fill="#fff"/></svg>')
+      icon: icon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" fill="#fff"/></svg>'),
+      type: "image/svg+xml"
     },
     classroom: {
       title: "Google Classroom",
-      icon: icon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0f9d58"/><rect x="8.5" y="9" width="15" height="10.5" rx="1.6" fill="none" stroke="#fff" stroke-width="2"/><rect x="12" y="23" width="8" height="2.4" rx="1.2" fill="#fff"/></svg>')
+      icon: art("classroom"),
+      type: "image/png"
     },
     docs: {
       title: "Google Docs",
-      icon: icon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="5" y="2" width="22" height="28" rx="3" fill="#1a73e8"/><g fill="#fff"><rect x="10" y="9" width="12" height="2.4" rx="1.2"/><rect x="10" y="14" width="12" height="2.4" rx="1.2"/><rect x="10" y="19" width="7.5" height="2.4" rx="1.2"/></g></svg>')
+      icon: art("docs"),
+      type: "image/png"
     },
     slides: {
       title: "Google Slides",
-      icon: icon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#fbbc04"/><rect x="8" y="8.5" width="16" height="11" rx="1.8" fill="#fff"/><rect x="12" y="22" width="8" height="2.6" rx="1.3" fill="#fff"/></svg>')
+      icon: art("slides"),
+      type: "image/png"
     },
     drive: {
       title: "Google Drive",
-      icon: icon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#fff"/><polygon points="16,6.5 22.5,18 9.5,18" fill="#fbbc04"/><polygon points="9.5,18 22.5,18 19,25 13,25" fill="#4285f4"/><polygon points="16,6.5 19,12.2 13,12.2" fill="#0f9d58"/></svg>')
+      icon: art("drive"),
+      type: "image/png"
     }
   };
   let current = "off";
@@ -52,7 +61,7 @@
         link.dataset.seussCloak = "1";
         document.head.append(link);
       }
-      link.type = "image/svg+xml";
+      link.type = preset.type;
       link.href = preset.icon;
     } else if (link) {
       link.remove();
@@ -65,7 +74,12 @@
   // and a proxied page can rename the tab as soon as it loads.
   document.addEventListener("visibilitychange", () => { if (!document.hidden) assertTitle(); });
   addEventListener("focus", assertTitle);
-  window.SeussCloak = { apply, current: () => current, titles: CLOAKS };
+  window.SeussCloak = {
+    apply,
+    current: () => current,
+    titles: CLOAKS,
+    icons: Object.fromEntries(Object.entries(CLOAKS).map(([name, preset]) => [name, preset.icon]))
+  };
   let stored = "off";
   try { stored = localStorage.getItem(KEY) || "off"; } catch { /* private mode */ }
   apply(stored, false);

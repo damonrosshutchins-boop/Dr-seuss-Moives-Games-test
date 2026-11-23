@@ -38,6 +38,9 @@ await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
 for(const file of ["index.html","library.js","proxy-client.js","sw.js","calls.js","calls.css","glass.css","arctic-tokens.css","arctic.css","cloak.js","seuss-search.html","search-client.js"])
  await fs.copyFile(file,path.join(out,file));
+// Disguise artwork is Google's own product icon set, kept local so the tab icon
+// and the pickers work offline and from any page depth.
+await fs.cp("assets/cloak",path.join(out,"assets","cloak"),{recursive:true});
 // Ghost of Sparta is proxied only by Render's fixed-origin route.
 // Publish a same-site launcher, never a direct iframe of the Surge source.
 await fs.mkdir(path.join(out,"games","gow-sparta"),{recursive:true});
