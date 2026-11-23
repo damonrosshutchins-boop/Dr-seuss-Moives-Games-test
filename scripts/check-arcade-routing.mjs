@@ -5,8 +5,9 @@ import path from "node:path";
 // bypass the restricted proxy, that local launchers were actually built, and
 // that nothing still points at the retired Render service.
 // This is not a browser gameplay test or a remote-server availability test.
-const [html, client, arcadeWorker, searchPage, searchClient] = await Promise.all([
+const [html, libraryJs, client, arcadeWorker, searchPage, searchClient] = await Promise.all([
   fs.readFile("index.html","utf8"),
+  fs.readFile("library.js","utf8"),
   fs.readFile("proxy-client.js","utf8"),
   fs.readFile("cloudflare/arcade/worker.mjs","utf8"),
   fs.readFile("seuss-search.html","utf8"),
@@ -14,8 +15,12 @@ const [html, client, arcadeWorker, searchPage, searchClient] = await Promise.all
 ]);
 const site="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/";
 const base="/Dr-seuss-Moives-Games-test/";
-const rows=html.split(/\r?\n/).filter(row=>row.startsWith("{id:'"));
+// The catalogue moved to library.js so the search page can share it.
+const rows=libraryJs.split(/\r?\n/).filter(row=>row.startsWith("{id:'"));
 const errors=[];
+if(!/<script\s+src="\.\/library\.js"/.test(html))errors.push("Arcade page does not load library.js");
+try{new Function(libraryJs);}
+catch(error){errors.push("library.js does not parse: "+error.message);}
 // The whole catalogue lives in one inline script. A stray comma there leaves the
 // live page with no cards while every row-parsing check above still passes.
 for(const script of html.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)){

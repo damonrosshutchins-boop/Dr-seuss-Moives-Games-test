@@ -36,7 +36,7 @@ async function copyRuntime(name,root,entry){
 }
 await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
-for(const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","glass.css","arctic.css","seuss-search.html","search-client.js"])
+for(const file of ["index.html","library.js","proxy-client.js","sw.js","calls.js","calls.css","glass.css","arctic.css","seuss-search.html","search-client.js"])
  await fs.copyFile(file,path.join(out,file));
 // Ghost of Sparta is proxied only by Render's fixed-origin route.
 // Publish a same-site launcher, never a direct iframe of the Surge source.
