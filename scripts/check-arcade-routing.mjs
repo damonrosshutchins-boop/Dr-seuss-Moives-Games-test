@@ -92,8 +92,8 @@ for(const [label,source,required] of [
   ["Pinned Unity mirrors",arcadeWorker,["unityMirrors","approvedUnityMirrorFile","d4ce675e5ab1bddd8ef03994129d31a8c8b34c67","eb5348fe5a0f17956daaea873fb161c7142ed0a7","a8815a5edf746b24ebd8028273c4de80c8f67821","79306ef07b5456ebdc6d25dc023aa61184c1ae27","631e27caca8f082cd60c8d374f7a7a96d422e26f"]],
   ["Firebase endpoint lock",arcadeWorker,["firebaseIdtMethods","approvedFirebaseTarget","FIREBASE_FIRESTORE_PREFIX"]],
   ["Happy Wheels mirror",arcadeWorker,["HW_ROUTE","HW_ASSET_ROOT","80b52b89d6e2739e79378ef2512cd86e2ef79c7c","happyWheelsHtml","serveHappyWheelsApi","serveHappyWheelsBackendConfig","HW_CONFIG_ORIGIN"]],
-  ["Tab disguise artwork",html,["id=\"cloakIcon\"","assets/cloak/classroom.png","assets/cloak/docs.png","assets/cloak/slides.png","assets/cloak/drive.png","SeussCloak.icons"]],
-  ["Tab disguise artwork on the search page",searchPage,["assets/cloak/classroom.png","assets/cloak/docs.png","assets/cloak/slides.png","assets/cloak/drive.png"]],
+  ["Tab disguise artwork",html,["id=\"cloakIcon\"","assets/cloak/classroom.png","assets/cloak/docs.png","assets/cloak/slides.png","assets/cloak/drive.png","assets/cloak/sheets.png","assets/cloak/search.png","assets/cloak/gmail.png","assets/cloak/kahoot.png","assets/cloak/canva.png","assets/cloak/canvas.png","assets/cloak/iready.png","SeussCloak.icons"]],
+  ["Tab disguise artwork on the search page",searchPage,["assets/cloak/classroom.png","assets/cloak/docs.png","assets/cloak/slides.png","assets/cloak/drive.png","assets/cloak/sheets.png","assets/cloak/search.png","assets/cloak/gmail.png","assets/cloak/kahoot.png","assets/cloak/canva.png","assets/cloak/canvas.png","assets/cloak/iready.png"]],
   ["Dispatch mirror",arcadeWorker,["DISPATCH_ROUTE","DISPATCH_LFS_ROOT","dispatchHtml","media.githubusercontent.com"]],
   ["Find The Needle mirror",arcadeWorker,["NEEDLE_ROUTE","archivedGames","archivedGameFile","FindTheNeedle"]],
   ["Projection Studios movie mirror",arcadeWorker,["MOVIE_ROUTE","MOVIE_ORIGIN","serveMovieApp","serveMovieSocket","movieRewrite","projection-studios.dogeeats531.workers.dev"]],
@@ -124,7 +124,7 @@ for(const name of await fs.readdir("games")){
 }
 // Every disguise shows Google's own product artwork, so each preset needs its
 // file present in the published build.
-for(const name of ["classroom","docs","slides","drive"]){
+for(const name of ["classroom","docs","slides","drive","sheets","search","gmail","kahoot","canva","canvas","iready"]){
   try{await fs.access(path.join("assets","cloak",name+".png"));}
   catch{errors.push("Missing disguise artwork: assets/cloak/"+name+".png");}
 }

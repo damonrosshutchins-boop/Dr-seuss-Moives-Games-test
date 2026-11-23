@@ -37,6 +37,41 @@
       title: "Google Drive",
       icon: art("drive"),
       type: "image/png"
+    },
+    sheets: {
+      title: "Google Sheets",
+      icon: art("sheets"),
+      type: "image/png"
+    },
+    search: {
+      title: "Google",
+      icon: art("search"),
+      type: "image/png"
+    },
+    gmail: {
+      title: "Gmail",
+      icon: art("gmail"),
+      type: "image/png"
+    },
+    kahoot: {
+      title: "Kahoot!",
+      icon: art("kahoot"),
+      type: "image/png"
+    },
+    canva: {
+      title: "Canva",
+      icon: art("canva"),
+      type: "image/png"
+    },
+    canvas: {
+      title: "Canvas",
+      icon: art("canvas"),
+      type: "image/png"
+    },
+    iready: {
+      title: "i-Ready",
+      icon: art("iready"),
+      type: "image/png"
     }
   };
   let current = "off";
