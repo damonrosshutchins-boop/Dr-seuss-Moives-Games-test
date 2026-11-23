@@ -1,0 +1,33 @@
+/* The Arctic palette lives here, once.
+   Both pages load this file: index.html under html[data-ui="arctic"], and
+   seuss-search.html, which is always Arctic, with data-surface="search" for the
+   four values its denser panels tune. This file only declares custom
+   properties; every rule that paints with them stays in arctic.css or in the
+   search page's own stylesheet. */
+html[data-ui="arctic"]{
+  /* sky and ink */
+  --a-sky:#c3dcf3;--a-sky-deep:#a4c6e8;
+  --a-sky-soft:#cfe4f7;--a-sky-shade:#a9c9e8;
+  --a-ink:#274767;--a-ink-soft:#4d6d8c;--a-soft:#33546f;--a-mut:#6d8aa6;
+  /* surfaces */
+  --a-card:rgba(244,249,255,.93);--a-card-solid:#f4f9ff;--a-white:#fff;
+  --a-line:#bfd7ee;--a-line-soft:#d7e6f6;
+  --a-badge:#dceaf9;--a-wash:#e8f2fd;--a-placeholder:#93aec7;
+  /* action and status */
+  --a-blue:#3f7fd6;--a-blue-deep:#2f66b3;
+  --a-dim:#8a8a8a;--a-dim-soft:#7c7c7c;--a-dim-ink:#9a9a9a;
+  --a-slow:#a9731b;--a-down:#bf4331;
+  --a-warn-ink:#8a5320;--a-warn-line:#f0c99b;--a-warn-bg:#fff4e6;
+  /* depth and type */
+  --a-shadow:0 12px 26px -18px rgba(33,71,110,.55),0 2px 6px -3px rgba(33,71,110,.2);
+  --a-shadow-panel:0 40px 120px -60px rgba(23,52,84,.9);
+  --pixel:"Silkscreen","Pixelify Sans",ui-monospace,"Courier New",monospace;
+}
+/* The search page's cards sit edge to edge and carry their own hairlines, so
+   the same palette is applied one step stronger there. Four values, no more. */
+html[data-ui="arctic"][data-surface="search"]{
+  --a-mut:#5d7c99;
+  --a-line:rgba(63,127,214,.3);
+  --a-line-soft:rgba(63,127,214,.18);
+  --a-card:rgba(244,249,255,.94);
+}

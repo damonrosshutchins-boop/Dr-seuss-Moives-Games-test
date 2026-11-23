@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-ui="arctic" data-surface="search">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,25 +12,12 @@
 <link rel="dns-prefetch" href="https://seuss-arcade-relay.damonrosshutchins.workers.dev">
 <link rel="preload" as="script" href="scram/scramjet.js">
 <link rel="modulepreload" href="libcurl/index.mjs">
+<link rel="stylesheet" href="./arctic-tokens.css">
 <style>
-  /* Seuss Search v2 is an Arctic page: one theme, no override layer. The tokens
-     follow arctic.css — same sky, card, line and pixel vocabulary — so the two
-     pages cannot drift apart, and every colour below names one. */
-  :root{
-    color-scheme:light;
-    --a-sky-soft:#cfe4f7;--a-sky-shade:#a9c9e8;
-    --a-ink:#274767;--a-soft:#33546f;--a-mut:#5d7c99;
-    --a-line:rgba(63,127,214,.3);--a-line-soft:rgba(63,127,214,.18);
-    --a-card:rgba(244,249,255,.94);--a-card-solid:#f4f9ff;
-    --a-blue:#3f7fd6;--a-blue-deep:#2f66b3;    --a-badge:#dceaf9;--a-wash:#e8f2fd;--a-placeholder:#93aec7;
-    --a-dim:#8a8a8a;--a-dim-soft:#7c7c7c;--a-dim-ink:#9a9a9a;
-    --a-slow:#a9731b;--a-down:#bf4331;
-    --a-warn-ink:#8a5320;--a-warn-line:#f0c99b;--a-warn-bg:#fff4e6;
-    --a-shadow:0 12px 26px -18px rgba(33,71,110,.55),0 2px 6px -3px rgba(33,71,110,.2);
-    --a-shadow-panel:0 40px 120px -60px rgba(23,52,84,.9);
-    --a-white:#fff;
-    --pixel:"Silkscreen","Pixelify Sans",ui-monospace,"Courier New",monospace;
-  }
+  /* Seuss Search v2 is an Arctic page: one theme, no override layer. The palette
+     is arctic-tokens.css, which the arcade loads too, so the two pages cannot
+     drift apart; only the rules below live here. */
+  :root{color-scheme:light}
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;overflow:hidden;color:var(--a-ink);

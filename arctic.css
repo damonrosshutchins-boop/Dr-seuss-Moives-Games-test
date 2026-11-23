@@ -3,19 +3,7 @@
    original dark rules never mix with it. */
 html[data-ui="arctic"]{
   color-scheme:light;
-  --a-sky:#c3dcf3;
-  --a-sky-deep:#a4c6e8;
-  --a-ink:#274767;
-  --a-ink-soft:#4d6d8c;
-  --a-mut:#6d8aa6;
-  --a-card:rgba(244,249,255,.93);
-  --a-card-solid:#f4f9ff;
-  --a-line:#bfd7ee;
-  --a-line-soft:#d7e6f6;
-  --a-blue:#3f7fd6;
-  --a-blue-deep:#2f66b3;
-  --a-shadow:0 12px 26px -18px rgba(33,71,110,.55),0 2px 6px -3px rgba(33,71,110,.2);
-  --pixel:"Silkscreen","Pixelify Sans",ui-monospace,"Courier New",monospace;
+  /* The palette itself is declared once in arctic-tokens.css. */
 }
 html[data-ui="arctic"] body{
   margin:0;
