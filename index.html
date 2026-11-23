@@ -10,6 +10,11 @@ if(location.hash!=="#library"&&!/[?&](play|library)=/.test(location.search))loca
 .cloak-pop{position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:216px;padding:6px;border-radius:13px;border:1px solid #4a4a4a;background:#1d1d1d;box-shadow:0 20px 45px #0007}
 .cloak-pop button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:0;border-radius:9px;background:transparent;color:#fff;padding:9px 11px;text-align:left;font-weight:750}
 .cloak-ico{display:block;flex:none;width:16px;height:16px;border-radius:3px}
+/* The glass and arctic headers use backdrop-filter, which makes the header its
+   own stacking context beneath the filtered hero card, so the disguise menu
+   opened behind it. Lift the header over page content, staying under the
+   player (20) and Settings (30) overlays. */
+main>header{position:relative;z-index:3}
 #cloakButton .cloak-ico{width:15px;height:15px}
 .cloak-name{display:flex;align-items:center;gap:9px;min-width:0}
 .cloak-pop button small{font-size:11px;font-weight:600;color:#a9a9a9}
