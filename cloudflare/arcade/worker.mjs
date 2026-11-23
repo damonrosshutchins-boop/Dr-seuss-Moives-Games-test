@@ -1982,7 +1982,6 @@ async function serveTwoVTwo(request, url) {
 // page addresses itself by root-relative path and its art by absolute URL, so
 // the page and its code are moved under the route while cdn.now.gg (the asset
 // host) stays absolute and is allowed explicitly.
-const NOWGG_FORWARD_HEADERS = ["accept", "accept-language", "range", "if-none-match", "x-requested-with"];
 const NOWGG_COPY_HEADERS = ["content-type", "etag", "last-modified", "cache-control", "content-range", "accept-ranges"];
 const NOWGG_CSP = [
   "default-src 'self' https://now.gg https://*.now.gg",
@@ -1994,7 +1993,7 @@ const NOWGG_CSP = [
   // The play client opens its own sockets and talks to its account service, so
   // connections stay open while scripts, frames and images (where the ads live)
   // remain restricted.
-  "connect-src 'self' https: wss: ws: data: blob:",
+  "connect-src 'self' https: wss: ws: data: blob: https://now.gg wss://now.gg",
   "frame-src 'self' blob: https://now.gg https://*.now.gg https://www.youtube.com",
   "worker-src 'self' blob: https://now.gg https://*.now.gg",
   "base-uri 'self'",
@@ -2015,7 +2014,7 @@ const NOWGG_SITES = [
     entry: "/",
     // Paths the page builds at runtime as absolute paths of its own origin. They
     // arrive without the route in front, so the mirror answers them as well.
-    ownPaths: ["/oapi/", "/1/", "/_next/", "/api/", "/assets/", "/play/", "/games/", "/apps/", "/static/", "/nowgg-static/"],
+    ownPaths: ["/oapi/", "/1/", "/_next/", "/api/", "/assets/", "/play/", "/games/", "/apps/", "/static/", "/nowgg-static/", "/7/", "/ncm/"],
     // The site's asset CDN answers for nowgg-static (its icon font lives there,
     // and cross-origin font loads are refused without CORS, so those go through
     // the route too). Everything else the page asks for is on now.gg itself.
@@ -2028,6 +2027,14 @@ for (const site of NOWGG_SITES) site.route = site.root + "/";
 
 function nowGgRewrite(source, site) {
   let out = source.replace(NOWGG_AD_TAG, "");
+  // The play client starts the session only after its preroll ad reports back.
+  // The ad networks are refused here, so the page data is answered with the ads
+  // switched off and the client goes straight to the session.
+  out = out
+    .replace(/"enablePrerollAds":true/gi, '"enablePrerollAds":false')
+    .replace(/"enableMidrollAds":true/gi, '"enableMidrollAds":false')
+    .replace(/"enableDisplayAds":true/gi, '"enableDisplayAds":false')
+    .replace(/"enableRewardedAds":true/gi, '"enableRewardedAds":false');
   if (site.cdnOrigin) out = out.replaceAll(site.cdnOrigin + site.cdnPath, site.route + site.cdnPath.slice(1));
   out = out
     .replaceAll(site.origin + "/", site.route)
@@ -2062,16 +2069,69 @@ function nowGgSiteFor(pathname) {
   return null;
 }
 
+// The play client builds some URLs from its configured play domain instead of
+// the page's own location, so a guest-login call goes straight to now.gg from
+// this origin and the browser refuses it (no CORS). This maps those absolute
+// URLs back inside the route before any request leaves the page.
+function nowGgShim(site) {
+  const hosts = [site.origin + "/"];
+  if (site.cdnOrigin) hosts.push(site.cdnOrigin + site.cdnPath);
+  const mapped = [site.route];
+  if (site.cdnOrigin) mapped.push(site.route + site.cdnPath.slice(1));
+  return "<script>(function(){" +
+    "var H=" + JSON.stringify(hosts) + ",M=" + JSON.stringify(mapped) + ";" +
+    "function t(u){if(typeof u!=='string'||!u)return u;" +
+    "for(var i=0;i<H.length;i++){if(u.indexOf(H[i])===0)return M[i]+u.slice(H[i].length);}" +
+    "return u;}" +
+    "var f=window.fetch;if(f)window.fetch=function(a,b){try{if(typeof a==='string')a=t(a);" +
+    "else if(a&&a.url){var m=t(a.url);if(m!==a.url)a=new Request(m,a);}}catch(e){}return f.call(this,a,b);};" +
+    "var x=window.XMLHttpRequest&&XMLHttpRequest.prototype.open;" +
+    "if(x)XMLHttpRequest.prototype.open=function(m,u){try{arguments[1]=t(u);}catch(e){}return x.apply(this,arguments);};" +
+    "var W=window.WebSocket;if(W){var N=function(u,p){return p===undefined?new W(t(u)):new W(t(u),p);};" +
+    "N.prototype=W.prototype;window.WebSocket=N;}" +
+    "var B=navigator.sendBeacon;if(B)navigator.sendBeacon=function(u,d){return B.call(navigator,t(u),d);};" +
+    "})();</script>";
+}
+
+let nowGgGuest = null;
+async function nowGgGuestIdentity() {
+  if (nowGgGuest && Date.now() < nowGgGuest.until) return nowGgGuest;
+  try {
+    const response = await fetch("https://now.gg/accounts/auth/v2/access-token?implicitGuestLogin=true", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(15000)
+    });
+    const raw = (response.headers.get("set-cookie") || "").split(";")[0];
+    const data = await response.json().catch(() => null);
+    if (!data || !data.access_token || !raw.startsWith("_NSID=")) return null;
+    const expiry = Date.parse(data.access_token_expiry || "");
+    nowGgGuest = {
+      cookie: raw,
+      token: data.access_token,
+      expiry: data.access_token_expiry || "",
+      until: Math.min(Number.isFinite(expiry) ? expiry : Date.now() + 1800000, Date.now() + 1800000)
+    };
+    return nowGgGuest;
+  } catch (error) {
+    return null;
+  }
+}
+
 async function serveNowgg(request, url, site) {
   if (request.method === "OPTIONS") return preflight(request);
   const upstreamPath = nowGgUpstreamPath(site, url.pathname);
   const origin = site.cdnOrigin && upstreamPath.startsWith(site.cdnPath) ? site.cdnOrigin : site.origin;
   const target = origin + upstreamPath + url.search;
+  // Everything the page sends goes upstream, minus the headers that describe
+  // this hop. now.gg identifies a player by its own cookies and request headers,
+  // so dropping them turned authenticated calls into anonymous ones (a 409 from
+  // the play API) and no session could ever start.
   const headers = new Headers();
-  for (const name of NOWGG_FORWARD_HEADERS) {
-    const value = request.headers.get(name);
-    if (value) headers.set(name, value);
-  }
+  request.headers.forEach((value, name) => {
+    if (!SITE_MIRROR_SKIP.has(name.toLowerCase())) headers.set(name, value);
+  });
   const init = { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(45000) };
   if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
   let upstream;
@@ -2085,6 +2145,14 @@ async function serveNowgg(request, url, site) {
   for (const name of NOWGG_COPY_HEADERS) {
     const value = upstream.headers.get(name);
     if (value) out.set(name, value);
+  }
+  // The player's own cookies have to reach the browser under this origin, so the
+  // upstream domain is dropped from each one.
+  const secure = url.protocol === "https:";
+  for (const cookie of upstream.headers.getSetCookie()) {
+    let value = cookie.replace(/;\s*domain=[^;]+/gi, "");
+    if (!secure) value = value.replace(/;\s*secure/gi, "");
+    out.append("set-cookie", value);
   }
   const type = (out.get("content-type") || "").toLowerCase();
   const encoded = /[.](br|gz|wasm|woff2?|png|jpe?g|webp|avif|gif|svg|mp4|webm|zip)$/i.test(url.pathname) || !!upstream.headers.get("content-encoding");
@@ -2109,7 +2177,21 @@ async function serveNowgg(request, url, site) {
     console.warn("now.gg mirror read failed", url.pathname, String(error));
     return textError(502, "now.gg returned an unreadable file");
   }
-  return new Response(nowGgRewrite(source, site), { status: upstream.status, headers: out });
+  let body = nowGgRewrite(source, site);
+  if (html) {
+    const hasToken = /(?:^|;\s*)_NSID=/.test(request.headers.get("cookie") || "");
+    const guest = hasToken ? null : await nowGgGuestIdentity();
+    if (guest) {
+      out.append("set-cookie", guest.cookie + "; Path=/; SameSite=Lax" + (secure ? "; Secure" : ""));
+      // The page reads the play token from its own storage as well, so the same
+      // identity is written where the client looks when the cookie is not enough.
+      body = body.replace(/window\.nggParams = \{\};/, m =>
+        m + "window.nggParams[\"ng_token_v2\"]=" + JSON.stringify(guest.token) +
+        ";window.nggParams[\"ng_token_expiry_v2\"]=" + JSON.stringify(guest.expiry) + ";");
+    }
+    body = body.replace(/<head(\s[^>]*)?>/i, m => m + nowGgShim(site));
+  }
+  return new Response(body, { status: upstream.status, headers: out });
 }
 
 /* --------------------------------------------------------- site mirrors --- */
