@@ -2285,12 +2285,10 @@ const SITE_MIRRORS = {
     entry: "/",
     // The app routes on the client; these paths are what a reload lands on.
     navPaths: ["/movie/", "/tv/", "/watch/", "/genre/", "/trending/", "/anime/"],
-    // Its Next.js runtime loads art and its icons from the origin root, outside
-    // the route, so those prefixes are claimed and moved back inside it. Chunks
-    // are requested at the root too, but now.gg claims /_next/ there, so those
-    // are routed by the referer of the page that asked.
+    // Its runtime can ask for art by a root-absolute path, outside the route, so
+    // those prefixes are claimed and moved back inside it. Chunks are requested
+    // at the root too, where the referer names this page.
     aliases: ["/img/", "/icon-"],
-    referrer: "strict-origin-when-cross-origin",
     hosts: [],
     policy: [
       "default-src 'self' data: blob:",
@@ -2326,10 +2324,6 @@ const SITE_MIRRORS = {
     // The app routes on the client; these paths are what a reload lands on.
     navPaths: ["/movie/", "/tv/", "/watch/", "/person/", "/genre/", "/trending/", "/discover/", "/search"],
     aliases: ["/icon-"],
-    referrer: "strict-origin-when-cross-origin",
-    // Its Turbopack runtime derives every chunk path from "/_next/", so those
-    // tags stay at the origin root and are routed here by the page referer.
-    rootAssets: true,
     hosts: [],
     policy: [
       "default-src 'self' data: blob: https:",
@@ -2352,11 +2346,30 @@ const SITE_MIRRORS = {
 const SITE_MIRROR_LIST = Object.values(SITE_MIRRORS);
 
 function isSiteNavPath(site, pathname) {
-  return (site.navPaths || []).some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix));
+  return (site.navPaths || []).some((prefix) => {
+    const bare = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+    return pathname === bare || pathname.startsWith(prefix.endsWith("/") ? prefix : prefix + "/");
+  });
 }
 
 function isSiteMirrorPath(site, pathname) {
   return pathname === site.root || pathname.startsWith(site.root + "/");
+}
+
+// A mirrored page names its own route in the Referer of every root-level
+// request it makes. Reading the referer's path once keeps a route that only
+// appears inside a query string, or a page served at the bare route, from being
+// mistaken for (or missed as) the page that asked.
+function siteFromReferer(request) {
+  const raw = request.headers.get("referer");
+  if (!raw) return null;
+  let pathname;
+  try {
+    pathname = new URL(raw).pathname;
+  } catch {
+    return null;
+  }
+  return SITE_MIRROR_LIST.find((site) => isSiteMirrorPath(site, pathname)) || null;
 }
 
 // Route path -> upstream path. The site's asset hosts keep their own prefixes so
@@ -2387,10 +2400,11 @@ function siteMirrorRewrite(source, site, html) {
   // and spins against a challenger that does not exist behind this route. It is
   // inline, so it is matched without crossing a closing tag and dropped.
   out = out.replace(/<script\b[^>]*>(?:(?!<\/script>)[\s\S])*cdn-cgi\/challenge-platform(?:(?!<\/script>)[\s\S])*<\/script>/gi, "");
-  if (site.rootAssets) out = out.replace(/((?:src|href|content|poster|action)\s*=\s*["'])\/_next\//g, "$1_next/");
-  out = out.replace(/((?:src|href|content|poster|action)\s*=\s*["'])\/(?!\/|approved-games\/)/g, "$1" + site.root + "/");
-  if (site.rootAssets) out = out.split("").join("/");
-  return out.replace(/<\/head>/i, (site.noShim ? "" : siteMirrorScript(site)) + "</head>");
+  // Next.js derives every chunk path from "/_next/", so those tags keep their
+  // root-absolute form and the request is routed back by the page's referer.
+  out = out.replace(/((?:src|href|content|poster|action)\s*=\s*["'])\/(?!\/|approved-games\/)/gi,
+    (match, lead, offset, whole) => (whole.startsWith("_next/", offset + match.length) ? match : lead + site.root + match.slice(lead.length)));
+  return out.replace(/<\/head>/i, siteMirrorScript(site) + "</head>");
 }
 
 // The page builds request paths at runtime, and a path that starts at "/" would
@@ -2456,9 +2470,10 @@ async function serveSiteMirror(request, url, site) {
   out.set("x-content-type-options", "nosniff");
   if (html) {
     out.set("content-security-policy", site.policy);
-    // The default refuses referers, but a page whose runtime asks for root-level
-    // chunks needs its own route named in them, so it can choose.
-    out.set("referrer-policy", site.referrer || "no-referrer");
+    // A page asks for its own chunks at this origin's root, so the referer has
+    // to carry the route path; same-origin does that and still sends no referer
+    // to the ad, art and player hosts the page also talks to.
+    out.set("referrer-policy", "same-origin");
   }
   if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
   if (!textual) return new Response(upstream.body, { status: upstream.status, headers: out });
@@ -2529,20 +2544,17 @@ export default {
       return withCors(request, await serveTwoVTwo(request, new URL(TWOV2_ROOT + pathname + url.search, url.origin)));
     }
 
-    // Next.js builds some of its chunk URLs from the origin root, which more than
-    // one mirror can claim. The referer names the page that asked, so the chunk
-    // goes back to that page's mirror.
-    if (pathname.startsWith("/_next/")) {
-      const referer = request.headers.get("referer") || "";
-      for (const site of SITE_MIRROR_LIST) {
-        if (!referer.includes(site.root + "/")) continue;
-        const aliased = new URL(request.url);
-        aliased.pathname = site.root + pathname;
-        try {
-          return withCors(request, await serveSiteMirror(request, aliased, site));
-        } catch (error) {
-          console.error("site mirror root chunk failed", site.root, pathname, String(error));
-        }
+    // Next.js builds its chunk URLs from the origin root, which several mirrors
+    // share. The referer names the page that asked, so the chunk is fetched
+    // through that page's route.
+    const refererSite = siteFromReferer(request);
+    if (pathname.startsWith("/_next/") && refererSite) {
+      const aliased = new URL(request.url);
+      aliased.pathname = refererSite.root + pathname;
+      try {
+        return withCors(request, await serveSiteMirror(request, aliased, refererSite));
+      } catch (error) {
+        console.error("site mirror root chunk failed", refererSite.root, pathname, String(error));
       }
     }
 
@@ -2559,9 +2571,8 @@ export default {
     // Two mirrors can share a nav path ("/watch/"), so a hard navigation out of
     // one of them is sent back to the page it came from rather than the first
     // site that also claims the path.
-    const navReferer = request.headers.get("referer") || "";
-    const navFrom = SITE_MIRROR_LIST.filter((site) => navReferer.includes(site.root + "/") && isSiteNavPath(site, pathname));
-    for (const site of [...navFrom, ...SITE_MIRROR_LIST]) {
+    const navSites = refererSite ? [refererSite, ...SITE_MIRROR_LIST.filter((site) => site !== refererSite)] : SITE_MIRROR_LIST;
+    for (const site of navSites) {
       if (!isSiteNavPath(site, pathname) || isSiteMirrorPath(site, pathname)) continue;
       const back = new URL(site.root + pathname + url.search, url.origin);
       return withCors(request, new Response(null, { status: 302, headers: { location: back.toString() } }));
@@ -2577,18 +2588,21 @@ export default {
       }
     }
 
-    // Some mirrored pages build their file paths from the origin root instead of
-    // the page's own path, which would leave the route; their prefixes are
-    // claimed here and moved back inside it.
-    for (const site of SITE_MIRROR_LIST) {
-      if (!(site.aliases || []).some((prefix) => pathname.startsWith(prefix))) continue;
+    // A mirror whose page builds a file path from the origin root declares that
+    // prefix here. Only the declaring mirror may claim it, and a request that
+    // more than one of them could own is left alone rather than handed to
+    // whichever mirror happens to be listed first.
+    const aliasOwners = SITE_MIRROR_LIST.filter((site) =>
+      (!refererSite || refererSite === site) && (site.aliases || []).some((prefix) => pathname.startsWith(prefix)));
+    const aliasOwner = aliasOwners.length === 1 ? aliasOwners[0] : null;
+    if (aliasOwner) {
       const aliased = new URL(request.url);
-      aliased.pathname = site.root + pathname;
+      aliased.pathname = aliasOwner.root + pathname;
       try {
-        return withCors(request, await serveSiteMirror(request, aliased, site));
+        return withCors(request, await serveSiteMirror(request, aliased, aliasOwner));
       } catch (error) {
-        console.error("site mirror alias failed", site.root, pathname, String(error));
-        return withCors(request, textError(502, "The " + site.root.split("/").pop() + " route failed"));
+        console.error("site mirror alias failed", aliasOwner.root, pathname, String(error));
+        return withCors(request, textError(502, "The " + aliasOwner.root.split("/").pop() + " route failed"));
       }
     }
 
