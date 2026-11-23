@@ -5,14 +5,15 @@ import path from "node:path";
 // bypass the restricted proxy, that local launchers were actually built, and
 // that nothing still points at the retired Render service.
 // This is not a browser gameplay test or a remote-server availability test.
-const [html, libraryJs, client, arcadeWorker, searchPage, searchClient, politeness] = await Promise.all([
+const [html, libraryJs, client, arcadeWorker, searchPage, searchClient, politeness, cloak] = await Promise.all([
   fs.readFile("index.html","utf8"),
   fs.readFile("library.js","utf8"),
   fs.readFile("proxy-client.js","utf8"),
   fs.readFile("cloudflare/arcade/worker.mjs","utf8"),
   fs.readFile("seuss-search.html","utf8"),
   fs.readFile("search-client.js","utf8"),
-  fs.readFile("proxy-politeness.js","utf8")
+  fs.readFile("proxy-politeness.js","utf8"),
+  fs.readFile("cloak.js","utf8")
 ]);
 const site="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/";
 const base="/Dr-seuss-Moives-Games-test/";
@@ -83,6 +84,7 @@ for(const [label,source,required] of [
   ["Cloudflare relay policy",arcadeWorker,["isPrivateHost","connect({ hostname: host, port })","function denyOrigin","ALLOW_PRIVATE_IPS","const SELF_ORIGIN"]],
   ["Seuss Search v2 client",searchClient,["wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","frame.go(target.href)","html.duckduckgo.com/html/?q=","Only http and https pages","browserLikeTransport","politeTransport"]],
   ["Rate-limit politeness",politeness,["429","503","retry-after","politeTransport"]],
+  ["Blank disguise full screen",cloak,["requestFullscreen","exitFullscreen","fullscreenchange","userActivation"]],
   ["Seuss Search v2 page",searchPage,["id=\"searchForm\"","id=\"relayOpts\"","id=\"toLibrary\"","search-client.js"]],
   ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/"]],
   ["Cloudflare relay worker",arcadeWorker,["cloudflare:sockets","class WispRelay","wisp-1","ALLOW_PRIVATE_IPS"]],

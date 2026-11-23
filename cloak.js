@@ -131,9 +131,45 @@
     assertTitle();
     assertIcon();
   }
+  // A page cannot rewrite its own address bar, so the blank disguise also takes
+  // the window full screen: no address bar, no tab strip. Esc is left entirely to
+  // the browser, which leaves full screen the usual way; the disguise itself
+  // stays on, so the tab is still anonymous if it is put back in the strip.
+  let fullscreenByCloak = false;
+  function enterFullscreen() {
+    const root = document.documentElement;
+    if (!root || !root.requestFullscreen || document.fullscreenElement) return;
+    // Only a deliberate pick carries user activation; the restore-on-load path
+    // has none, and a bare call would be rejected (and logged) by the browser.
+    if (navigator.userActivation && navigator.userActivation.isActive === false) return;
+    try {
+      Promise.resolve(root.requestFullscreen()).then(
+        () => { fullscreenByCloak = true; },
+        () => { fullscreenByCloak = false; }
+      );
+    } catch { fullscreenByCloak = false; }
+  }
+  function leaveFullscreen() {
+    // Only undo what this disguise did, never a full screen the user chose.
+    if (!fullscreenByCloak || !document.fullscreenElement || !document.exitFullscreen) return;
+    fullscreenByCloak = false;
+    try { Promise.resolve(document.exitFullscreen()).catch(() => {}); } catch { /* already out */ }
+  }
+  document.addEventListener("fullscreenchange", () => {
+    // Esc, F11 or the browser's own control all end here; nothing is re-entered.
+    if (!document.fullscreenElement) fullscreenByCloak = false;
+  });
+  // Esc is the browser's own way out, and this does not preventDefault it. It
+  // only makes sure the disguise cannot get stuck in full screen where a page
+  // handler, a game canvas or a wrapper swallows the key first.
+  addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    leaveFullscreen();
+  }, true);
   function apply(name, persist = true) {
     current = CLOAKS[name] ? name : "off";
     if (persist) { try { localStorage.setItem(KEY, current); } catch { /* private mode */ } }
+    if (current === "blank") { if (persist) enterFullscreen(); } else leaveFullscreen();
     assertDisguise();
     clearInterval(guard);
     guard = CLOAKS[current] ? setInterval(assertDisguise, 700) : 0;
