@@ -53,7 +53,7 @@ await fs.cp(path.join("games","gow-sparta"),path.join(out,"games","gow-sparta"),
 // cannot send as headers: the same scoped service worker God of Sparta uses is
 // published beside it and reloads the page once it is in control.
 await fs.cp(path.join("games","rocket-legue"),path.join(out,"games","rocket-legue"),{recursive:true});
-for(const file of ["index.html","coi-serviceworker.js"])
+for(const file of ["index.html","coi-serviceworker.js","rl-boot.js"])
   if(!await exists(path.join(out,"games","rocket-legue",file)))
     throw new Error("Rocket League bundle missing "+file);
 console.log("Published Rocket League shell; game data streams from its own host.");
@@ -396,7 +396,9 @@ try {
   // set COOP/COEP headers directly, so the game's own scoped sw.js must
   // control a TOP-LEVEL page and reload it once after activation.
   // Bound the reload count to prevent an infinite loop when SW is disabled.
-  const swStart=html.indexOf("<script>\n  if ('serviceWorker' in navigator)");
+  // A Windows git with core.autocrlf checks this markup out with CRLF, so the
+  // guard matches either line ending instead of failing on the checkout style.
+  const swStart=html.search(/<script>\r?\n  if \('serviceWorker' in navigator\)/);
   const swEnd=html.indexOf("</script>",swStart);
   if(swStart<0||swEnd<swStart)throw Error("Luigi service worker bootstrap changed");
   const scopedWorkerBootstrap=`<script>

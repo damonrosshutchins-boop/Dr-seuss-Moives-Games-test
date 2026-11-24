@@ -101,8 +101,8 @@ is a plain file copy into `games/gow-sparta/`.
 ## Rocket League (single-file shell, game data streamed from its own host)
 
 The owner-supplied Google Drive file (`single-file.html`, 458 KB) is published as
-`games/rocket-legue/index.html`, with `coi-serviceworker.js` copied beside it and
-two lines added to its `<head>` that register that worker. The file is only the
+`games/rocket-legue/index.html`, with `coi-serviceworker.js` and `rl-boot.js`
+copied beside it and two lines added to its `<head>` that load them. The file is only the
 engine shell: its wasm, file index and 16 MB data blocks are fetched at play time
 from `https://rocket-league-dhl.pages.dev/assets/`, which answers with
 `Access-Control-Allow-Origin: *`, so no multi-gigabyte game data enters the Pages
@@ -111,6 +111,14 @@ artifact. The build uses real wasm threads, so the card opens the page in this t
 once and becomes `crossOriginIsolated`. The port needs WebGPU, `memory64` and
 JSPI, so it runs in Chrome or Edge 137 and later and shows its own message on
 older browsers. First open downloads several GB.
+
+When the page cannot become cross-origin isolated it used to leave only a small
+status line on a black screen. `rl-boot.js` reuses the God of Sparta failure card
+and its wording: it says the game needs a normal window, because the isolation
+comes from a service worker that a private window cannot keep, and it asks for the
+registered workers rather than trusting `navigator.serviceWorker`, which Firefox
+139 and later also expose in private windows. A worker that is registered while
+the page is still not isolated is reported as stripped COOP/COEP headers instead.
 
 
 ## Minecraft 1.8 Wrust Mod and Minecraft 1.8 Mods
