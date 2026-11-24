@@ -13,7 +13,7 @@
 <link rel="preload" as="script" href="scram/scramjet.js">
 <link rel="modulepreload" href="libcurl/index.mjs">
 <link rel="stylesheet" href="./arctic-tokens.css">
-<script src="./cloak.js"></script>
+<script src="./blob-cloak.js"></script><script src="./cloak.js"></script>
 <style>
   /* Seuss Search v2 is an Arctic page: one theme, no override layer. The palette
      is arctic-tokens.css, which the arcade loads too, so the two pages cannot
@@ -197,6 +197,9 @@
   .opts .cloak-ico{display:block;flex:none;width:16px;height:16px;border-radius:3px}
   .opts button:hover{background:var(--a-wash)}
   .opts button[aria-pressed="true"]{background:var(--a-blue);color:var(--a-white);border-color:var(--a-blue-deep)}
+  #cloakOpts .cloak-blob-pill{height:40px;min-width:118px;border:1px solid var(--a-line-soft);
+    border-radius:12px;background:#141414;overflow:hidden;align-self:stretch}
+  #cloakOpts .cloak-blob-pill:focus-within{outline:2px solid var(--a-blue);outline-offset:2px}
   .panel label{display:block;margin-top:12px;font-size:12px;color:var(--a-mut)}
   .panel input[type=url],.panel input[type=text]{width:100%;margin-top:6px;height:40px;padding:0 12px;border-radius:11px;
     border:1px solid var(--a-line-soft);background:var(--a-white);color:var(--a-ink);font-size:13px}
@@ -402,6 +405,7 @@
         <button type="button" data-cloak="canva"><img class="cloak-ico" src="./assets/cloak/canva.png" alt="" width="16" height="16">Canva</button>
         <button type="button" data-cloak="canvas"><img class="cloak-ico" src="./assets/cloak/canvas.png" alt="" width="16" height="16">Canvas</button>
         <button type="button" data-cloak="iready"><img class="cloak-ico" src="./assets/cloak/iready.png" alt="" width="16" height="16">i-Ready</button>
+        <iframe id="blobPillFrame" class="cloak-blob-pill" title="Open Seuss Search in a blob:null tab" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
       </div>
       <p class="hint">Sets this tab's title and icon only; the page itself stays Seuss Search.
         The choice is remembered and re-applied while you browse, so a proxied page
@@ -739,6 +743,17 @@ $("cloakOpts").addEventListener("click", event => {
   const button = event.target.closest("button[data-cloak]");
   if (button) applyCloak(button.dataset.cloak);
 });
+// The pill reopens this page in a tab with no host in its address bar; its
+// button runs in the sandboxed frame beside it, where a Blob URL is opaque.
+// Rebuilt on every disguise change, so the tab carries the one that is on
+// at the moment it is clicked.
+(function () {
+  const frame = $("blobPillFrame");
+  if (!frame || !SeussCloak.blob) return;
+  const rebuild = () => SeussCloak.blob(frame);
+  rebuild();
+  document.addEventListener("seuss-cloak-change", rebuild);
+})();
 const cloakLink = document.querySelector(".cloaked a");
 if (cloakLink) cloakLink.addEventListener("click", event => { event.preventDefault(); openCloakedTab(); });
 $("cloakNow").addEventListener("click", openCloakedTab);

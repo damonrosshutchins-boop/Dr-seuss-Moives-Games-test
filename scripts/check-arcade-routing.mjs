@@ -5,7 +5,7 @@ import path from "node:path";
 // bypass the restricted proxy, that local launchers were actually built, and
 // that nothing still points at the retired Render service.
 // This is not a browser gameplay test or a remote-server availability test.
-const [html, libraryJs, client, arcadeWorker, searchPage, searchClient, politeness, cloak, aresPage] = await Promise.all([
+const [html, libraryJs, client, arcadeWorker, searchPage, searchClient, politeness, cloak, aresPage, blobModule] = await Promise.all([
   fs.readFile("index.html","utf8"),
   fs.readFile("library.js","utf8"),
   fs.readFile("proxy-client.js","utf8"),
@@ -13,7 +13,7 @@ const [html, libraryJs, client, arcadeWorker, searchPage, searchClient, politene
   fs.readFile("seuss-search.html","utf8"),
   fs.readFile("search-client.js","utf8"),
   fs.readFile("proxy-politeness.js","utf8"),
-  fs.readFile("cloak.js","utf8"),fs.readFile("ares.html","utf8")
+  fs.readFile("cloak.js","utf8"),fs.readFile("ares.html","utf8"),fs.readFile("blob-cloak.js","utf8")
 ]);
 const site="https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/";
 const base="/Dr-seuss-Moives-Games-test/";
@@ -79,7 +79,7 @@ for(const entry of entries){
 for(const [label,source,required] of [
   ["Viewer restricted remote launcher",html,["await openProxied(frame,x.url","frame.src=path.href","location.assign(localUrl.href)","if(path.origin!==location.origin)"]],
   ["Tab disguise on the arcade",html,["src=\"./cloak.js\"","id=\"cloakOpts\"","id=\"cloakButton\"","id=\"cloakPop\"","data-cloak=\"off\"","syncCloakButtons","href=\"./ares.html\"","id=\"cloakBlobFrame\"","sandbox=\"allow-scripts allow-popups allow-popups-to-escape-sandbox\""]],
-  ["Tab disguise on the search page",searchPage,["src=\"./cloak.js\""]],
+  ["Tab disguise on the search page",searchPage,["src=\"./cloak.js\"","src=\"./blob-cloak.js\"","id=\"blobPillFrame\""]],
   ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","Only approved games and movie destinations","browserLikeTransport","proxy-headers.js","politeTransport","proxy-politeness.js"]],
   ["Cloudflare relay policy",arcadeWorker,["isPrivateHost","connect({ hostname: host, port })","function denyOrigin","ALLOW_PRIVATE_IPS","const SELF_ORIGIN"]],
   ["Seuss Search v2 client",searchClient,["wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","frame.go(target.href)","html.duckduckgo.com/html/?q=","Only http and https pages","browserLikeTransport","politeTransport"]],
@@ -87,7 +87,8 @@ for(const [label,source,required] of [
   ["Blank disguise full screen",cloak,["requestFullscreen","exitFullscreen","fullscreenchange","userActivation","focusIsInOwnFrame","FRAME_FOCUS_MS"]],
   // The blob:null tab only works if its launcher stays inside a sandboxed frame
   // without allow-same-origin, which is where a Blob URL comes out opaque.
-  ["Blob:null cloak tab",cloak,["blobLauncher","blobShell","blob:null","URL.createObjectURL"]],
+  ["Blob:null cloak tab",cloak,["blobLauncher","SeussBlob.mount"]],
+  ["Blob:null launcher module",blobModule,["shellDocument","launcherDocument","mount","URL.createObjectURL","blob:null","referrerpolicy=\"no-referrer\""]],
   ["Seuss Search v2 page",searchPage,["id=\"searchForm\"","id=\"relayOpts\"","id=\"toLibrary\"","search-client.js"]],
   ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/"]],
   ["Cloudflare relay worker",arcadeWorker,["cloudflare:sockets","class WispRelay","wisp-1","ALLOW_PRIVATE_IPS"]],
@@ -146,10 +147,12 @@ if(arcadeWorker.includes("/approved-games/gow-sparta"))errors.push("arcade worke
 if(arcadeWorker.includes("psp-web-damon.surge.sh"))errors.push("arcade worker still reads the retired PSP Surge source");
 // Ares is the null-origin cloak launcher: it must ship in the build and keep the
 // sandbox that makes its blob URL opaque, with no host of its own in the tab.
-for(const snippet of ["blob:null","allow-scripts allow-popups allow-popups-to-escape-sandbox","URL.createObjectURL","about:blank#ares","referrerpolicy=\"no-referrer\""])
+for(const snippet of ["blob:null","allow-scripts allow-popups allow-popups-to-escape-sandbox","about:blank#ares","SeussBlob.shellDocument","SeussBlob.launcherDocument"])
   if(!aresPage.includes(snippet))errors.push("Ares cloak page: missing "+snippet);
 try{await fs.access(path.join("dist","ares.html"));}
 catch{errors.push("Ares cloak page is missing from the build: ares.html");}
+try{await fs.access(path.join("dist","blob-cloak.js"));}
+catch{errors.push("Blob:null launcher module is missing from the build: blob-cloak.js");}
 // Every disguise shows Google's own product artwork, so each preset needs its
 // file present in the published build.
 for(const name of ["classroom","docs","slides","drive","sheets","search","gmail","kahoot","canva","canvas","iready"]){
