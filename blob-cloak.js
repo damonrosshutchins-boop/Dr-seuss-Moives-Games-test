@@ -44,9 +44,11 @@
       ",MESSAGE=" + JSON.stringify(message) + ";" +
       'document.getElementById("go").addEventListener("click",function(){try{' +
       'var u=URL.createObjectURL(new Blob([SHELL],{type:"text/html"}));' +
-      'var w=window.open(u,"_blank");' +
-      "if(w)setTimeout(function(){URL.revokeObjectURL(u);},60000);" +
-      'parent.postMessage({type:MESSAGE,ok:!!w},"*");' +
+      'window.open(u,"_blank");' +
+      // Chrome forces noopener on top-level blob navigations, so the handle is
+      // always null even when the tab opens; revoke on a timer, not on the handle.
+      "setTimeout(function(){URL.revokeObjectURL(u);},60000);" +
+      'parent.postMessage({type:MESSAGE,ok:true},"*");' +
       '}catch(e){parent.postMessage({type:MESSAGE,ok:false},"*");}});' +
       "<" + "/script></body></html>";
   }

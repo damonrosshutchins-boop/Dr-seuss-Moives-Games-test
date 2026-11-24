@@ -197,8 +197,10 @@
   .opts .cloak-ico{display:block;flex:none;width:16px;height:16px;border-radius:3px}
   .opts button:hover{background:var(--a-wash)}
   .opts button[aria-pressed="true"]{background:var(--a-blue);color:var(--a-white);border-color:var(--a-blue-deep)}
-  #cloakOpts .cloak-blob-pill{height:40px;min-width:118px;border:1px solid var(--a-line-soft);
-    border-radius:12px;background:#141414;overflow:hidden;align-self:stretch}
+  /* An iframe is a replaced element: it keeps its 300x150 default size instead of
+     filling its grid area, so the pill has to be sized like a button by hand. */
+  #cloakOpts .cloak-blob-pill{width:100%;min-width:0;height:41px;border:1px solid var(--a-line-soft);
+    border-radius:12px;background:#141414;overflow:hidden}
   #cloakOpts .cloak-blob-pill:focus-within{outline:2px solid var(--a-blue);outline-offset:2px}
   .panel label{display:block;margin-top:12px;font-size:12px;color:var(--a-mut)}
   .panel input[type=url],.panel input[type=text]{width:100%;margin-top:6px;height:40px;padding:0 12px;border-radius:11px;
