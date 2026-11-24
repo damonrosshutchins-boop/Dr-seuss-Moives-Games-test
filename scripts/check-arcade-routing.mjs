@@ -78,13 +78,16 @@ for(const entry of entries){
 }
 for(const [label,source,required] of [
   ["Viewer restricted remote launcher",html,["await openProxied(frame,x.url","frame.src=path.href","location.assign(localUrl.href)","if(path.origin!==location.origin)"]],
-  ["Tab disguise on the arcade",html,["src=\"./cloak.js\"","id=\"cloakOpts\"","id=\"cloakButton\"","id=\"cloakPop\"","data-cloak=\"off\"","syncCloakButtons","href=\"./ares.html\""]],
+  ["Tab disguise on the arcade",html,["src=\"./cloak.js\"","id=\"cloakOpts\"","id=\"cloakButton\"","id=\"cloakPop\"","data-cloak=\"off\"","syncCloakButtons","href=\"./ares.html\"","id=\"cloakBlobFrame\""]],
   ["Tab disguise on the search page",searchPage,["src=\"./cloak.js\""]],
   ["Scramjet restricted Wisp client",client,["controller.createFrame(iframe)","frame.go(target.href)","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","Only approved games and movie destinations","browserLikeTransport","proxy-headers.js","politeTransport","proxy-politeness.js"]],
   ["Cloudflare relay policy",arcadeWorker,["isPrivateHost","connect({ hostname: host, port })","function denyOrigin","ALLOW_PRIVATE_IPS","const SELF_ORIGIN"]],
   ["Seuss Search v2 client",searchClient,["wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","frame.go(target.href)","html.duckduckgo.com/html/?q=","Only http and https pages","browserLikeTransport","politeTransport"]],
   ["Rate-limit politeness",politeness,["429","503","retry-after","politeTransport"]],
   ["Blank disguise full screen",cloak,["requestFullscreen","exitFullscreen","fullscreenchange","userActivation","focusIsInOwnFrame","FRAME_FOCUS_MS"]],
+  // The blob:null tab only works if its launcher stays inside a sandboxed frame
+  // without allow-same-origin, which is where a Blob URL comes out opaque.
+  ["Blob:null cloak tab",cloak,["blobLauncher","blobShell","blob:null","URL.createObjectURL","allow-popups-to-escape-sandbox"]],
   ["Seuss Search v2 page",searchPage,["id=\"searchForm\"","id=\"relayOpts\"","id=\"toLibrary\"","search-client.js"]],
   ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/"]],
   ["Cloudflare relay worker",arcadeWorker,["cloudflare:sockets","class WispRelay","wisp-1","ALLOW_PRIVATE_IPS"]],

@@ -307,8 +307,47 @@
     if ("requestIdleCallback" in window) requestIdleCallback(awayCover, { timeout: 4000 });
     else setTimeout(awayCover, 1500);
   });
+  // A blob:null tab: the Blob URL has to be made in an opaque origin, so its button
+  // runs in a sandboxed frame without allow-same-origin. That tab holds only the
+  // disguise and one frame on this page, so its address bar reads blob:null/<id>
+  // with no host, and the framed page cannot retitle it.
+  function blobShell(url) {
+    const preset = CLOAKS[current];
+    const title = preset ? preset.title : realTitle;
+    const icon = preset && preset.icon ? preset.icon : "";
+    const escape = text => String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      "<title>" + escape(title) + "</title>" +
+      (icon ? '<link rel="icon" href="' + escape(icon) + '">' : "") +
+      "<style>html,body{margin:0;height:100%;background:#0e1620;overflow:hidden}" +
+      "iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head><body>" +
+      '<iframe src="' + escape(url) + '" allow="autoplay; fullscreen; clipboard-read; ' +
+      'clipboard-write; encrypted-media; picture-in-picture" referrerpolicy="no-referrer"></iframe>' +
+      "</body></html>";
+  }
+  function blobLauncher(frame) {
+    if (!frame) return;
+    const shell = blobShell(location.href);
+    frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>' +
+      "html,body{margin:0;height:100%;overflow:hidden}" +
+      "button{display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:0 8px;" +
+      "border:0;background:#141414;color:#dcdcdc;font:600 11px ui-monospace,Consolas,monospace;cursor:pointer}" +
+      "button:hover{background:#232323}button:focus-visible{outline:2px solid #fff;outline-offset:-2px}" +
+      "</style></head><body>" +
+      '<button id="go" type="button" title="Open this page in a tab whose address is blob:null">blob:null</button>' +
+      "<script>var SHELL=" + JSON.stringify(shell).replace(/<\//g, "<\\/") + ";" +
+      'document.getElementById("go").addEventListener("click",function(){try{' +
+      'var u=URL.createObjectURL(new Blob([SHELL],{type:"text/html"}));var w=window.open(u,"_blank");' +
+      "if(w)setTimeout(function(){URL.revokeObjectURL(u);},60000);" +
+      'parent.postMessage({type:"seuss-blob-tab",ok:!!w},"*");' +
+      '}catch(e){parent.postMessage({type:"seuss-blob-tab",ok:false},"*");}});' +
+      "<" + "/script></body></html>";
+  }
   window.SeussCloak = {
     apply,
+    blob: blobLauncher,
     current: () => current,
     titles: CLOAKS,
     // Only disguises with artwork; about:blank intentionally has none.
