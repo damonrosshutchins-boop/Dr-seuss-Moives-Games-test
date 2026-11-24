@@ -84,7 +84,7 @@ for(const [label,source,required] of [
   ["Cloudflare relay policy",arcadeWorker,["isPrivateHost","connect({ hostname: host, port })","function denyOrigin","ALLOW_PRIVATE_IPS","const SELF_ORIGIN"]],
   ["Seuss Search v2 client",searchClient,["wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/","frame.go(target.href)","html.duckduckgo.com/html/?q=","Only http and https pages","browserLikeTransport","politeTransport"]],
   ["Rate-limit politeness",politeness,["429","503","retry-after","politeTransport"]],
-  ["Blank disguise full screen",cloak,["requestFullscreen","exitFullscreen","fullscreenchange","userActivation"]],
+  ["Blank disguise full screen",cloak,["requestFullscreen","exitFullscreen","fullscreenchange","userActivation","focusIsInOwnFrame","FRAME_FOCUS_MS"]],
   ["Seuss Search v2 page",searchPage,["id=\"searchForm\"","id=\"relayOpts\"","id=\"toLibrary\"","search-client.js"]],
   ["Seuss Search relay choice",searchClient,["readRelay","writeRelay","seuss-relay","wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/"]],
   ["Cloudflare relay worker",arcadeWorker,["cloudflare:sockets","class WispRelay","wisp-1","ALLOW_PRIVATE_IPS"]],

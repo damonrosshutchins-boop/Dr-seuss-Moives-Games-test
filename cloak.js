@@ -245,18 +245,54 @@
     (document.body || document.documentElement).append(cover);
     return cover;
   }
+  // Clicking into the arcade's own player frame (a game or a proxied site) moves
+  // focus out of this document: the window blurs and document.hasFocus() turns
+  // false, exactly as it does when the tab or window is left. That frame is still
+  // this site, so the photo must not appear for it. The frame's own focus event
+  // arrives with that blur, while a real tab-out arrives without one, so only a
+  // fresh frame focus excuses a lost focus.
+  const FRAME_FOCUS_MS = 500;
+  let frameFocusedAt = -Infinity;
+  let awayTimer = 0;
+  document.addEventListener("focus", event => {
+    if (event.target && event.target.tagName === "IFRAME") frameFocusedAt = performance.now();
+  }, true);
+  function focusIsInOwnFrame() {
+    const active = document.activeElement;
+    return !!active && active.tagName === "IFRAME" && performance.now() - frameFocusedAt < FRAME_FOCUS_MS;
+  }
+  function paintAwayCover(visible, reason) {
+    if (!visible) {
+      if (!coverShown) return;
+      coverShown = false;
+      coverReason = "";
+      if (cover) cover.style.display = "none";
+      return;
+    }
+    if (!coverShown) coverReason = reason;
+    coverShown = true;
+    awayCover().style.display = "block";
+  }
+  function decideAway() {
+    if (document.hidden) { paintAwayCover(true, "hidden"); return; }
+    // Focus inside the player frame is the page in use, not the page left.
+    if (document.hasFocus() || focusIsInOwnFrame()) { paintAwayCover(false); return; }
+    paintAwayCover(true, "blur");
+  }
   function syncAwayCover(event) {
-    if (document.hidden || !document.hasFocus()) {
-      if (!coverShown) coverReason = document.hidden ? "hidden" : "blur";
-      coverShown = true;
-      awayCover().style.display = "block";
+    clearTimeout(awayTimer);
+    if (document.hidden) { paintAwayCover(true, "hidden"); return; }
+    if (!document.hasFocus()) {
+      // The frame that took the focus reports it a moment after the blur, so wait
+      // for that event before deciding: a tab-out never sends one.
+      awayTimer = setTimeout(decideAway, 120);
       return;
     }
     if (coverShown) {
-      coverShown = false;
       // Only a window that kept the page visible is re-entered with a press on
       // the page; that click belongs to the cover, not to the page beneath it.
       if (coverReason === "blur" && event && event.type === "focus") returnPress = event.timeStamp;
+      coverShown = false;
       coverReason = "";
     }
     if (cover) cover.style.display = "none";
