@@ -529,10 +529,22 @@ try{
   const buckshotRoute="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/buckshot/";
   const buckshotSource="https://raw.githubusercontent.com/Random-Red-Dude-809-4456/buckshot/"+
     buckshotCommit+"/index.html";
-  const buckshotResponse=await fetch(buckshotSource);
-  if(!buckshotResponse.ok)
-    throw new Error("Buckshot Roulette entry fetch failed: "+buckshotResponse.status);
-  let buckshotHTML=await buckshotResponse.text();
+  // The upstream repository behind this launcher was deleted, so the fetch can
+  // fail outright. games/buckshot/index.html is exactly the entry page the last
+  // successful build published, already pointed at the relay route; it is used
+  // only when the fetch itself does not succeed, and it is published unchanged.
+  const buckshotVendored=path.join("games","buckshot","index.html");
+  const buckshotResponse=await fetch(buckshotSource).catch(()=>null);
+  const buckshotFetched=!!(buckshotResponse&&buckshotResponse.ok);
+  let buckshotHTML=buckshotFetched?await buckshotResponse.text():"";
+  if(!buckshotFetched&&await exists(buckshotVendored)){
+    const vendoredOut=path.join(out,"games","buckshot");
+    await fs.mkdir(vendoredOut,{recursive:true});
+    await fs.copyFile(buckshotVendored,path.join(vendoredOut,"index.html"));
+    console.log("Buckshot upstream is unavailable; published the vendored entry page instead.");
+  }else{
+  if(!buckshotFetched)
+    throw new Error("Buckshot Roulette entry fetch failed: "+(buckshotResponse?buckshotResponse.status:"network error"));
   for(const marker of ['<script src="main.js"></script>',
     "GODOT_THREADS_ENABLED = false",'"buckshot-roulette.pck"',"<head>"])
     if(!buckshotHTML.includes(marker))
@@ -579,6 +591,7 @@ try{
   await fs.mkdir(buckshotOut,{recursive:true});
   await fs.writeFile(path.join(buckshotOut,"index.html"),buckshotHTML);
   console.log("Published Buckshot Roulette entry page; game files stream from Cloudflare.");
+  }
 }
 await fs.writeFile(path.join(out,".nojekyll"),"");
 console.log("GitHub Pages build verified.");

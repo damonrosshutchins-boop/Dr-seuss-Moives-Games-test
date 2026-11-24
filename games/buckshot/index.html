@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <base href="https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/buckshot/">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+    <title>Buckshot Roulette</title>
+    <link rel="stylesheet" href="style.css">
+    <link id="-gd-engine-icon" rel="icon" type="image/png" href="buckshot-roulette.icon.png" />
+    <link rel="apple-touch-icon" href="buckshot-roulette.apple-touch-icon.png" />
+</head>
+
+<body>
+    <script>(function(){var pck=[],wasm=[];for(var i=1;i<=17;i++)pck.push("buckshot-roulette.pck.part"+i);for(var j=1;j<=3;j++)wasm.push("buckshot-roulette.wasm.part"+j);function load(parts,limit,type){return new Promise(function(resolve,reject){var out=new Array(parts.length),next=0,active=0,failed=false;function pump(){if(failed)return;if(next>=parts.length&&active===0){resolve(new Blob(out,{type:type}));return;}while(active<limit&&next<parts.length){(function(index){active++;fetch(parts[index]).then(function(r){if(!r.ok)throw new Error("Missing part: "+parts[index]);return r.arrayBuffer();}).then(function(buffer){out[index]=buffer;}).catch(function(error){failed=true;reject(error);}).then(function(){active--;pump();});})(next++);}}pump();});}var nativeFetch=window.fetch;Promise.all([load(pck,5,"application/octet-stream"),load(wasm,3,"application/wasm")]).then(function(files){var pckUrl=URL.createObjectURL(files[0]),wasmUrl=URL.createObjectURL(files[1]);window.fetch=function(url){var value=String(url);if(value.indexOf("buckshot-roulette.pck")>=0)return nativeFetch.call(this,pckUrl);if(value.indexOf("buckshot-roulette.wasm")>=0)return nativeFetch.call(this,wasmUrl);return nativeFetch.apply(this,arguments);};window.godotRunStart();}).catch(function(error){var notice=document.getElementById("status-notice");if(notice)notice.textContent="The game files could not be loaded: "+(error&&error.message||error);console.error("[buckshot] game files failed",error);});})();</script>
+    <div id="loading-text" style="color: white; font-family: cursive; font-size: 48px; text-align: center; margin-top: 20px;">LOADING...</div>
+    <canvas id="canvas"> Your browser does not support the canvas tag. </canvas>
+    <noscript> Your browser does not support JavaScript. </noscript>
+    <div id="status">
+        <img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="buckshot-roulette.png" alt="">
+        <progress id="status-progress"></progress>
+        <div id="status-notice"></div>
+    </div>
+    <script src="buckshot-roulette.js"></script>
+    <script>
+        const GODOT_CONFIG = {
+            "args": [],
+            "canvasResizePolicy": 2,
+            "ensureCrossOriginIsolationHeaders": false,
+            "executable": "buckshot-roulette",
+            "experimentalVK": false,
+            "fileSizes": {
+                "buckshot-roulette.pck": 344705792,
+                "buckshot-roulette.wasm": 43444261
+            },
+            "focusCanvas": false,
+            "gdextensionLibs": []
+        };
+        const GODOT_THREADS_ENABLED = false;
+        const engine = new Engine(GODOT_CONFIG);
+
+        function run() {
+            const loadingText = document.getElementById('loading-text');
+            const statusOverlay = document.getElementById('status');
+            const statusProgress = document.getElementById('status-progress');
+            const statusNotice = document.getElementById('status-notice');
+            loadingText.remove();
+            let initializing = true;
+            let statusMode = '';
+
+            function setStatusMode(mode) {
+                if (statusMode === mode || !initializing) {
+                    return;
+                }
+                if (mode === 'hidden') {
+                    statusOverlay.remove();
+                    initializing = false;
+                    return;
+                }
+                statusOverlay.style.visibility = 'visible';
+                statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+                statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+                statusMode = mode;
+            }
+
+            function setStatusNotice(text) {
+                while (statusNotice.lastChild) {
+                    statusNotice.removeChild(statusNotice.lastChild);
+                }
+                const lines = text.split('\n');
+                lines.forEach((line) => {
+                    statusNotice.appendChild(document.createTextNode(line));
+                    statusNotice.appendChild(document.createElement('br'));
+                });
+            }
+
+            function displayFailureNotice(err) {
+                console.error(err);
+                if (err instanceof Error) {
+                    setStatusNotice(err.message);
+                } else if (typeof err === 'string') {
+                    setStatusNotice(err);
+                } else {
+                    setStatusNotice('An unknown error occurred.');
+                }
+                setStatusMode('notice');
+                initializing = false;
+            }
+            const missing = Engine.getMissingFeatures({
+                threads: GODOT_THREADS_ENABLED,
+            });
+            if (missing.length !== 0) {
+                if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+                    let serviceWorkerRegistrationPromise;
+                    try {
+                        serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+                    } catch (err) {
+                        serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+                    }
+                    // There's a chance that installing the service worker would fix the issue
+                    Promise.race([
+                        serviceWorkerRegistrationPromise.then((registration) => {
+                            if (registration != null) {
+                                return Promise.reject(new Error('Service worker already exists.'));
+                            }
+                            return registration;
+                        }).then(() => engine.installServiceWorker()),
+                        // For some reason, `getRegistration()` can stall
+                        new Promise((resolve) => {
+                            setTimeout(() => resolve(), 2000);
+                        }),
+                    ]).then(() => {
+                        // Reload if there was no error.
+                        window.location.reload();
+                    }).catch((err) => {
+                        console.error('Error while registering service worker:', err);
+                    });
+                } else {
+                    // Display the message as usual
+                    const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+                    displayFailureNotice(missingMsg + missing.join('\n'));
+                }
+            } else {
+                setStatusMode('progress');
+                engine.startGame({
+                    'onProgress': function (current, total) {
+                        if (current > 0 && total > 0) {
+                            statusProgress.value = current;
+                            statusProgress.max = total;
+                        } else {
+                            statusProgress.removeAttribute('value');
+                            statusProgress.removeAttribute('max');
+                        }
+                    },
+                }).then(() => {
+                    setStatusMode('hidden');
+                }, displayFailureNotice);
+            }
+        };
+        window.godotRunStart = run;
+    </script>
+</body>
+
+</html>
