@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ares</title>
+<style>
+  :root { color-scheme: dark; --bg:#0d1117; --panel:#161b24; --line:#2b3442; --text:#e6edf6; --muted:#93a1b5; --accent:#4d8df6; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background:radial-gradient(ellipse at top, #16233a 0%, var(--bg) 62%); color:var(--text);
+         font:15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:40px 20px 56px; }
+  h1 { margin:0 0 6px; font-size:26px; font-weight:650; }
+  .sub { margin:0 0 22px; color:var(--muted); }
+  code { font:13px ui-monospace, Consolas, monospace; background:#0b1220; border:1px solid var(--line); border-radius:5px; padding:1px 5px; }
+  .panel { display:grid; gap:14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+  label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+  input, select { width:100%; font:14px ui-monospace, Consolas, monospace; color:var(--text); background:#0b1220;
+                  border:1px solid var(--line); border-radius:9px; padding:10px 12px; outline:none; }
+  input:focus, select:focus { border-color:var(--accent); }
+  .launch { margin-top:18px; }
+  .slot { height:64px; border-radius:12px; overflow:hidden; background:#0b1220; border:1px solid var(--line); }
+  .slot iframe { display:block; width:100%; height:100%; border:0; }
+  .alt { margin-top:12px; }
+  button.plain { font:600 13px system-ui, sans-serif; padding:9px 14px; border-radius:9px; border:1px solid var(--line);
+                 background:#101824; color:var(--text); cursor:pointer; }
+  button.plain:hover { border-color:var(--accent); }
+  #status { margin:12px 0 0; min-height:1.4em; font-size:13px; color:var(--muted); }
+  #status.bad { color:#ff9b8a; }
+  .note { margin-top:28px; padding-top:14px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted); }
+  .note ul { margin:8px 0 0; padding-left:18px; }
+  .note li { margin:3px 0; }
+  .back { display:inline-block; margin-top:16px; color:#a9c3f0; font-size:13px; text-decoration:none; }
+  .back:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Ares</h1>
+  <p class="sub">Opens a page in a tab whose address bar shows <code>blob:null/…</code>. The tab's title and icon are a disguise; the real page runs inside it.</p>
+
+  <section class="panel">
+    <div>
+      <label for="target">Page to open</label>
+      <input id="target" type="url" spellcheck="false" autocomplete="off">
+    </div>
+    <div>
+      <label for="preset">Disguise</label>
+      <select id="preset"></select>
+    </div>
+  </section>
+
+  <section class="launch">
+    <div class="slot" id="slot"></div>
+    <div class="alt">
+      <button class="plain" id="blank" type="button">Open with about:blank instead</button>
+    </div>
+    <p id="status" role="status"></p>
+  </section>
+
+  <p class="note">
+    Why the address is just <code>blob:null/…</code>: the button lives inside a sandboxed frame with
+    <code>allow-scripts allow-popups allow-popups-to-escape-sandbox</code> and no <code>allow-same-origin</code>,
+    so that frame has an opaque origin. A Blob URL made there is <code>blob:null/&lt;id&gt;</code>, and the tab it
+    opens inherits that opaque origin — the host that served this page never appears in the URL, the tab history,
+    or the title. The opened document is only a shell with the disguise title and icon and one full-screen iframe
+    pointing at the real address; the framed page cannot retitle the tab because it is cross-origin to it.
+    <ul>
+      <li>A click is required: browsers only allow <code>window.open</code> from a user gesture, which is why the launcher is a button.</li>
+      <li>The disguise hides the address, title and icon, not the traffic: devtools still shows the framed page's real hosts.</li>
+      <li>The <code>blob:null</code> tab itself has no storage of its own; the framed page keeps its own cookies and origin.</li>
+      <li>Sites that refuse framing (<code>X-Frame-Options</code> or <code>frame-ancestors</code>) stay blank in the tab.</li>
+    </ul>
+    <a class="back" href="./index.html">← Back to the Arcade</a>
+  </p>
+</main>
+<script>
+"use strict";
+(function () {
+  var liveArcade = "https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/index.html";
+
+  function icon(color, letter) {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+      '<rect width="64" height="64" rx="13" fill="' + color + '"/>' +
+      '<text x="32" y="44" font-family="system-ui,sans-serif" font-size="34" font-weight="700" ' +
+      'fill="#fff" text-anchor="middle">' + letter + '</text></svg>';
+    return "data:image/svg+xml," + encodeURIComponent(svg);
+  }
+
+  var PRESETS = [
+    { id: "classroom", title: "Google Classroom", favicon: icon("#1a73e8", "C") },
+    { id: "ixl", title: "IXL Learning", favicon: icon("#0b6e4f", "I") },
+    { id: "drive", title: "Google Drive", favicon: icon("#188038", "D") },
+    { id: "docs", title: "Google Docs", favicon: icon("#1a73e8", "G") },
+    { id: "canvas", title: "Canvas", favicon: icon("#c0392b", "C") }
+  ];
+
+  var slot = document.getElementById("slot");
+  var targetEl = document.getElementById("target");
+  var presetEl = document.getElementById("preset");
+  var statusEl = document.getElementById("status");
+
+  for (var i = 0; i < PRESETS.length; i++) {
+    var option = document.createElement("option");
+    option.value = PRESETS[i].id;
+    option.textContent = PRESETS[i].title;
+    presetEl.appendChild(option);
+  }
+
+  var frame = document.createElement("iframe");
+  frame.title = "Open cloaked from a null-origin blob";
+  frame.setAttribute("sandbox", "allow-scripts allow-popups allow-popups-to-escape-sandbox");
+  slot.appendChild(frame);
+
+  function escapeHTML(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  /* The document the cloaked tab really holds: a disguise for the tab itself and
+     one full-screen frame on the real address. */
+  function shellDocument(url, preset) {
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      "<title>" + escapeHTML(preset.title) + "</title>" +
+      '<link rel="icon" href="' + escapeHTML(preset.favicon) + '">' +
+      "<style>html,body{margin:0;height:100%;background:#0e1620;overflow:hidden}" +
+      "iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head><body>" +
+      '<iframe src="' + escapeHTML(url) + '" allow="autoplay; fullscreen; clipboard-read; ' +
+      'clipboard-write; encrypted-media; picture-in-picture" referrerpolicy="no-referrer"></iframe>' +
+      "</body></html>";
+  }
+
+  /* What lives inside the sandboxed frame: the button that runs in a null origin,
+     which is the only place a blob:null URL can be made. */
+  function launcherDocument(shell) {
+    var css = "html,body{margin:0;height:100%;overflow:hidden}" +
+      "button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:100%;" +
+      "padding:0 16px;border:0;background:#101824;color:#cfe0f8;font:600 13px ui-monospace,Consolas,monospace;" +
+      "cursor:pointer}button:hover{background:#16233a}svg{opacity:.85}" +
+      "button:focus-visible{outline:3px solid #4d8df6;outline-offset:-3px}";
+    return '<!doctype html><html><head><meta charset="utf-8"><style>' + css + "</style></head><body>" +
+      '<button id="go" type="button">' +
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+      'stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M21 3l-9 9"/>' +
+      '<path d="M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>' +
+      "<span>Open in a blob:null tab</span></button>" +
+      "<script>var SHELL=" + JSON.stringify(shell).replace(/<\//g, "<\\/") + ";" +
+      'document.getElementById("go").addEventListener("click",function(){' +
+      "try{" +
+      'var u=URL.createObjectURL(new Blob([SHELL],{type:"text/html"}));' +
+      'var w=window.open(u,"_blank");' +
+      "if(w){setTimeout(function(){URL.revokeObjectURL(u);},60000);}" +
+      'parent.postMessage({type:"ares-opened",ok:!!w},"*");' +
+      "}catch(e){" +
+      'parent.postMessage({type:"ares-opened",ok:false,error:String(e&&e.message||e)},"*");' +
+      "}});<" + "/script></body></html>";
+  }
+
+  function setStatus(text, bad) {
+    statusEl.textContent = text;
+    statusEl.className = bad ? "bad" : "";
+  }
+
+  function currentTarget() {
+    var raw = targetEl.value.trim();
+    if (!raw) return null;
+    try {
+      var url = new URL(raw, location.href);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+      return url.href;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function currentPreset() {
+    for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i].id === presetEl.value) return PRESETS[i];
+    return PRESETS[0];
+  }
+
+  function prepare() {
+    var url = currentTarget();
+    if (!url) {
+      frame.removeAttribute("srcdoc");
+      setStatus("Enter a full http(s) address to prepare the tab.", true);
+      return;
+    }
+    frame.srcdoc = launcherDocument(shellDocument(url, currentPreset()));
+    setStatus("Ready. The button above opens the cloaked tab.");
+  }
+
+  var timer = 0;
+  function schedulePrepare() {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(prepare, 250);
+  }
+
+  targetEl.addEventListener("input", schedulePrepare);
+  presetEl.addEventListener("change", schedulePrepare);
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== frame.contentWindow) return;
+    var data = event.data;
+    if (!data || data.type !== "ares-opened") return;
+    if (data.ok) setStatus("Opened. The address bar of the new tab shows blob:null/…");
+    else if (data.error) setStatus("The tab could not be opened: " + data.error, true);
+    else setStatus("Your browser blocked the tab. Allow pop-ups here, then press the button again.", true);
+  });
+
+  document.getElementById("blank").addEventListener("click", function () {
+    var url = currentTarget();
+    if (!url) { setStatus("Enter a full http(s) address first.", true); return; }
+    var win = window.open("about:blank#ares", "_blank");
+    if (!win) { setStatus("Your browser blocked the tab. Allow pop-ups here and try again.", true); return; }
+    try {
+      win.document.open();
+      win.document.write(shellDocument(url, currentPreset()));
+      win.document.close();
+      setStatus("Opened. The address bar of the new tab shows about:blank#ares.");
+    } catch (error) {
+      setStatus("The browser would not let this page write into the new tab. Use the blob:null button instead.", true);
+    }
+  });
+
+  targetEl.value = liveArcade;
+  prepare();
+})();
+</script>
+</body>
+</html>
