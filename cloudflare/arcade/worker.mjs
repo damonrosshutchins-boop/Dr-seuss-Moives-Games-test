@@ -602,6 +602,25 @@ const buckshotFiles = new Set([
   "buckshot-roulette.png", "buckshot-roulette.audio.worklet.js",
   "buckshot-roulette.audio.position.worklet.js"
 ]);
+
+// PvZ Portable is one WebAssembly engine plus three 20 MiB resource parts. The
+// launcher asks this route for every file so no game byte comes straight from
+// jsDelivr, and the fork is pinned so a new upstream commit cannot change the
+// engine under an already-tested one.
+const pvzCommit = "d564969abc589bb540878d456fa01c8f4cdfcf29";
+const pvzCdn = "https://cdn.jsdelivr.net/gh/linkawaken1979-alt/PvZ-GOTY-on-the-Web@" + pvzCommit + "/";
+const pvzRaw = "https://raw.githubusercontent.com/linkawaken1979-alt/PvZ-GOTY-on-the-Web/" + pvzCommit + "/";
+const pvzRoute = "/approved-games/pvz-portable/";
+const pvzJszip = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+
+function approvedPvzFile(raw) {
+  const file = safeAssetPath(raw || "");
+  if (!file) return null;
+  if (file === "pvz-portable.js" || file === "pvz-portable.wasm" || file === "jszip.min.js") return file;
+  const part = file.match(/^game-files\/game\.zip\.(\d{3})$/);
+  if (part && Number(part[1]) <= 2) return file;
+  return null;
+}
 // Four Unity ports used to pull their builds straight from a third-party CDN.
 // Each mirror below is pinned to one commit and only serves paths inside that
 // commit, so every game file reaches the browser through this Worker.
@@ -904,6 +923,21 @@ async function handleApproved(request, env, url) {
       ? [buckshotRaw + file]
       : [buckshotCdn + file, buckshotRaw + file];
     return fetchPinnedWithFallback(request, sources, { mime: mimeFor(file), cache, timeout: 180000 });
+  }
+
+  if (pathname.startsWith(pvzRoute)) {
+    const file = approvedPvzFile(pathname.slice(pvzRoute.length));
+    if (!file) return textError(404, "Not an approved PvZ Portable file");
+    if (file === "jszip.min.js")
+      return fetchPinned(request, pvzJszip, { mime: mimeFor(file), cache: "public, max-age=86400" });
+    // jsDelivr answers a byte-range request with an empty 206 body, so ranged
+    // reads go straight to GitHub raw, which honours ranges correctly.
+    const sources = request.headers.get("Range")
+      ? [pvzRaw + encodePath(file)]
+      : [pvzCdn + encodePath(file), pvzRaw + encodePath(file)];
+    return fetchPinnedWithFallback(request, sources, {
+      mime: mimeFor(file), cache: "public, max-age=86400, immutable", timeout: 180000
+    });
   }
 
   /* -------------------------------------------------------------- assets --- */
