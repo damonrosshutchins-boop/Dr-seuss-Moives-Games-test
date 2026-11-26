@@ -42,9 +42,10 @@ const entries=rows.map(line=>({
   url:line.match(/url:'([^']+)'/)?.[1],
   local:line.includes("local:true"),
   direct:line.includes("direct:true"),
-  isolated:line.includes("needsIsolation:true")
+  isolated:line.includes("needsIsolation:true"),
+  external:line.includes("external:true")
 }));
-let localCount=0,remoteCount=0,isolatedCount=0,directCount=0;
+let localCount=0,remoteCount=0,isolatedCount=0,directCount=0,externalCount=0;
 for(const entry of entries){
   if(!entry.id||!entry.url){errors.push("Unrecognized catalogue row: "+JSON.stringify(entry));continue;}
   let url;
@@ -64,6 +65,11 @@ for(const entry of entries){
         catch{errors.push(entry.id+": built launcher missing at "+relative);}
       }
     }
+  }else if(entry.external){
+    // A service that refuses framing and owns its sign-in is catalogued as a
+    // link out, so it must never carry a proxied destination.
+    externalCount++;
+    if(url.protocol!=="https:")errors.push(entry.id+": external link must be https");
   }else{
     // Cloudflare-held hosts refuse the relay's TCP sockets, so those approved
     // pages load their pinned URL in the frame instead of through the proxy.
@@ -165,7 +171,7 @@ if(errors.length){
   for(const error of errors)console.error("ROUTING CHECK FAILED:",error);
   process.exitCode=1;
 }else{
-  console.log("Routing audit passed: "+entries.length+" entries ("+localCount+" local, "+remoteCount+" via restricted Wisp, "+directCount+" direct Cloudflare-hosted pages, "+isolatedCount+" same-origin top-level isolation exceptions).");
+  console.log("Routing audit passed: "+entries.length+" entries ("+localCount+" local, "+remoteCount+" via restricted Wisp, "+directCount+" direct Cloudflare-hosted pages, "+externalCount+" links out, "+isolatedCount+" same-origin top-level isolation exceptions).");
   console.log("Every proxied game asset route resolves to the Cloudflare Worker; no Render host remains.");
   if(directCount)console.log(directCount+" entries load their pinned page directly because Cloudflare refuses the relay's sockets to its own addresses, or because the relay mirrors the site itself.");
   console.log("This checks routing and published files, not emulator gameplay or third-party asset availability.");
