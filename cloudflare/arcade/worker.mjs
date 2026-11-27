@@ -2231,7 +2231,9 @@ const SITE_MIRRORS = {
     // The app routes on the client; these are the paths a reload can land on.
     navPaths: ["/movie/", "/tv/", "/person/", "/collection/", "/watch/", "/genre/", "/browse", "/search", "/settings", "/dmca"],
     // Its own art, icons and API calls are built from the origin root.
-    aliases: ["/icon-", "/manifest.json", "/favicon.ico", "/api/"],
+    // Its own art, icons, API calls and the few files its bundle draws at the
+    // origin root are all built from that root, so each is claimed here.
+    aliases: ["/icon-", "/manifest.json", "/favicon.ico", "/apple-touch-icon.png", "/api/", "/burger.js", "/tmdb-logo.svg", "/imdb-logo.svg", "/rottentomatoes-logo.svg"],
     hosts: [],
     // Players, artwork and the catalogue's API are third-party services the
     // page talks to from the browser; the ad networks are stripped above.
@@ -2600,7 +2602,8 @@ export default {
       }
     }
 
-    const nowggSite = nowGgSiteFor(pathname);
+    const refererOwns = !!refererSite && (refererSite.aliases || []).some((prefix) => pathname.startsWith(prefix));
+    const nowggSite = refererOwns ? null : nowGgSiteFor(pathname);
     if (nowggSite) {
       try {
         return withCors(request, await serveNowgg(request, url, nowggSite));
