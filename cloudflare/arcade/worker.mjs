@@ -2185,7 +2185,10 @@ const SITE_MIRRORS = {
     // those prefixes are claimed and moved back inside it. Chunks are requested
     // at the root too, where the referer names this page.
     aliases: ["/img/", "/icon-"],
-    hosts: [],
+    // Its seed and vote APIs answer 403 unless the request carries a movy.sx
+    // referer, which a browser on this origin cannot send; both are proxied so
+    // this worker can set it.
+    hosts: [["https://api.wecollege.net", "/movies/movy/vendor-api"], ["https://backend.movy.sx", "/movies/movy/vendor-backend"]],
     policy: [
       "default-src 'self' data: blob:",
       // The app's own code plus the scripts it pulls in: the player's own
@@ -2194,14 +2197,15 @@ const SITE_MIRRORS = {
       "style-src 'self' 'unsafe-inline'",
       // Art is served through the image proxy and TMDB; some of it comes from
       // the site's own storage bucket.
-      "img-src 'self' data: blob: https://wsrv.nl https://image.tmdb.org https://db.wecollege.net",
+      "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "media-src 'self' blob:",
+      "media-src 'self' blob: https:",
       // Votes answer on the site's backend, comments on its self-hosted API and
       // the player reports usage to its own users host.
-      "connect-src 'self' https://backend.movy.sx https://api.wecollege.net https://vidy.st https://*.vidy.st",
-      // The player and the trailer are framed from their own origins.
-      "frame-src 'self' blob: https://vidy.st https://*.vidy.st https://www.youtube.com https://www.youtube-nocookie.com",
+      "connect-src 'self' https: wss:",
+      // The player, its stream hosts and the trailer are reached by the browser;
+      // the stream CDNs change per title, so media and frames allow https.
+      "frame-src 'self' blob: https:",
       "worker-src 'self' blob:",
       "base-uri 'self'",
       "form-action 'self'",
@@ -2349,7 +2353,7 @@ function siteMirrorScript(site) {
     "for(var i=0;i<M.length;i++){if(u.indexOf(M[i][0])===0)return M[i][1]+u.slice(M[i][0].length);}" +
     "if(u.indexOf(O)===0)return R+u.slice(O.length);" +
     "if(u.charAt(0)!=='/'||u.charAt(1)==='/')return u;" +
-    "if(u.indexOf(R)===0)return u;" +
+    "if(u===R.slice(0,-1)||u.indexOf(R)===0)return u;" +
     "return R.slice(0,-1)+u;}" +
     "var f=window.fetch;if(f)window.fetch=function(a,b){try{if(typeof a==='string')a=t(a);" +
     "else if(a&&a.url){var m=t(a.url);if(m!==a.url)a=new Request(m,a);}}catch(e){}return f.call(this,a,b);};" +
@@ -2358,6 +2362,12 @@ function siteMirrorScript(site) {
     "var W=window.WebSocket;if(W){var N=function(u,p){return p===undefined?new W(t(u)):new W(t(u),p);};" +
     "N.prototype=W.prototype;window.WebSocket=N;}" +
     "var B=navigator.sendBeacon;if(B)navigator.sendBeacon=function(u,d){return B.call(navigator,t(u),d);};" +
+    // The app navigates on the client; without this its pushState puts the URL
+    // back at this worker root, where the next /_next/ chunk request carries a
+    // referer no mirror owns and nothing but a 404 comes back.
+    "var H=window.history;if(H){var hp=H.pushState,hr=H.replaceState;" +
+    "var hw=function(fn){return function(st,ti,u){try{var m=(typeof u==='string')?t(u):(u&&u.href?t(u.href)||u:u);arguments[2]=m;}catch(e){}return fn.apply(this,arguments);};};" +
+    "H.pushState=hw(hp);H.replaceState=hw(hr);}" +
     "})();</script>";
 }
 
@@ -2370,9 +2380,16 @@ async function serveSiteMirror(request, url, site) {
   }
   // Blooket's edge refuses a request without a browser user agent.
   headers.set("user-agent", SITE_MIRROR_UA);
+  // A compressed body is passed through untouched, and this page has to be
+  // rewritten (route shim, CSP, ad tags), so ask the upstream for plain text.
+  headers.set("accept-encoding", "identity");
   // Same-origin checks upstream must see the site's own origin, not this route.
   headers.set("origin", site.origin);
-  headers.set("referer", site.origin + siteMirrorTarget(site, url.pathname));
+  const mirrorTarget = siteMirrorTarget(site, url.pathname);
+  // A host route returns an absolute upstream URL; a referer built from it would
+  // be malformed, so those requests name the site root instead (which is what
+  // its API checks for).
+  headers.set("referer", /^https?:/.test(mirrorTarget) ? site.origin + "/" : site.origin + mirrorTarget);
   if (!headers.has("accept")) headers.set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
   if (!headers.has("accept-language")) headers.set("accept-language", "en-US,en;q=0.9");
   const init = { method: request.method, headers, redirect: "follow", signal: AbortSignal.timeout(45000) };
@@ -2403,6 +2420,10 @@ async function serveSiteMirror(request, url, site) {
     // to carry the route path; same-origin does that and still sends no referer
     // to the ad, art and player hosts the page also talks to.
     out.set("referrer-policy", "same-origin");
+    // The body is rewritten per deploy (the injected shim changes), so a 304
+    // from the upstream ETag would hand the browser its old copy back.
+    out.delete("etag");
+    out.delete("last-modified");
   }
   if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
   if (!textual) return new Response(upstream.body, { status: upstream.status, headers: out });
