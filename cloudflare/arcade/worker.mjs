@@ -2360,6 +2360,11 @@ function siteMirrorScript(site) {
     "function rt(u){if(typeof u!=='string'||!u)return u;" +
     "for(var i=0;i<M.length;i++){if(u.indexOf(M[i][0])===0)return M[i][1]+u.slice(M[i][0].length);}" +
     "if(u.indexOf(O)===0)return R+u.slice(O.length);" +
+    // The auth client builds absolute URLs from location.origin, which is this
+    // worker: without this they name the root and miss the route entirely.
+    "if(u.indexOf(location.origin)===0){var p=u.slice(location.origin.length);" +
+    "if(p===R.slice(0,-1)||p.indexOf(R)===0)return u;" +
+    "return R.slice(0,-1)+p;}" +
     "if(u.charAt(0)!=='/'||u.charAt(1)==='/')return u;" +
     "if(u===R.slice(0,-1)||u.indexOf(R)===0)return u;" +
     "return R.slice(0,-1)+u;}" +
