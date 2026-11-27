@@ -2209,6 +2209,39 @@ const SITE_MIRRORS = {
     ].join("; "),
     ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|cloudflareinsights|adservice|cookieyes|popads|propellerads|onclickads)/i
   },
+  // ShuttleTV is a Next.js film and TV catalogue on its own server, but its
+  // players live on a.cineflix.st and a2.cineflix.st, which sit behind
+  // Cloudflare: the relay's sockets cannot reach those addresses, so the page
+  // loaded through Scramjet and then every player script failed. Mirroring the
+  // site onto this origin takes the page out of the tunnel; the browser reaches
+  // the cineflix hosts, TMDB art and its own API directly.
+  shuttle: {
+    root: "/movies/shuttle",
+    origin: "https://shuttletv.pk",
+    entry: "/",
+    // The app routes on the client; these are the paths a reload can land on.
+    navPaths: ["/movie/", "/tv/", "/person/", "/collection/", "/watch/", "/genre/", "/browse", "/search", "/settings", "/dmca"],
+    // Its own art, icons and API calls are built from the origin root.
+    aliases: ["/icon-", "/manifest.json", "/favicon.ico", "/api/"],
+    hosts: [],
+    // Players, artwork and the catalogue's API are third-party services the
+    // page talks to from the browser; the ad networks are stripped above.
+    policy: [
+      "default-src 'self' data: blob: https:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https:",
+      "style-src 'self' 'unsafe-inline' https:",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data: https:",
+      "media-src 'self' blob: https:",
+      "connect-src 'self' https: wss:",
+      "frame-src 'self' blob: https:",
+      "worker-src 'self' blob:",
+      "base-uri 'self'",
+      "form-action 'self' https:",
+      "object-src 'none'"
+    ].join("; "),
+    ads: /(?:googletagmanager|googlesyndication|doubleclick|google-analytics|cloudflareinsights|adservice|cookieyes|popads|propellerads|onclickads)/i
+  },
   // YouShows is a Next.js film and TV catalogue. Its page, its chunks and its own
   // catalogue API come back through this origin; the TMDB art it renders and the
   // players it embeds are named in the policy, while the ad, consent and metric
