@@ -2189,6 +2189,10 @@ const SITE_MIRRORS = {
     // referer, which a browser on this origin cannot send; both are proxied so
     // this worker can set it.
     hosts: [["https://api.wecollege.net", "/movies/movy/vendor-api"], ["https://backend.movy.sx", "/movies/movy/vendor-backend"]],
+    // The playlists this site hands out are signed for whoever asked for them
+    // and its CDN answers 403 to everyone else, so playback is fetched through
+    // this route instead of by the browser.
+    stream: "/movies/movy/stream",
     policy: [
       "default-src 'self' data: blob:",
       // The app's own code plus the scripts it pulls in: the player's own
@@ -2197,15 +2201,16 @@ const SITE_MIRRORS = {
       "style-src 'self' 'unsafe-inline'",
       // Art is served through the image proxy and TMDB; some of it comes from
       // the site's own storage bucket.
-      "img-src 'self' data: blob: https:",
+      "img-src 'self' data: blob: https://wsrv.nl https://image.tmdb.org https://db.wecollege.net",
       "font-src 'self' data:",
-      "media-src 'self' blob: https:",
+      // Playlists and segments are fetched through this route, so the element
+      // only ever sees this origin and its own blobs.
+      "media-src 'self' blob:",
       // Votes answer on the site's backend, comments on its self-hosted API and
       // the player reports usage to its own users host.
-      "connect-src 'self' https: wss:",
-      // The player, its stream hosts and the trailer are reached by the browser;
-      // the stream CDNs change per title, so media and frames allow https.
-      "frame-src 'self' blob: https:",
+      "connect-src 'self' https://backend.movy.sx https://api.wecollege.net https://vidy.st https://*.vidy.st",
+      // The player and the trailer are framed from their own origins.
+      "frame-src 'self' blob: https://vidy.st https://*.vidy.st https://www.youtube.com https://www.youtube-nocookie.com",
       "worker-src 'self' blob:",
       "base-uri 'self'",
       "form-action 'self'",
@@ -2347,14 +2352,22 @@ function siteMirrorScript(site) {
   const route = site.root + "/";
   const hosts = JSON.stringify(site.hosts);
   const origin = JSON.stringify(site.origin + "/");
+  const stream = site.stream ? JSON.stringify(site.stream) : "null";
   return "<script>(function(){" +
-    "var R=" + JSON.stringify(route) + ",M=" + hosts + ",O=" + origin + ";" +
-    "function t(u){if(typeof u!=='string'||!u)return u;" +
+    "var R=" + JSON.stringify(route) + ",M=" + hosts + ",O=" + origin + ",S=" + stream + ";" +
+    "function rt(u){if(typeof u!=='string'||!u)return u;" +
     "for(var i=0;i<M.length;i++){if(u.indexOf(M[i][0])===0)return M[i][1]+u.slice(M[i][0].length);}" +
     "if(u.indexOf(O)===0)return R+u.slice(O.length);" +
     "if(u.charAt(0)!=='/'||u.charAt(1)==='/')return u;" +
     "if(u===R.slice(0,-1)||u.indexOf(R)===0)return u;" +
     "return R.slice(0,-1)+u;}" +
+    "function s(u){if(!S||typeof u!=='string')return u;" +
+    "if(u.indexOf(S)===0)return u;" +
+    "if(u.indexOf(location.origin+S)===0)return u;" +
+    "if(!/^https?:/i.test(u))return u;" +
+    "if(!/\\.(m3u8|mp4|vtt|ts|m4s|aac|ac3|key)([?#]|$)/i.test(u))return u;" +
+    "return S+'?u='+encodeURIComponent(u);}" +
+    "function t(u){return s(rt(u));}" +
     "var f=window.fetch;if(f)window.fetch=function(a,b){try{if(typeof a==='string')a=t(a);" +
     "else if(a&&a.url){var m=t(a.url);if(m!==a.url)a=new Request(m,a);}}catch(e){}return f.call(this,a,b);};" +
     "var x=window.XMLHttpRequest&&XMLHttpRequest.prototype.open;" +
@@ -2368,11 +2381,90 @@ function siteMirrorScript(site) {
     "var H=window.history;if(H){var hp=H.pushState,hr=H.replaceState;" +
     "var hw=function(fn){return function(st,ti,u){try{var m=(typeof u==='string')?t(u):(u&&u.href?t(u.href)||u:u);arguments[2]=m;}catch(e){}return fn.apply(this,arguments);};};" +
     "H.pushState=hw(hp);H.replaceState=hw(hr);}" +
+    "var V=window.HTMLMediaElement&&Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'src');" +
+    "if(V&&V.set)Object.defineProperty(HTMLMediaElement.prototype,'src',{get:V.get,set:function(v){try{arguments[0]=t(v);}catch(e){}return V.set.apply(this,arguments);}});" +
     "})();</script>";
+}
+
+// A stream is fetched here, not by the browser: the playlist and every segment
+// in it are signed for the address that asked, so each URI in the manifest is
+// pointed back at this route and the player never leaves this origin.
+function mirrorStreamUrl(site, target) {
+  return site.stream + "?u=" + encodeURIComponent(target);
+}
+
+function siteMirrorPlaylist(text, base, site) {
+  const wrap = (uri) => {
+    try {
+      return mirrorStreamUrl(site, new URL(uri, base).toString());
+    } catch {
+      return uri;
+    }
+  };
+  return text
+    .split(/\r?\n/)
+    .map((line) => {
+      const value = line.trim();
+      if (!value) return line;
+      if (value.charAt(0) === "#") return line.replace(/URI="([^"]*)"/g, (match, uri) => 'URI="' + wrap(uri) + '"');
+      return wrap(value);
+    })
+    .join("\n");
+}
+
+async function serveMirrorStream(request, url, site) {
+  const raw = url.searchParams.get("u");
+  if (!raw) return textError(400, "A stream address is required");
+  let target;
+  try {
+    target = new URL(raw);
+  } catch {
+    return textError(400, "That stream address is malformed");
+  }
+  if (target.protocol !== "https:") return textError(400, "Only https streams are proxied");
+  if (isPrivateHost(target.hostname)) return textError(403, "That stream host is not available");
+  if (target.origin === url.origin) return textError(400, "That address is this origin");
+  const headers = new Headers();
+  headers.set("user-agent", SITE_MIRROR_UA);
+  headers.set("accept", "*/*");
+  headers.set("accept-language", "en-US,en;q=0.9");
+  headers.set("referer", site.origin + "/");
+  headers.set("origin", site.origin);
+  const range = request.headers.get("range");
+  if (range) headers.set("range", range);
+  let upstream;
+  try {
+    upstream = await fetch(target.toString(), { headers, redirect: "follow", signal: AbortSignal.timeout(60000) });
+  } catch (error) {
+    console.warn("mirror stream failed", site.root, target.host, String(error));
+    return textError(502, "That stream could not be reached");
+  }
+  const out = new Headers();
+  out.set("cache-control", "no-store");
+  out.set("x-content-type-options", "nosniff");
+  const type = (upstream.headers.get("content-type") || "").toLowerCase();
+  if (type) out.set("content-type", type);
+  if (request.method === "HEAD") return new Response(null, { status: upstream.status, headers: out });
+  if (type.includes("mpegurl") || /\.m3u8$/i.test(target.pathname)) {
+    let text;
+    try {
+      text = await upstream.text();
+    } catch (error) {
+      return textError(502, "That playlist could not be read");
+    }
+    out.set("content-type", "application/vnd.apple.mpegurl");
+    return new Response(siteMirrorPlaylist(text, target.toString(), site), { status: upstream.status, headers: out });
+  }
+  for (const name of ["content-range", "accept-ranges", "content-length"]) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  return new Response(upstream.body, { status: upstream.status, headers: out });
 }
 
 async function serveSiteMirror(request, url, site) {
   if (request.method === "OPTIONS") return preflight(request);
+  if (site.stream && url.pathname === site.stream) return serveMirrorStream(request, url, site);
   const target = siteMirrorTarget(site, url.pathname) + url.search;
   const headers = new Headers();
   for (const [name, value] of request.headers) {
