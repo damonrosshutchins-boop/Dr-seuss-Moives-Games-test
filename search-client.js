@@ -6,6 +6,23 @@ import { politeTransport } from "./proxy-politeness.js";
 import { EpoxyFirstTransport } from "./proxy-fallback.js";
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
+// Keep in sync with package.json and sw.js. Versioned runtime URLs make a
+// returning visitor fetch the matching Scramjet build instead of a cached one.
+const RUNTIME_VERSION = "2.1.0";
+const runtime = path => asset(path) + "?v=" + RUNTIME_VERSION;
+// A freshly updated worker has no frame routes until this page reloads. Bind
+// the page to the worker build it is actually running, once per version.
+function reloadOnWorkerUpdate() {
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    try {
+      if (sessionStorage.getItem("seuss-worker-runtime") === RUNTIME_VERSION) return;
+      sessionStorage.setItem("seuss-worker-runtime", RUNTIME_VERSION);
+    } catch { return; }
+    location.reload();
+  }, { once: true });
+}
+reloadOnWorkerUpdate();
 // Relay choice lives in localStorage so Settings can switch between the default
 // Cloudflare relay and any custom endpoint.
 const ARCADE_ENDPOINT = "wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/";
@@ -254,10 +271,10 @@ async function createController(onStage) {
   report("Loading relay scripts…", onStage);
   // controller.api.js and the utils hang off the namespace scramjet.js creates,
   // so that one still goes first; the other two only need it, not each other.
-  await loadScript(asset("scram/scramjet.js"));
+  await loadScript(runtime("scram/scramjet.js"));
   await Promise.all([
-    asset("controller/controller.api.js"),
-    asset("utils/scramjet-utils.js")
+    runtime("controller/controller.api.js"),
+    runtime("utils/scramjet-utils.js")
   ].map(loadScript));
 
   if (typeof window.$scramjetController?.Controller !== "function") {
@@ -282,9 +299,9 @@ async function createController(onStage) {
     serviceworker: worker,
     transport,
     config: {
-      scramjetPath: asset("scram/scramjet.js"),
-      wasmPath: asset("scram/scramjet.wasm"),
-      injectPath: asset("controller/controller.inject.js"),
+      scramjetPath: runtime("scram/scramjet.js"),
+      wasmPath: runtime("scram/scramjet.wasm"),
+      injectPath: runtime("controller/controller.inject.js"),
       prefix: base + "scramjet/"
     }
   });

@@ -2,7 +2,10 @@
 // Never let a missing or broken dependency abort service-worker installation.
 (() => {
   const root = new URL("./", self.location.href);
-  const controllerUrl = new URL("controller/controller.sw.js", root).href;
+  // Keep in sync with package.json and the page clients. Changing this import
+  // makes the browser install a worker that matches the new Scramjet runtime.
+  const RUNTIME_VERSION = "2.1.0";
+  const controllerUrl = new URL("controller/controller.sw.js?v=" + RUNTIME_VERSION, root).href;
   let controllerLoaded = false;
   let loadFailure = null;
   try {

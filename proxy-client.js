@@ -8,6 +8,23 @@ let currentStage = "Not started";
 const progressListeners = new Set();
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
+// Keep in sync with package.json and sw.js. Versioned runtime URLs make a
+// returning visitor fetch the matching Scramjet build instead of a cached one.
+const RUNTIME_VERSION = "2.1.0";
+const runtime = path => asset(path) + "?v=" + RUNTIME_VERSION;
+// A freshly updated worker has no frame routes until this page reloads. Bind
+// the page to the worker build it is actually running, once per version.
+function reloadOnWorkerUpdate() {
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    try {
+      if (sessionStorage.getItem("seuss-worker-runtime") === RUNTIME_VERSION) return;
+      sessionStorage.setItem("seuss-worker-runtime", RUNTIME_VERSION);
+    } catch { return; }
+    location.reload();
+  }, { once: true });
+}
+reloadOnWorkerUpdate();
 const allowed = new Set(["cdn.jsdelivr.net", "game.azgame.io", "nostaligafun.pages.dev", "wasm.rip", "shuttletv.pk", "raw.githack.com", "ripjaw1219.github.io", "c00lkiddtech.github.io", "mollomm1.github.io", "sagaofowlz.github.io", "stg420.github.io", "projection-studios.dogeeats531.workers.dev", "2v2.io", "gd-webport.pages.dev", "seuss-arcade-games.surge.sh", "seuss-centipede.surge.sh", "seuss-games-a1.surge.sh", "seuss-games-a2.surge.sh", "seuss-games-a3.surge.sh", "seuss-games-a5.surge.sh", "seuss-bergentruck.surge.sh", "seuss-games-a6.surge.sh", "damonrosshutchins-boop.github.io", "seuss-arcade-relay.damonrosshutchins.workers.dev", "seuss-pvz-fusion.surge.sh", "seuss-pvz-data-b.surge.sh", "seuss-pvz-data-a.surge.sh", "seuss-gorilla-tag.surge.sh", "seuss-vice-city.surge.sh", "teaserlua.github.io", "m1stermo.github.io"]);
 // Exact entry points on shared hosting domains prevent arbitrary navigation.
 const gameEntries = new Set(["https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/nowgg/","https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/kahoot/","https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/blooket/","https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/2v2/",,"https://seuss-games-a1.surge.sh/milkman-karlson/index.html","https://seuss-games-a1.surge.sh/minesweeperplus/index.html","https://seuss-games-a2.surge.sh/baldi-remaster/index.html","https://seuss-games-a3.surge.sh/speed-stars/index.html","https://seuss-games-a5.surge.sh/the-man-in-the-window/index.html","https://seuss-bergentruck.surge.sh/index.html","https://cdn.jsdelivr.net/gh/3cfl/balatro-webport@7255b72aaae4b572d171a8ff24ace071aa02f3f7/balatro.html","https://seuss-arcade-relay.damonrosshutchins.workers.dev/", "https://game.azgame.io/wacky-flip/", "https://nostaligafun.pages.dev/games/games-accualy/GC/PaperMarioTheThousandYearDoor_Data/index.html", "https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/toby/","https://gd-webport.pages.dev/","https://ripjaw1219.github.io/super-mario-64-javascript/start.html","https://c00lkiddtech.github.io/md-/","https://mollomm1.github.io/test/","https://sagaofowlz.github.io/hmm/","https://stg420.github.io/ultrakill/","https://raw.githack.com/web-ports/fish/main/index.html", "https://seuss-pvz-fusion.surge.sh/", "https://seuss-gorilla-tag.surge.sh/", "https://seuss-vice-city.surge.sh/", "https://teaserlua.github.io/GangBeast-WebPort/index.html","https://m1stermo.github.io/gta2/", "https://projection-studios.dogeeats531.workers.dev/", "https://seuss-arcade-relay.damonrosshutchins.workers.dev/movies/projection/","https://seuss-arcade-relay.damonrosshutchins.workers.dev/movies/movy/", "https://seuss-arcade-relay.damonrosshutchins.workers.dev/movies/shuttle/", "https://seuss-arcade-relay.damonrosshutchins.workers.dev/movies/youshows/", "https://seuss-arcade-relay.damonrosshutchins.workers.dev/approved-games/needle/", "https://seuss-arcade-games.surge.sh/cheese/index.html", "https://seuss-arcade-games.surge.sh/run2/index.html", "https://seuss-arcade-games.surge.sh/balatro/index.html", "https://damonrosshutchins-boop.github.io/centipede-mirror/centipede/index.html", "https://damonrosshutchins-boop.github.io/centipede-mirror/games/karlson/index.html", "https://damonrosshutchins-boop.github.io/centipede-mirror/games/happy-sheepies/index.html", "https://damonrosshutchins-boop.github.io/centipede-mirror/games/sonic-exe/index.html", "https://damonrosshutchins-boop.github.io/centipede-mirror/games/slender/index.html", "https://damonrosshutchins-boop.github.io/centipede-mirror/games/tattletail/index.html", "https://damonrosshutchins-boop.github.io/centipede-mirror/games/jelly-drift/index.html", "https://damonrosshutchins-boop.github.io/deltatraveler-mirror/index.html", "https://damonrosshutchins-boop.github.io/undertale-yellow-mirror/index.html", "https://damonrosshutchins-boop.github.io/thats-not-my-neighbor-mirror/index.html", "https://damonrosshutchins-boop.github.io/donottakethiscathome-mirror/index.html", "https://damonrosshutchins-boop.github.io/dead-plate-mirror/index.html", "https://seuss-arcade-games.surge.sh/centipede/index.html","https://seuss-centipede.surge.sh/index.html","https://seuss-centipede.surge.sh/index.html?autostart=1", "https://damonrosshutchins-boop.github.io/Geometry-Dash-webport/"]);
@@ -141,9 +158,9 @@ async function createController(onProgress) {
 
   report("Loading player scripts…", onProgress);
   for (const src of [
-    asset("scram/scramjet.js"),
-    asset("controller/controller.api.js"),
-    asset("utils/scramjet-utils.js")
+    runtime("scram/scramjet.js"),
+    runtime("controller/controller.api.js"),
+    runtime("utils/scramjet-utils.js")
   ]) await loadScript(src);
 
   if (typeof window.$scramjetController?.Controller !== "function") {
@@ -164,9 +181,9 @@ async function createController(onProgress) {
     serviceworker: worker,
     transport,
     config: {
-      scramjetPath: asset("scram/scramjet.js"),
-      wasmPath: asset("scram/scramjet.wasm"),
-      injectPath: asset("controller/controller.inject.js"),
+      scramjetPath: runtime("scram/scramjet.js"),
+      wasmPath: runtime("scram/scramjet.wasm"),
+      injectPath: runtime("controller/controller.inject.js"),
       prefix: base + "scramjet/"
     }
   });
