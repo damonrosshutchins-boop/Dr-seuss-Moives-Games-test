@@ -269,13 +269,13 @@ async function createController(onStage) {
   keepWorkerWarm(worker);
 
   report("Loading relay scripts…", onStage);
-  // controller.api.js and the utils hang off the namespace scramjet.js creates,
-  // so that one still goes first; the other two only need it, not each other.
+  // Each of these hangs off the namespace the previous one creates: scramjet.js
+  // defines the globals, controller.api.js fills in $scramjetController, and the
+  // utils read that controller at load time. Loading them in parallel races, so
+  // run them one at a time in this order.
   await loadScript(runtime("scram/scramjet.js"));
-  await Promise.all([
-    runtime("controller/controller.api.js"),
-    runtime("utils/scramjet-utils.js")
-  ].map(loadScript));
+  await loadScript(runtime("controller/controller.api.js"));
+  await loadScript(runtime("utils/scramjet-utils.js"));
 
   if (typeof window.$scramjetController?.Controller !== "function") {
     throw new Error("Scramjet controller did not initialize. Check the browser console.");
