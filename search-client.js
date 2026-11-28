@@ -3,6 +3,7 @@
 // The curated player (proxy-client.js) keeps its own allowlist for games.
 import { browserLikeTransport } from "./proxy-headers.js";
 import { politeTransport } from "./proxy-politeness.js";
+import { EpoxyFirstTransport } from "./proxy-fallback.js";
 const base = new URL("./", import.meta.url).pathname;
 const asset = path => base + path;
 // Relay choice lives in localStorage so Settings can switch between the default
@@ -214,6 +215,28 @@ function checkWorker(worker) {
   }), "Service-worker controller handshake", 5000);
 }
 
+// Epoxy is a purpose-built Rust/WASM TLS stack. It initialises faster than
+// libcurl, but it is pickier about unusual servers, so it goes first and
+// libcurl (built only when needed) catches anything it cannot finish.
+async function makeEpoxy() {
+  const module = await timeout(import(asset("epoxy/index.mjs")), "Loading Epoxy transport module");
+  const EpoxyClient = module.default;
+  if (typeof EpoxyClient !== "function") throw new Error("Epoxy transport module did not export a client.");
+  const transport = new (politeTransport(browserLikeTransport(EpoxyClient)))({ wisp: endpoint });
+  await timeout(transport.init(), "Starting Epoxy transport", 20000);
+  return transport;
+}
+// libcurl keeps a 40-entry connection cache and only 6 sockets per host, which
+// serialises asset-heavy pages: a search results page pulls dozens of files
+// from a single host. The middle figure keeps more sockets open than the 6 a
+// browser uses, without the 120-wide burst a destination sees as hammering.
+async function makeLibcurl() {
+  const module = await timeout(import(asset("libcurl/index.mjs")), "Loading libcurl transport module");
+  const LibcurlClient = module.default;
+  if (typeof LibcurlClient !== "function") throw new Error("Libcurl transport module did not export a client.");
+  return new (politeTransport(browserLikeTransport(LibcurlClient)))({ wisp: endpoint, connections: [64, 48, 8] });
+}
+
 async function createController(onStage) {
   report("Registering service worker…", onStage);
   const registration = await timeout(
@@ -242,17 +265,22 @@ async function createController(onStage) {
   }
 
   report("Connecting to the Cloudflare relay…", onStage);
-  const module = await timeout(import(asset("libcurl/index.mjs")), "Loading transport module");
-  const LibcurlClient = module.default;
-  if (typeof LibcurlClient !== "function") throw new Error("Libcurl transport module did not export a client.");
-  // libcurl defaults to 50 connections, a 40-entry connection cache and only
-  // 6 sockets per host, which serialises asset-heavy pages: a search results
-  // page pulls dozens of files from a single host. The middle figure keeps more
-  // sockets open than the 6 a browser uses, without the 120-wide burst that a
-  // destination sees as one machine hammering it.
+  // Hand the Controller an Epoxy-first transport. If Epoxy cannot load or start,
+  // the catch builds libcurl instead, so a missing Epoxy runtime never blocks a
+  // search. If Epoxy starts but a later request fails, the wrapper switches.
+  let transport;
+  try {
+    transport = new EpoxyFirstTransport(await makeEpoxy(), makeLibcurl);
+    console.info("[Seuss search] Transport: Epoxy (libcurl on failure)");
+  } catch (error) {
+    console.warn("[Seuss search] Epoxy unavailable; using libcurl.", error);
+    report("Epoxy unavailable · using libcurl…", onStage);
+    transport = await makeLibcurl();
+    console.info("[Seuss search] Transport: libcurl");
+  }
   const instance = new window.$scramjetController.Controller({
     serviceworker: worker,
-    transport: new (politeTransport(browserLikeTransport(LibcurlClient)))({ wisp: endpoint, connections: [64, 48, 8] }),
+    transport,
     config: {
       scramjetPath: asset("scram/scramjet.js"),
       wasmPath: asset("scram/scramjet.wasm"),
@@ -318,8 +346,8 @@ export function preconnectRelay() {
     if (!document.querySelector('link[data-seuss-transport]')) {
       const module = document.createElement("link");
       module.rel = "modulepreload";
-      module.href = asset("libcurl/index.mjs");
-      module.dataset.seussTransport = "1";
+      module.href = asset("epoxy/index.mjs");
+      module.dataset.seussTransport = "epoxy";
       document.head.append(module);
     }
   } catch { /* hints are optional */ }

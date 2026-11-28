@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://seuss-arcade-relay.damonrosshutchins.workers.dev" crossorigin="anonymous">
 <link rel="dns-prefetch" href="https://seuss-arcade-relay.damonrosshutchins.workers.dev">
 <link rel="preload" as="script" href="scram/scramjet.js">
-<link rel="modulepreload" href="libcurl/index.mjs">
+<link rel="modulepreload" href="epoxy/index.mjs">
 <link rel="stylesheet" href="./arctic-tokens.css">
 <script src="./blob-cloak.js"></script><script src="./cloak.js"></script>
 <style>
@@ -452,7 +452,7 @@
 <script type="module">
 // The ?v= keeps returning visitors off a cached copy of the client, so a new
 // search endpoint or transport change reaches them on the next load.
-import { browse, resolveTarget, relayEndpoint, relayHttpOrigin, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=9";
+import { browse, resolveTarget, relayEndpoint, relayHttpOrigin, readRelay, writeRelay, relayLabel, measureRelaySpeed, measureRelayPings, primeRelay } from "./search-client.js?v=10";
 
 const $ = id => document.getElementById(id);
 const hero = $("hero"), view = $("view"), frame = $("frame"), err = $("err");

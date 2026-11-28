@@ -10,7 +10,7 @@ GitHub Actions builds the browser assets into `dist/` and deploys them to GitHub
 2. Check **Actions → Deploy Cinema Arcade to GitHub Pages** to see build/deploy results.
 3. Visit https://damonrosshutchins-boop.github.io/Dr-seuss-Moives-Games-test/
 
-The static site serves the Scramjet worker under the GitHub Pages repository path. Its Libcurl transport connects to the separately hosted Cloudflare endpoint:
+The static site serves the Scramjet worker under the GitHub Pages repository path. Its Epoxy transport connects to the separately hosted Cloudflare endpoint, with libcurl as a lazy fallback if Epoxy cannot complete a request:
 `wss://seuss-arcade-relay.damonrosshutchins.workers.dev/wisp/`.
 
 GitHub Pages cannot run a Wisp server or stream game files, so proxied pages and every pinned game route depend on the Cloudflare Worker below. Existing origin checks and destination restrictions are enforced inside the Worker.

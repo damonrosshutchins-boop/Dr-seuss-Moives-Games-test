@@ -1234,7 +1234,7 @@ app.use("/controller/",express.static(dirOf("@mercuryworkshop/scramjet-controlle
 app.use("/libcurl/",express.static(dirOf("@mercuryworkshop/libcurl-transport")));
 app.use("/epoxy/",express.static(dirOf("@mercuryworkshop/epoxy-transport")));
 // Publish only the frontend entrypoints, not server source or configuration files.
-for (const file of ["index.html","proxy-client.js","sw.js","calls.js","calls.css","seuss-search.html","search-client.js"]) {
+for (const file of ["index.html","library.js","proxy-client.js","proxy-headers.js","proxy-politeness.js","proxy-fallback.js","sw.js","calls.js","calls.css","glass.css","arctic-tokens.css","arctic.css","cloak.js","blob-cloak.js","seuss-search.html","search-client.js"]) {
  const route=file==="index.html"?"/":"/"+file;
  app.get(route,(req,res)=>res.sendFile(path.join(process.cwd(),file),{
   headers:{"Cache-Control":file==="index.html"?"no-cache":"no-store"}
@@ -1251,4 +1251,5 @@ server.on("upgrade",(req,socket,head)=>{
  }catch{socket.destroy();}
 });
 const port=Number(process.env.PORT||10000);
-server.listen(port,"0.0.0.0",()=>console.log("Seuss Scramjet/Wisp listening on "+port));
+const host=process.env.HOST||"0.0.0.0";
+server.listen(port,host,()=>console.log("Seuss Scramjet/Wisp listening on "+host+":"+port));

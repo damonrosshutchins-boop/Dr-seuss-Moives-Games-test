@@ -36,7 +36,7 @@ async function copyRuntime(name,root,entry){
 }
 await fs.rm(out,{recursive:true,force:true});
 await fs.mkdir(out,{recursive:true});
-for(const file of ["index.html","library.js","proxy-client.js","proxy-headers.js","proxy-politeness.js","sw.js","calls.js","calls.css","glass.css","arctic-tokens.css","arctic.css","cloak.js","seuss-search.html","search-client.js","ares.html","blob-cloak.js"])
+for(const file of ["index.html","library.js","proxy-client.js","proxy-headers.js","proxy-politeness.js","proxy-fallback.js","sw.js","calls.js","calls.css","glass.css","arctic-tokens.css","arctic.css","cloak.js","seuss-search.html","search-client.js","ares.html","blob-cloak.js"])
  await fs.copyFile(file,path.join(out,file));
 // Disguise artwork is Google's own product icon set, kept local so the tab icon
 // and the pickers work offline and from any page depth.
@@ -150,7 +150,8 @@ await copyRuntime("scram",scramjetPath,"scramjet.js");
 await copyRuntime("controller",pkgDir("@mercuryworkshop/scramjet-controller"),"controller.api.js");
 await copyRuntime("utils",pkgDir("@mercuryworkshop/scramjet-utils"),"scramjet-utils.js");
 await copyRuntime("libcurl",pkgDir("@mercuryworkshop/libcurl-transport"),"index.mjs");
-for(const file of ["scram/scramjet.js","scram/scramjet.wasm","controller/controller.sw.js","controller/controller.api.js","controller/controller.inject.js","utils/scramjet-utils.js","libcurl/index.mjs"]){
+await copyRuntime("epoxy",pkgDir("@mercuryworkshop/epoxy-transport"),"index.mjs");
+for(const file of ["scram/scramjet.js","scram/scramjet.wasm","controller/controller.sw.js","controller/controller.api.js","controller/controller.inject.js","utils/scramjet-utils.js","libcurl/index.mjs","epoxy/index.mjs"]){
  const target=path.join(out,file);
  if(!await exists(target))throw new Error("Pages build missing mandatory browser asset: "+file);
  const size=(await fs.stat(target)).size;
