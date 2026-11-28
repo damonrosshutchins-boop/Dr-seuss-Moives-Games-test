@@ -116,6 +116,10 @@ for(const slug of ["balatro","happywheels","dispatch"]){
   await fs.mkdir(path.join(out,"games",slug),{recursive:true});
   await fs.copyFile(path.join("games",slug,"index.html"),path.join(out,"games",slug,"index.html"));
 }
+// Grand-V publishes only its setup page. The GTA V data is served by the native
+// launcher the player runs on their own machine, so nothing else is copied here.
+await fs.mkdir(path.join(out,"games","grand-v"),{recursive:true});
+await fs.copyFile(path.join("games","grand-v","index.html"),path.join(out,"games","grand-v","index.html"));
 
 
 

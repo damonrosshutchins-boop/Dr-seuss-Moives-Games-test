@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grand-V (GTA V Web) — Seuss Arcade</title>
+<!-- Grand-V is a reverse-engineered GTA V engine for the browser, but its
+     repository ships only the native launcher: the game files come from the
+     player's own GTA V install and are served by that launcher on localhost.
+     Nothing here can be hosted or framed, so this page only sets up the handoff.
+     It must open in a top-level tab: the launcher answers with COOP/COEP so the
+     engine's shared-memory workers can start, and an iframe cannot become
+     cross-origin isolated inside the arcade. -->
+<style>
+  :root{color-scheme:dark;--ink:#e9efe2;--muted:#9aa88f;--line:#2c3a25;--lime:#b7e04a;--panel:#121a10}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:radial-gradient(120% 90% at 50% -20%,#26331b 0%,#0b120a 60%,#070b06 100%);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:760px;margin:0 auto;padding:36px 20px 64px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .mark{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(140deg,#2e4415,#7fae2a);box-shadow:0 6px 24px #0006}
+  .brand b{display:block;font-size:19px;letter-spacing:.14em}
+  .brand small{color:var(--muted);font-size:12px;letter-spacing:.18em}
+  a{color:var(--lime)}
+  .back{font-size:13px;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:7px 14px;color:var(--muted)}
+  .back:hover{color:var(--ink);border-color:#47593c}
+  h1{font-size:clamp(26px,4vw,34px);line-height:1.15;margin:30px 0 10px}
+  .lede{color:var(--muted);margin:0 0 26px;max-width:60ch}
+  .panel{background:linear-gradient(180deg,rgba(24,34,18,.92),var(--panel));border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:18px}
+  ol.steps{margin:0;padding-left:20px;color:#cfdac4}
+  ol.steps li{margin:0 0 10px}
+  ol.steps b{color:var(--ink)}
+  .field{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+  label.big{display:block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  input[type=text]{flex:1 1 240px;min-width:0;background:#0a1008;color:var(--ink);border:1px solid #38492e;border-radius:10px;padding:12px 14px;font:15px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace}
+  input[type=text]:focus{outline:2px solid #6f9c2c;outline-offset:1px}
+  button{font:600 15px/1 system-ui,sans-serif;border-radius:10px;padding:13px 20px;cursor:pointer;border:1px solid transparent}
+  button.primary{background:linear-gradient(140deg,#b7e04a,#7fae2a);color:#101a06}
+  button.primary:hover{filter:brightness(1.08)}
+  .hint{color:var(--muted);font-size:13px;margin:10px 0 0}
+  #status{margin:16px 0 0;font-size:14px;min-height:22px;color:var(--muted)}
+  #status.ok{color:#b7e04a}
+  #status.warn{color:#f0c877}
+  #status.bad{color:#ff8f7a}
+  ul.notes{margin:0;padding-left:20px;color:var(--muted);font-size:14px}
+  ul.notes li{margin-bottom:8px}
+  .links{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .links a{font-size:14px;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:8px 14px}
+  .links a:hover{border-color:#47593c;background:#18220f}
+  footer{color:#6f7d66;font-size:12px;margin-top:26px;border-top:1px solid #1d2718;padding-top:16px}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">🚙</div>
+      <div><b>GRAND-V</b><small>GTA V · BROWSER ENGINE</small></div>
+    </div>
+    <a class="back" href="../../index.html#library">← Seuss Arcade</a>
+  </div>
+
+  <h1>GTA V, served from your own PC</h1>
+  <p class="lede">Grand-V is a reverse-engineered GTA V engine compiled to WebAssembly with WebGPU.
+    Its repository ships the native launcher, not the game: the launcher reads your own GTA V
+    files and serves them on this computer. Start it, then open it here.</p>
+
+  <section class="panel">
+    <label class="big" for="target">Launcher port or shared game link</label>
+    <div class="field">
+      <input id="target" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"
+             value="8000" aria-describedby="targetHint">
+      <button id="open" class="primary" type="button">Open Grand-V</button>
+    </div>
+    <p id="targetHint" class="hint">A bare port means <code>http://localhost:PORT/launcher.html</code>.
+      Paste a full <code>https://…trycloudflare.com/launcher.html</code> link to join someone else's host.</p>
+    <p id="status" role="status" aria-live="polite">Checking for a launcher on port 8000…</p>
+  </section>
+
+  <section class="panel">
+    <label class="big">If it isn't running yet</label>
+    <ol class="steps">
+      <li><b>Get the launcher.</b> Download <code>$GrandV back-end host</code> for Windows, macOS or Linux from the
+        <a href="https://github.com/SebasKitten/Grand-V/releases" target="_blank" rel="noopener noreferrer">project releases</a>
+        (or build it from <code>LauncherApp/rust</code>).</li>
+      <li><b>Point it at your game.</b> Put the launcher beside your <code>playgta5-offline</code> folder or pick the
+        folder in the launcher. Grand-V does not include GTA V data — use a copy you own.</li>
+      <li><b>Start hosting.</b> Choose <b>This PC</b> and press <b>Start &amp; open game</b>. The default port is
+        <b>8000</b>; if you changed it, enter that port above.</li>
+      <li><b>Open it from here.</b> This page checks the port and hands the tab to the launcher.</li>
+    </ol>
+    <div class="links">
+      <a href="https://github.com/SebasKitten/Grand-V" target="_blank" rel="noopener noreferrer">Repository</a>
+      <a href="https://github.com/SebasKitten/Grand-V/blob/main/LauncherApp/rust/README.md" target="_blank" rel="noopener noreferrer">Launcher guide</a>
+      <a href="https://github.com/SebasKitten/Grand-V/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+    </div>
+  </section>
+
+  <section class="panel">
+    <label class="big">Why this opens outside the player</label>
+    <ul class="notes">
+      <li>The engine uses WebGPU, WebAssembly <code>memory64</code> and shared-memory workers. The launcher sends
+        COOP/COEP headers so the page becomes cross-origin isolated; an iframe inside the arcade cannot, so the game
+        needs its own top-level tab.</li>
+      <li>Use current Chrome or Edge on desktop with hardware acceleration. Mobile support is experimental.</li>
+      <li>Nothing is proxied or re-hosted: the tab talks straight to <code>localhost</code> on your machine.</li>
+    </ul>
+  </section>
+
+  <footer>Grand-V by SebasKitten. GTA V and all related assets belong to Rockstar Games and Take-Two
+    Interactive; this arcade ships no game data and only launches a host you run yourself.</footer>
+</main>
+<script>
+(function(){
+  var DEFAULT_PORT = "8000";
+  var field = document.getElementById("target");
+  var button = document.getElementById("open");
+  var status = document.getElementById("status");
+  var probeToken = 0;
+
+  function setStatus(text, tone){
+    status.textContent = text;
+    status.className = tone || "";
+  }
+
+  function resolveTarget(raw){
+    var value = String(raw || "").trim();
+    if(!value) throw new Error("Enter the launcher port or a shared game link.");
+    if(/^\d+$/.test(value)){
+      var port = Number(value);
+      if(port < 1 || port > 65535) throw new Error("Ports run from 1 to 65535.");
+      return "http://localhost:" + port + "/launcher.html";
+    }
+    var url;
+    try{ url = new URL(value); }
+    catch(error){ throw new Error("That is not a port or a full http(s) link."); }
+    if(url.protocol !== "http:" && url.protocol !== "https:")
+      throw new Error("Only http and https links can be opened.");
+    return url.href;
+  }
+
+  function remember(){
+    try{ localStorage.setItem("seuss-grandv-target", field.value.trim()); }catch(error){}
+  }
+
+  // A loopback probe can only say whether something answered. Chrome may block
+  // the request outright when this page is served from the public arcade origin,
+  // so a failure is reported as "not detected" and the Open button still works.
+  function probe(){
+    var token = ++probeToken;
+    var href;
+    try{ href = resolveTarget(field.value); }
+    catch(error){ setStatus(error.message, "bad"); return; }
+    var host;
+    try{ host = new URL(href).host; }catch(error){ return; }
+    if(!/^http:\/\/localhost:/.test(href)){
+      setStatus("Shared link ready — press Open Grand-V.", "ok");
+      return;
+    }
+    setStatus("Checking for a launcher on " + host + "…");
+    var controller = new AbortController();
+    var timer = setTimeout(function(){ controller.abort(); }, 2500);
+    fetch(href, {mode:"no-cors", cache:"no-store", signal:controller.signal}).then(function(){
+      if(token !== probeToken) return;
+      setStatus("Launcher answered on " + host + ".", "ok");
+    }).catch(function(){
+      if(token !== probeToken) return;
+      setStatus("No launcher answered on " + host + ". Start it, then press Open Grand-V.", "warn");
+    }).then(function(){
+      clearTimeout(timer);
+    });
+  }
+
+  button.addEventListener("click", function(){
+    var href;
+    try{ href = resolveTarget(field.value); }
+    catch(error){ setStatus(error.message, "bad"); return; }
+    remember();
+    // Same tab on purpose: the launcher needs to be the top-level document.
+    location.assign(href);
+  });
+
+  field.addEventListener("change", function(){
+    if(!field.value.trim()) field.value = DEFAULT_PORT;
+    remember();
+    probe();
+  });
+  field.addEventListener("keydown", function(event){
+    if(event.key === "Enter"){ event.preventDefault(); button.click(); }
+  });
+
+  try{
+    var saved = localStorage.getItem("seuss-grandv-target");
+    if(saved) field.value = saved;
+  }catch(error){}
+  probe();
+})();
+</script>
+</body>
+</html>
